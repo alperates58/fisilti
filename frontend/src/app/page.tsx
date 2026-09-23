@@ -3,10 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useChatStore, Conversation } from "@/store/useChatStore";
+import { useChatStore } from "@/store/useChatStore";
 import { useSocketStore } from "@/store/useSocketStore";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInfoModal from "@/components/chat/MessageInfoModal";
+import ReplyBar from "@/components/chat/ReplyBar";
+import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
+import AudioRecorder from "@/components/chat/AudioRecorder";
 import { api } from "@/lib/api";
 import {
   MessageSquare,
@@ -15,10 +18,11 @@ import {
   Search,
   UserPlus,
   ShieldCheck,
-  CheckCheck,
   Sparkles,
   Phone,
   Video,
+  ArrowLeft,
+  Mic,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -31,6 +35,7 @@ export default function HomePage() {
     typingMap,
     loadConversations,
     selectConversation,
+    deselectConversation,
     sendMessage,
     sendTyping,
     startNewConversation,
@@ -40,6 +45,8 @@ export default function HomePage() {
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -98,7 +105,6 @@ export default function HomePage() {
     setInputMessage(e.target.value);
     if (!activeConversationId) return;
 
-    // Yazıyor bildirimini ilet
     sendTyping(activeConversationId, true);
 
     if (typingTimeoutRef.current) {
@@ -119,19 +125,19 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-grupo-dark-bg text-white">
+      <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-400">Fısıltı yükleniyor...</p>
+          <p className="text-sm text-slate-400 font-medium">Fısıltı yükleniyor...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen w-screen bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
-      {/* 1. SÜTUN: Sol Dikey Menü (64px) */}
-      <aside className="w-[64px] bg-grupo-dark-card border-r border-grupo-dark-border flex flex-col items-center py-4 justify-between z-20">
+    <div className="flex h-[100dvh] w-screen bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
+      {/* 1. SÜTUN: Sol Dikey Menü (64px) - Masaüstünde görünür, mobilde gizlenir */}
+      <aside className="hidden md:flex w-[64px] bg-grupo-dark-card border-r border-grupo-dark-border flex-col items-center py-4 justify-between z-20 flex-shrink-0">
         <div className="flex flex-col items-center gap-6">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-grupo-accent to-grupo-accent-secondary flex items-center justify-center font-bold text-white shadow-lg shadow-pink-500/25">
             F
@@ -158,12 +164,17 @@ export default function HomePage() {
         </div>
       </aside>
 
-      {/* 2. SÜTUN: Sohbet & Arama Listesi (340px) */}
-      <aside className="w-[340px] bg-grupo-dark-card border-r border-grupo-dark-border flex flex-col z-10">
+      {/* 2. SÜTUN: Sohbet & Arama Listesi */}
+      {/* Mobilde: activeConversationId seçili ise GİZLENİR (hidden), değilse TAM EKRAN (w-full). Masaüstünde: Sabit 340px (md:w-[340px] md:flex) */}
+      <aside
+        className={`${
+          activeConversationId ? "hidden md:flex" : "flex w-full"
+        } md:w-[340px] bg-grupo-dark-card border-r border-grupo-dark-border flex-col z-10 flex-shrink-0 h-full`}
+      >
         {/* Kullanıcı Profili Üst Barı */}
-        <div className="p-4 border-b border-grupo-dark-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+        <div className="p-3.5 sm:p-4 border-b border-grupo-dark-border flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400">
                 {user?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -176,13 +187,26 @@ export default function HomePage() {
                   user?.display_name?.charAt(0).toUpperCase() || "U"
                 )}
               </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
+              <span
+                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-grupo-dark-card ${
+                  isConnected ? "bg-emerald-500" : "bg-rose-500"
+                }`}
+              ></span>
             </div>
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-white truncate">{user?.display_name}</h2>
               <p className="text-xs text-slate-400 truncate">@{user?.username}</p>
             </div>
           </div>
+
+          {/* Mobilde sağ üstte pratik çıkış butonu */}
+          <button
+            onClick={() => logout().then(() => router.push("/login"))}
+            title="Çıkış Yap"
+            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Canlı Arama Kutusu */}
@@ -286,7 +310,13 @@ export default function HomePage() {
                               yazıyor...
                             </span>
                           ) : conv.last_message ? (
-                            conv.last_message.content
+                            conv.last_message.message_type === "voice" ? (
+                              "🎤 Sesli Mesaj"
+                            ) : conv.last_message.message_type === "image" ? (
+                              "📷 Fotoğraf"
+                            ) : (
+                              conv.last_message.content
+                            )
                           ) : (
                             <span className="italic text-slate-600">Sohbeti başlatın</span>
                           )}
@@ -306,14 +336,28 @@ export default function HomePage() {
         )}
       </aside>
 
-      {/* 3. SÜTUN: Merkez Sohbet Penceresi (Flex-1) */}
-      <main className="flex-1 flex flex-col bg-grupo-dark-bg relative">
+      {/* 3. SÜTUN: Merkez Sohbet Penceresi */}
+      {/* Mobilde: activeConversationId seçili değilse GİZLENİR (hidden), seçili ise TAM EKRAN (w-full). Masaüstünde: flex-1 */}
+      <main
+        className={`${
+          activeConversationId ? "flex w-full" : "hidden md:flex"
+        } md:flex-1 flex-col bg-grupo-dark-bg relative h-full`}
+      >
         {activeConv ? (
           <>
-            {/* Sohbet Üst Başlığı */}
-            <header className="h-16 border-b border-grupo-dark-border px-6 flex items-center justify-between bg-grupo-dark-card/60 backdrop-blur-md z-10">
-              <div className="flex items-center gap-3">
-                <div className="relative">
+            {/* Sohbet Üst Başlığı (ChatHeader) */}
+            <header className="h-16 border-b border-grupo-dark-border px-3 sm:px-6 flex items-center justify-between bg-grupo-dark-card/60 backdrop-blur-md z-10 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                {/* Mobilde Geri Butonu (<-- Geri) */}
+                <button
+                  onClick={deselectConversation}
+                  title="Geri Dön"
+                  className="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer -ml-1"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+
+                <div className="relative flex-shrink-0">
                   <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400">
                     {activeConv.other_user.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -330,11 +374,11 @@ export default function HomePage() {
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
                   )}
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-white truncate">
                     {activeConv.other_user.display_name}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 truncate">
                     {isOtherTyping ? (
                       <span className="text-pink-400 font-semibold animate-pulse">
                         yazıyor...
@@ -349,16 +393,16 @@ export default function HomePage() {
               </div>
 
               {/* Sesli / Görüntülü Arama Butonları (Hazırlık) */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
                   title="Sesli Arama (Faz 5)"
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button
                   title="Görüntülü Arama (Faz 5)"
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Video className="w-4 h-4" />
                 </button>
@@ -366,7 +410,7 @@ export default function HomePage() {
             </header>
 
             {/* Mesaj Akışı */}
-            <div className="flex-1 p-6 overflow-y-auto">
+            <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
                   <Sparkles className="w-8 h-8 text-pink-500/50 mb-2" />
@@ -379,29 +423,60 @@ export default function HomePage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Mesaj Giriş Barı */}
-            <footer className="p-4 border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md">
-              <form onSubmit={handleSend} className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={handleInputChange}
-                  placeholder="Bir mesaj yazın..."
-                  className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3.5 px-5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
-                  autoFocus
+            {/* Mesaj Giriş Barı & Alıntılama & Medya Menüsü */}
+            <footer className="p-2.5 sm:p-4 border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0">
+              {/* Alıntılanan Mesaj Barı */}
+              <ReplyBar />
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Grupo '+' Medya Yükleme Menüsü */}
+                <MediaUploadMenu
+                  conversationId={activeConv.id}
+                  onStartVoice={() => setIsRecordingVoice(true)}
                 />
-                <button
-                  type="submit"
-                  disabled={!inputMessage.trim()}
-                  className="w-12 h-12 rounded-2xl bg-grupo-accent hover:bg-grupo-accent-hover text-white flex items-center justify-center shadow-lg shadow-pink-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </form>
+
+                {/* Ses Kaydedici veya Metin Kutusu */}
+                {isRecordingVoice ? (
+                  <AudioRecorder
+                    conversationId={activeConv.id}
+                    onCancel={() => setIsRecordingVoice(false)}
+                    onComplete={() => setIsRecordingVoice(false)}
+                  />
+                ) : (
+                  <form onSubmit={handleSend} className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={inputMessage}
+                      onChange={handleInputChange}
+                      placeholder="Bir mesaj yazın..."
+                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
+                      autoFocus
+                    />
+
+                    {inputMessage.trim() ? (
+                      <button
+                        type="submit"
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-grupo-accent hover:bg-grupo-accent-hover text-white flex items-center justify-center shadow-lg shadow-pink-500/25 transition-all cursor-pointer flex-shrink-0"
+                      >
+                        <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsRecordingVoice(true)}
+                        title="Sesli Mesaj Kaydet"
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-grupo-dark-border flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                      >
+                        <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    )}
+                  </form>
+                )}
+              </div>
             </footer>
           </>
         ) : (
-          /* Aktif Konuşma Yokken Karşılama Ekranı */
+          /* Aktif Konuşma Yokken Karşılama Ekranı (Desktop) */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
             <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-pink-400 mb-4 shadow-xl">
               <MessageSquare className="w-8 h-8" />

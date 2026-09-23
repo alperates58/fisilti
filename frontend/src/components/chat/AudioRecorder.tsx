@@ -1,0 +1,193 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { Trash2, Send, Mic, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import { useChatStore } from "@/store/useChatStore";
+
+interface Props {
+  conversationId: string;
+  onCancel: () => void;
+  onComplete: () => void;
+}
+
+export default function AudioRecorder({ conversationId, onCancel, onComplete }: Props) {
+  const sendMediaMessage = useChatStore((state) => state.sendMediaMessage);
+
+  const [seconds, setSeconds] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    startRecording();
+
+    return () => {
+      stopTracks();
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const stopTracks = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const startRecording = async () => {
+    setError(null);
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
+        ? "audio/ogg;codecs=opus"
+        : "audio/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.start(100);
+      setIsRecording(true);
+
+      timerRef.current = setInterval(() => {
+        setSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error("Mikrofon erişim hatası:", err);
+      setError("Mikrofon izni alınamadı.");
+    }
+  };
+
+  const handleCancel = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    stopTracks();
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    onCancel();
+  };
+
+  const handleSend = () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") return;
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsRecording(false);
+    setIsUploading(true);
+
+    mediaRecorderRef.current.onstop = async () => {
+      stopTracks();
+      const recordedBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+
+      if (recordedBlob.size < 100) {
+        onCancel();
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", recordedBlob, "voice_message.webm");
+        formData.append("category", "voice");
+        formData.append("duration", seconds.toString());
+
+        const res = await api.post("/media/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        const { media_url, metadata } = res.data;
+
+        sendMediaMessage(conversationId, media_url, "voice", metadata);
+        onComplete();
+      } catch (err) {
+        console.error("Sesli mesaj yüklenemedi:", err);
+        setError("Sesli mesaj gönderilemedi.");
+        setIsUploading(false);
+      }
+    };
+
+    mediaRecorderRef.current.stop();
+  };
+
+  const formatTimer = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-between bg-slate-900/90 border border-rose-500/40 rounded-2xl py-2 px-4 text-xs text-rose-400">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          <span>{error}</span>
+        </div>
+        <button
+          onClick={handleCancel}
+          className="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 font-semibold cursor-pointer"
+        >
+          Kapat
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex items-center justify-between bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-2 px-4 shadow-inner animate-in fade-in duration-150">
+      {/* İptal Butonu */}
+      <button
+        type="button"
+        onClick={handleCancel}
+        disabled={isUploading}
+        title="Kaydı İptal Et"
+        className="w-9 h-9 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+
+      {/* Kayıt Göstergesi ve Sayaç */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex items-center justify-center">
+          <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute"></span>
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 relative"></span>
+        </div>
+        <span className="text-sm font-mono font-medium text-white tracking-wider">
+          {formatTimer(seconds)}
+        </span>
+        <span className="text-xs text-slate-400 hidden sm:inline">Ses kaydediliyor...</span>
+      </div>
+
+      {/* Gönder Butonu */}
+      <button
+        type="button"
+        onClick={handleSend}
+        disabled={isUploading}
+        title="Sesli Mesajı Gönder"
+        className="w-9 h-9 rounded-xl bg-grupo-accent hover:bg-grupo-accent-hover text-white flex items-center justify-center shadow-md shadow-pink-500/30 transition-all cursor-pointer disabled:opacity-50"
+      >
+        {isUploading ? (
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Send className="w-4 h-4" />
+        )}
+      </button>
+    </div>
+  );
+}

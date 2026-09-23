@@ -93,6 +93,18 @@ export const useSocketStore = create<SocketState>((set, get) => ({
               data.payload.last_seen_at
             );
             break;
+
+          case "message_edited":
+            chatStore.onMessageEdited(data.payload.message_id, data.payload.content);
+            break;
+
+          case "message_deleted":
+            chatStore.onMessageDeleted(data.payload.message_id, data.payload.is_deleted_for_all);
+            break;
+
+          case "message_reaction":
+            chatStore.onMessageReaction(data.payload.message_id, data.payload.reactions);
+            break;
         }
       } catch (e) {
         console.error("Mesaj parse edilemedi:", e);

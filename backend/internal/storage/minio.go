@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,12 +44,10 @@ func NewStorageService(endpoint, accessKey, secretKey, publicURL string, useSSL 
 }
 
 func (s *StorageService) UploadAvatar(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
-	// 1. Boyut kontrolü (Max 5MB)
 	if header.Size > 5*1024*1024 {
 		return "", errors.New("avatar dosyası en fazla 5MB olabilir")
 	}
 
-	// 2. Uzantı ve format kontrolü
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	validExts := map[string]string{
 		".jpg":  "image/jpeg",
@@ -61,10 +60,8 @@ func (s *StorageService) UploadAvatar(ctx context.Context, userID uuid.UUID, fil
 		return "", errors.New("sadece JPG, PNG veya WEBP formatında görseller yüklenebilir")
 	}
 
-	// 3. Benzersiz dosya adı
 	objectName := fmt.Sprintf("%s_%d%s", userID.String(), time.Now().Unix(), ext)
 
-	// 4. MinIO'ya yükle
 	_, err := s.client.PutObject(ctx, s.avatarBucket, objectName, file, header.Size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
@@ -72,7 +69,102 @@ func (s *StorageService) UploadAvatar(ctx context.Context, userID uuid.UUID, fil
 		return "", fmt.Errorf("avatar MinIO'ya yuklenemedi: %w", err)
 	}
 
-	// 5. İstemciye dönecek genel URL
 	avatarURL := fmt.Sprintf("%s/%s/%s", s.publicURL, s.avatarBucket, objectName)
 	return avatarURL, nil
+}
+
+type MediaUploadResult struct {
+	MediaURL string                 `json:"media_url"`
+	Metadata map[string]interface{} `json:"media_metadata"`
+}
+
+func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader, mediaCategory string) (*MediaUploadResult, error) {
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	fileName := header.Filename
+	fileSize := header.Size
+
+	var targetBucket string
+	var contentType string
+
+	switch mediaCategory {
+	case "voice":
+		targetBucket = s.voiceBucket
+		contentType = "audio/webm"
+		if ext == ".mp3" {
+			contentType = "audio/mpeg"
+		} else if ext == ".ogg" {
+			contentType = "audio/ogg"
+		} else if ext == ".wav" {
+			contentType = "audio/wav"
+		} else if ext == "" {
+			ext = ".webm"
+		}
+
+	case "image":
+		targetBucket = s.mediaBucket
+		if ext == ".png" {
+			contentType = "image/png"
+		} else if ext == ".webp" {
+			contentType = "image/webp"
+		} else if ext == ".gif" {
+			contentType = "image/gif"
+		} else {
+			contentType = "image/jpeg"
+		}
+
+	case "video":
+		targetBucket = s.mediaBucket
+		if ext == ".webm" {
+			contentType = "video/webm"
+		} else {
+			contentType = "video/mp4"
+		}
+
+	default: // "file" / belge
+		targetBucket = s.filesBucket
+		contentType = header.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+
+	objectName := fmt.Sprintf("%s_%d%s", userID.String(), time.Now().UnixNano(), ext)
+
+	_, err := s.client.PutObject(ctx, targetBucket, objectName, file, fileSize, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("dosya MinIO'ya yuklenemedi: %w", err)
+	}
+
+	mediaURL := fmt.Sprintf("%s/%s/%s", s.publicURL, targetBucket, objectName)
+
+	metadata := map[string]interface{}{
+		"file_name": fileName,
+		"file_size": fileSize,
+		"mime_type": contentType,
+		"ext":       ext,
+	}
+
+	return &MediaUploadResult{
+		MediaURL: mediaURL,
+		Metadata: metadata,
+	}, nil
+}
+
+func (s *StorageService) DeleteMedia(ctx context.Context, mediaURL string) error {
+	u, err := url.Parse(mediaURL)
+	if err != nil {
+		return err
+	}
+
+	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	if len(parts) < 2 {
+		return errors.New("gecersiz medya url")
+	}
+
+	bucket := parts[0]
+	objectName := strings.Join(parts[1:], "/")
+
+	return s.client.RemoveObject(ctx, bucket, objectName, minio.RemoveObjectOptions{})
 }

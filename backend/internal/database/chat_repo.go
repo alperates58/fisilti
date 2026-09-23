@@ -392,6 +392,143 @@ func (r *ChatRepository) GetMessageInfo(ctx context.Context, messageID, userID u
 	return &info, nil
 }
 
+func (r *ChatRepository) GetMessageByID(ctx context.Context, messageID uuid.UUID) (*models.Message, error) {
+	query := `
+		SELECT id, conversation_id, sender_id, recipient_id, reply_to_id, message_type, content, media_url, media_metadata,
+		       sent_at, delivered_at, read_at, is_edited, is_starred, is_deleted_for_all, reactions, created_at, updated_at
+		FROM messages
+		WHERE id = $1
+	`
+	var m models.Message
+	err := r.db.QueryRowContext(ctx, query, messageID).Scan(
+		&m.ID, &m.ConversationID, &m.SenderID, &m.RecipientID, &m.ReplyToID, &m.MessageType, &m.Content,
+		&m.MediaURL, &m.MediaMetadata, &m.SentAt, &m.DeliveredAt, &m.ReadAt, &m.IsEdited, &m.IsStarred,
+		&m.IsDeletedForAll, &m.Reactions, &m.CreatedAt, &m.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *ChatRepository) EditMessage(ctx context.Context, messageID, userID uuid.UUID, newContent string) error {
+	query := `
+		UPDATE messages
+		SET content = $1, is_edited = true, updated_at = NOW()
+		WHERE id = $2 AND sender_id = $3 AND created_at > NOW() - INTERVAL '15 minutes' AND is_deleted_for_all = false
+	`
+	res, err := r.db.ExecContext(ctx, query, newContent, messageID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return errors.New("mesaj düzenlenemez (15 dakikalık süre dolmuş veya yetkiniz yok)")
+	}
+	return nil
+}
+
+func (r *ChatRepository) DeleteMessageForMe(ctx context.Context, messageID, userID uuid.UUID) error {
+	query := `
+		UPDATE messages
+		SET deleted_for_users = array_append(deleted_for_users, $1)
+		WHERE id = $2 AND NOT ($1 = ANY(deleted_for_users))
+	`
+	_, err := r.db.ExecContext(ctx, query, userID, messageID)
+	return err
+}
+
+func (r *ChatRepository) DeleteMessageForAll(ctx context.Context, messageID, userID uuid.UUID) (*models.Message, error) {
+	query := `
+		UPDATE messages
+		SET is_deleted_for_all = true, content = '', updated_at = NOW()
+		WHERE id = $1 AND sender_id = $2
+		RETURNING id, conversation_id, sender_id, recipient_id, media_url
+	`
+	var m models.Message
+	err := r.db.QueryRowContext(ctx, query, messageID, userID).Scan(
+		&m.ID, &m.ConversationID, &m.SenderID, &m.RecipientID, &m.MediaURL,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("mesaj bulunamadı veya silme yetkiniz yok")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *ChatRepository) ToggleReaction(ctx context.Context, messageID, userID uuid.UUID, emoji string) (map[string][]string, error) {
+	m, err := r.GetMessageByID(ctx, messageID)
+	if err != nil || m == nil {
+		return nil, errors.New("mesaj bulunamadı")
+	}
+
+	reactions := make(map[string][]string)
+	if len(m.Reactions) > 0 {
+		_ = json.Unmarshal(m.Reactions, &reactions)
+	}
+
+	uidStr := userID.String()
+
+	// Önce kullanıcının diğer emojilerden tepkisini kaldır
+	for e, users := range reactions {
+		var filtered []string
+		for _, u := range users {
+			if u != uidStr {
+				filtered = append(filtered, u)
+			}
+		}
+		if len(filtered) > 0 {
+			reactions[e] = filtered
+		} else {
+			delete(reactions, e)
+		}
+	}
+
+	// Eğer aynı emojiye basmadıysa yeni emojiyi ekle
+	alreadyHadSame := false
+	if users, ok := reactions[emoji]; ok {
+		for _, u := range users {
+			if u == uidStr {
+				alreadyHadSame = true
+				break
+			}
+		}
+	}
+
+	if !alreadyHadSame {
+		reactions[emoji] = append(reactions[emoji], uidStr)
+	}
+
+	updatedBytes, err := json.Marshal(reactions)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = r.db.ExecContext(ctx, "UPDATE messages SET reactions = $1 WHERE id = $2", updatedBytes, messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	return reactions, nil
+}
+
+func (r *ChatRepository) ToggleStar(ctx context.Context, messageID, userID uuid.UUID) (bool, error) {
+	query := `
+		UPDATE messages
+		SET is_starred = NOT is_starred, updated_at = NOW()
+		WHERE id = $1 AND (sender_id = $2 OR recipient_id = $2)
+		RETURNING is_starred
+	`
+	var starred bool
+	err := r.db.QueryRowContext(ctx, query, messageID, userID).Scan(&starred)
+	return starred, err
+}
+
 // Unused import warning prevention helper
 var _ = pgx.ErrNoRows
 var _ = stdlib.GetDefaultDriver

@@ -36,8 +36,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-grupo-dark-bg p-4 select-none">
-      <div className="w-full max-w-md bg-grupo-dark-card border border-grupo-dark-border rounded-2xl p-8 shadow-2xl">
+    <div className="flex min-h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg p-4 sm:p-6 py-8 select-none overflow-y-auto">
+      <div className="w-full max-w-md bg-grupo-dark-card border border-grupo-dark-border rounded-2xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-grupo-accent to-grupo-accent-secondary flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-pink-500/25">
             F

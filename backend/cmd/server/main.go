@@ -85,7 +85,8 @@ func main() {
 	// 7. Handlers
 	authHandler := handlers.NewAuthHandler(cfg, userRepo)
 	userHandler := handlers.NewUserHandler(userRepo, storageService)
-	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService)
+	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
+	mediaHandler := handlers.NewMediaHandler(storageService)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 
 	// 8. Fiber Web Uygulaması
@@ -176,13 +177,20 @@ func main() {
 	users.Get("/search", userHandler.SearchUsers)
 
 	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
+	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaHandler.UploadMedia)
+
 	conversations := v1.Group("/conversations", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	conversations.Post("/", chatHandler.StartConversation)
 	conversations.Get("/", chatHandler.GetConversations)
 	conversations.Get("/:id/messages", chatHandler.GetMessages)
 	conversations.Delete("/:id/clear", chatHandler.ClearHistory)
 
-	v1.Get("/messages/:id/info", middleware.JWTMiddleware(cfg.JWTAccessSecret), chatHandler.GetMessageInfo)
+	messages := v1.Group("/messages", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	messages.Get("/:id/info", chatHandler.GetMessageInfo)
+	messages.Patch("/:id", chatHandler.EditMessage)
+	messages.Delete("/:id", chatHandler.DeleteMessage)
+	messages.Post("/:id/reactions", chatHandler.ToggleReaction)
+	messages.Post("/:id/star", chatHandler.ToggleStar)
 
 	// Graceful Shutdown
 	go func() {
