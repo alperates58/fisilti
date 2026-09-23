@@ -24,6 +24,10 @@ type Client struct {
 	send     chan []byte
 	userID   uuid.UUID
 	username string
+
+	// Rate limiting / Flood control
+	lastWindowStart time.Time
+	msgsInWindow    int
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, userID uuid.UUID, username string) *Client {
@@ -104,6 +108,21 @@ func (c *Client) handleAction(msg WSMessage) {
 		c.send <- pongMsg
 
 	case "send_message":
+		// Flood Koruması (Rate Limiting: Saniyede max 5 mesaj)
+		now := time.Now()
+		if now.Sub(c.lastWindowStart) >= time.Second {
+			c.lastWindowStart = now
+			c.msgsInWindow = 0
+		}
+		c.msgsInWindow++
+		if c.msgsInWindow > 5 {
+			warnPayload, _ := NewWSMessage("error", map[string]string{
+				"message": "Çok hızlı mesaj gönderiyorsunuz, lütfen birkaç saniye bekleyin.",
+			})
+			c.send <- warnPayload
+			return
+		}
+
 		var p SendMessagePayload
 		if err := json.Unmarshal(msg.Payload, &p); err != nil {
 			return
