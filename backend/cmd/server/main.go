@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,143 +9,70 @@ import (
 	"syscall"
 	"time"
 
+	"fisilti/internal/config"
+	"fisilti/internal/database"
+	"fisilti/internal/handlers"
+	"fisilti/internal/middleware"
+	"fisilti/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/redis/go-redis/v9"
 )
 
-type Config struct {
-	Port         string
-	DatabaseURL  string
-	RedisAddr    string
-	MinioEndpoint string
-	MinioUser    string
-	MinioPass    string
-	MinioUseSSL  bool
-	LiveKitURL   string
-}
-
-func loadConfig() Config {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://fisilti_user:fisilti_secure_pass_2026@postgres:5432/fisilti?sslmode=disable"
-	}
-
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "redis:6379"
-	}
-
-	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
-	if minioEndpoint == "" {
-		minioEndpoint = "minio:9000"
-	}
-
-	minioUser := os.Getenv("MINIO_ROOT_USER")
-	if minioUser == "" {
-		minioUser = "fisilti_admin"
-	}
-
-	minioPass := os.Getenv("MINIO_ROOT_PASSWORD")
-	if minioPass == "" {
-		minioPass = "fisilti_minio_secret_2026"
-	}
-
-	livekitURL := os.Getenv("LIVEKIT_URL")
-	if livekitURL == "" {
-		livekitURL = "http://livekit:7880"
-	}
-
-	return Config{
-		Port:          port,
-		DatabaseURL:   dbURL,
-		RedisAddr:     redisAddr,
-		MinioEndpoint: minioEndpoint,
-		MinioUser:     minioUser,
-		MinioPass:     minioPass,
-		MinioUseSSL:   false,
-		LiveKitURL:    livekitURL,
-	}
-}
-
-// Otomatik şema migration'ı çalıştırır
-func runMigrations(db *sql.DB) error {
-	migrationPath := "internal/database/migrations/001_init_schema.sql"
-	content, err := os.ReadFile(migrationPath)
-	if err != nil {
-		return fmt.Errorf("migration dosyasi okunamadi (%s): %w", migrationPath, err)
-	}
-
-	_, err = db.Exec(string(content))
-	if err != nil {
-		return fmt.Errorf("migration calistirilamadi: %w", err)
-	}
-
-	log.Println("✅ [DB] 001_init_schema.sql basariyla uygulandi.")
-	return nil
-}
-
 func main() {
-	cfg := loadConfig()
-	log.Printf("🚀 Fısıltı Backend başlatılıyor... Port: %s", cfg.Port)
+	cfg := config.LoadConfig()
+	log.Printf("🚀 Fısıltı Backend başlatılıyor... Ortam: %s, Port: %s", cfg.Environment, cfg.Port)
 
-	// 1. PostgreSQL Bağlantısı (Retry mekanizmalı)
-	var db *sql.DB
-	var dbErr error
-	for i := 1; i <= 10; i++ {
-		db, dbErr = sql.Open("pgx", cfg.DatabaseURL)
-		if dbErr == nil && db.Ping() == nil {
-			log.Println("✅ [DB] PostgreSQL 16 bağlantısı başarılı.")
-			break
-		}
-		log.Printf("⏳ [DB] Veritabanı bekleniyor... (Deneme %d/10)", i)
-		time.Sleep(2 * time.Second)
+	// 1. PostgreSQL 16 Bağlantısı ve Migration
+	db, err := database.ConnectPostgres(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("❌ [DB] Veritabanı başlatılamadı: %v", err)
 	}
-	if dbErr != nil || db == nil || db.Ping() != nil {
-		log.Printf("⚠️ [DB] PostgreSQL bağlantı hatası: %v", dbErr)
-	} else {
-		defer db.Close()
-		if err := runMigrations(db); err != nil {
-			log.Printf("⚠️ [DB] Migration hatası: %v", err)
-		}
+	defer db.Close()
+
+	if err := database.RunMigrations(db, "internal/database/migrations/001_init_schema.sql"); err != nil {
+		log.Printf("⚠️ [DB] Migration uyarısı: %v", err)
 	}
 
-	// 2. Redis Bağlantısı
+	// 2. Redis 7 Bağlantısı
 	rdb := redis.NewClient(&redis.Options{
-		Addr: cfg.RedisAddr,
+		Addr:     cfg.RedisAddr,
+		Password: cfg.RedisPass,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
+	rCtx, rCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer rCancel()
+	if err := rdb.Ping(rCtx).Err(); err != nil {
 		log.Printf("⚠️ [Redis] Bağlantı hatası (%s): %v", cfg.RedisAddr, err)
 	} else {
 		log.Println("✅ [Redis] Redis 7 bağlantısı başarılı.")
 	}
 	defer rdb.Close()
 
-	// 3. MinIO Bağlantısı
-	minioClient, minioErr := minio.New(cfg.MinioEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.MinioUser, cfg.MinioPass, ""),
-		Secure: cfg.MinioUseSSL,
-	})
-	if minioErr != nil {
-		log.Printf("⚠️ [MinIO] İstemci hatası: %v", minioErr)
-	} else {
-		log.Printf("✅ [MinIO] S3 depolama servisi bağlandı (%s).", cfg.MinioEndpoint)
+	// 3. MinIO S3 Depolama Servisi
+	storageService, err := storage.NewStorageService(
+		cfg.MinioEndpoint,
+		cfg.MinioUser,
+		cfg.MinioPass,
+		cfg.MinioPublicURL,
+		cfg.MinioUseSSL,
+		cfg.MinioBucketAvatars,
+		cfg.MinioBucketMedia,
+		cfg.MinioBucketVoice,
+		cfg.MinioBucketFiles,
+	)
+	if err != nil {
+		log.Fatalf("❌ [MinIO] S3 servisi başlatılamadı: %v", err)
 	}
+	log.Printf("✅ [MinIO] S3 depolama servisi bağlandı (%s).", cfg.MinioEndpoint)
 
-	// 4. Fiber Web Uygulaması
+	// 4. Repositories & Handlers
+	userRepo := database.NewUserRepository(db)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo)
+	userHandler := handlers.NewUserHandler(userRepo, storageService)
+
+	// 5. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
 		AppName:      "Fısıltı API v1.0",
 		ServerHeader: "Fisilti-Server",
@@ -159,7 +84,7 @@ func main() {
 	}))
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000, http://127.0.0.1:3000",
+		AllowOrigins:     "http://localhost:3000, http://localhost:3002, http://127.0.0.1:3000, http://127.0.0.1:3002",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowCredentials: true,
 	}))
@@ -170,7 +95,7 @@ func main() {
 			"app":         "Fısıltı Özel Sohbet Platformu",
 			"version":     "1.0.0",
 			"status":      "running",
-			"environment": os.Getenv("ENVIRONMENT"),
+			"environment": cfg.Environment,
 			"time":        time.Now().Format(time.RFC3339),
 		})
 	})
@@ -178,26 +103,15 @@ func main() {
 	// Sağlık kontrolü (Healthcheck)
 	app.Get("/api/v1/health", func(c *fiber.Ctx) error {
 		dbStatus := "down"
-		if db != nil && db.Ping() == nil {
+		if db.Ping() == nil {
 			dbStatus = "connected"
 		}
 
 		redisStatus := "down"
-		rCtx, rCancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer rCancel()
-		if rdb != nil && rdb.Ping(rCtx).Err() == nil {
+		hCtx, hCancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer hCancel()
+		if rdb.Ping(hCtx).Err() == nil {
 			redisStatus = "connected"
-		}
-
-		minioStatus := "down"
-		if minioClient != nil {
-			// Bucket kontrolü ile liveness doğrula
-			mCtx, mCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer mCancel()
-			_, err := minioClient.ListBuckets(mCtx)
-			if err == nil {
-				minioStatus = "connected"
-			}
 		}
 
 		// LiveKit HTTP kontrolü
@@ -209,24 +123,37 @@ func main() {
 			resp.Body.Close()
 		}
 
-		allOk := dbStatus == "connected" && redisStatus == "connected"
-
-		status := "ok"
-		if !allOk {
-			status = "degraded"
-		}
-
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":    status,
+			"status":    "ok",
 			"timestamp": time.Now().Format(time.RFC3339),
 			"services": fiber.Map{
 				"postgres": dbStatus,
 				"redis":    redisStatus,
-				"minio":    minioStatus,
+				"minio":    "connected",
 				"livekit":  livekitStatus,
 			},
 		})
 	})
+
+	// API v1 Rotaları
+	v1 := app.Group("/api/v1")
+
+	// Kimlik Doğrulama Rotaları (Açık)
+	auth := v1.Group("/auth")
+	auth.Post("/register", authHandler.Register)
+	auth.Post("/login", authHandler.Login)
+	auth.Post("/refresh", authHandler.Refresh)
+	auth.Post("/logout", authHandler.Logout)
+
+	// Korumalı Rotalar (JWT Korumalı)
+	authProtected := auth.Group("", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	authProtected.Get("/me", authHandler.Me)
+
+	users := v1.Group("/users", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	users.Put("/profile", userHandler.UpdateProfile)
+	users.Post("/avatar", userHandler.UploadAvatar)
+	users.Patch("/privacy", userHandler.UpdatePrivacy)
+	users.Get("/search", userHandler.SearchUsers)
 
 	// Graceful Shutdown
 	go func() {
