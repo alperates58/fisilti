@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, Image, FileText, Mic, Loader2 } from "lucide-react";
+import { Plus, Image, FileText, Mic, Loader2, MapPin } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatStore } from "@/store/useChatStore";
+import { compressImage, validateVideo } from "@/lib/compression";
 
 interface Props {
   conversationId: string;
@@ -42,8 +43,21 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
     setIsUploading(true);
 
     try {
+      let fileToUpload = file;
+      if (file.type.startsWith("image/")) {
+        // İstemci tarafı kayıpsıza yakın sıkıştırma uygula
+        fileToUpload = await compressImage(file);
+      } else if (file.type.startsWith("video/")) {
+        const val = validateVideo(file);
+        if (!val.valid) {
+          alert(val.error);
+          setIsUploading(false);
+          return;
+        }
+      }
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
       formData.append("category", category);
 
       const res = await api.post("/media/upload", formData, {
@@ -66,6 +80,34 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
       // Reset input
       e.target.value = "";
     }
+  };
+
+  const handleShareLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Tarayıcınız konum servisini desteklemiyor.");
+      return;
+    }
+    setIsOpen(false);
+    setIsUploading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsUploading(false);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        sendMediaMessage(
+          conversationId,
+          "",
+          "location",
+          { latitude: lat, longitude: lng },
+          "📍 Canlı Konum Paylaşıldı"
+        );
+      },
+      (err) => {
+        setIsUploading(false);
+        alert("Konum alınamadı: Lütfen tarayıcınızda konum erişimine izin verildiğinden emin olun.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
@@ -134,6 +176,19 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
             <div>
               <div className="font-semibold">Sesli Mesaj</div>
               <div className="text-[10px] text-slate-400">Mikrofonla kaydet</div>
+            </div>
+          </button>
+
+          <button
+            onClick={handleShareLocation}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+          >
+            <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-semibold">Konum Paylaş</div>
+              <div className="text-[10px] text-slate-400">Anlık harita konumu</div>
             </div>
           </button>
         </div>

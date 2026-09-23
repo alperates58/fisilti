@@ -95,8 +95,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             chatStore.onNewMessage(data.payload);
             // Mesajın ulaştığını onayla
             get().sendAction("delivered_ack", { message_ids: [data.payload.id] });
-            // Eğer aktif açık sohbetse anında okundu da yolla
-            if (chatStore.activeConversationId === data.payload.conversation_id) {
+            // Yalnızca sayfa görünür durumdaysa ve kilitli değilse okundu bilgisi gönder
+            const isVisibleAndFocused =
+              typeof document !== "undefined" &&
+              !document.hidden &&
+              document.visibilityState === "visible" &&
+              document.hasFocus();
+
+            if (isVisibleAndFocused && chatStore.activeConversationId === data.payload.conversation_id) {
               get().sendAction("read_ack", {
                 conversation_id: data.payload.conversation_id,
                 message_ids: [data.payload.id],

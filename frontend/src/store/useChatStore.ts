@@ -25,6 +25,9 @@ export interface Message {
     waveform?: number[];
     mime_type?: string;
     ext?: string;
+    latitude?: number;
+    longitude?: number;
+    [key: string]: any;
   };
   reactions?: Record<string, string[]>; // { "👍": ["uuid1", "uuid2"], "❤️": ["uuid1"] }
   sent_at: string;

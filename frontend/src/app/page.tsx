@@ -92,6 +92,37 @@ export default function HomePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeConversationId]);
 
+  // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde okunmamış mesajları 'read_ack' ile onayla
+  useEffect(() => {
+    const handleVisibilityOrFocus = () => {
+      const isVisible =
+        typeof document !== "undefined" &&
+        !document.hidden &&
+        document.visibilityState === "visible";
+
+      if (isVisible && activeConversationId) {
+        const convMessages = messages[activeConversationId] || [];
+        const unreadIds = convMessages
+          .filter((m) => !m.is_mine && !m.read_at)
+          .map((m) => m.id);
+
+        if (unreadIds.length > 0) {
+          useSocketStore.getState().sendAction("read_ack", {
+            conversation_id: activeConversationId,
+            message_ids: unreadIds,
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+    };
+  }, [activeConversationId, messages]);
+
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
     if (activeTab === "contacts" && isAuthenticated) {

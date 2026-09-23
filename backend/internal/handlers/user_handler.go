@@ -16,13 +16,20 @@ type UserHandler struct {
 	userRepo        *database.UserRepository
 	storage         *storage.StorageService
 	presenceService *fisiltiredis.PresenceService
+	accessRepo      *database.AccessRepository
 }
 
-func NewUserHandler(userRepo *database.UserRepository, storage *storage.StorageService, presenceService *fisiltiredis.PresenceService) *UserHandler {
+func NewUserHandler(
+	userRepo *database.UserRepository,
+	storage *storage.StorageService,
+	presenceService *fisiltiredis.PresenceService,
+	accessRepo *database.AccessRepository,
+) *UserHandler {
 	return &UserHandler{
 		userRepo:        userRepo,
 		storage:         storage,
 		presenceService: presenceService,
+		accessRepo:      accessRepo,
 	}
 }
 
@@ -159,4 +166,20 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(users)
+}
+
+func (h *UserHandler) GetAccessLogs(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	if h.accessRepo == nil {
+		return c.JSON([]models.AccessLog{})
+	}
+
+	logs, err := h.accessRepo.GetUserAccessLogs(c.Context(), userID, 20)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Giriş kayıtları alınamadı.",
+		})
+	}
+
+	return c.JSON(logs)
 }

@@ -15,6 +15,8 @@ import {
   Star,
   MoreVertical,
   X,
+  MapPin,
+  ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import AudioWaveform from "./AudioWaveform";
@@ -162,14 +164,55 @@ export default function MessageBubble({ message }: Props) {
             </div>
           )}
 
-          {/* 3. Video */}
+          {/* 3. Video (iOS & Android Evrensel Uyumluluk) */}
           {message.message_type === "video" && message.media_url && !message.is_deleted_for_all && (
-            <div className="my-1 overflow-hidden rounded-xl max-h-72">
+            <div className="my-1 overflow-hidden rounded-2xl max-h-72 bg-black">
               <video
-                src={message.media_url}
                 controls
-                className="max-h-72 w-full rounded-xl object-contain bg-black"
-              />
+                playsInline
+                preload="metadata"
+                className="max-h-72 w-full rounded-2xl object-contain bg-black"
+              >
+                <source src={message.media_url} type="video/mp4" />
+                <source src={message.media_url} type="video/webm" />
+                <source src={message.media_url} type="video/quicktime" />
+                Tarayıcınız bu videoyu oynatmayı desteklemiyor.
+              </video>
+            </div>
+          )}
+
+          {/* 3b. Konum (WhatsApp Tarzı Canlı Konum) */}
+          {message.message_type === "location" && !message.is_deleted_for_all && (
+            <div className="my-1 rounded-2xl overflow-hidden border border-white/10 bg-slate-900/80 min-w-[220px]">
+              <div className="relative h-28 w-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                <div
+                  className="absolute inset-0 opacity-40 bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url('https://static-maps.yandex.ru/1.x/?ll=${message.media_metadata?.longitude || 28.9784},${message.media_metadata?.latitude || 41.0082}&z=14&l=map&size=300,120&pt=${message.media_metadata?.longitude || 28.9784},${message.media_metadata?.latitude || 41.0082},pm2rdm')`,
+                  }}
+                />
+                <div className="relative z-10 flex flex-col items-center gap-1 bg-black/60 px-3 py-1.5 rounded-xl backdrop-blur-xs">
+                  <MapPin className="w-5 h-5 text-rose-500 animate-bounce" />
+                  <span className="text-[11px] font-bold text-white">Canlı Konum</span>
+                </div>
+              </div>
+              <div className="p-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">Paylaşılan Konum</div>
+                  <div className="text-[10px] text-slate-400">
+                    {message.media_metadata?.latitude?.toFixed(4)}°, {message.media_metadata?.longitude?.toFixed(4)}°
+                  </div>
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${message.media_metadata?.latitude},${message.media_metadata?.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Aç</span>
+                </a>
+              </div>
             </div>
           )}
 

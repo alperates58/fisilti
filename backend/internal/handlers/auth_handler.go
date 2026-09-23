@@ -23,6 +23,7 @@ type AuthHandler struct {
 	userRepo        *database.UserRepository
 	presenceService *fisiltiredis.PresenceService
 	hub             *fisiltiws.Hub
+	accessRepo      *database.AccessRepository
 }
 
 func NewAuthHandler(
@@ -30,12 +31,14 @@ func NewAuthHandler(
 	userRepo *database.UserRepository,
 	presenceService *fisiltiredis.PresenceService,
 	hub *fisiltiws.Hub,
+	accessRepo *database.AccessRepository,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:             cfg,
 		userRepo:        userRepo,
 		presenceService: presenceService,
 		hub:             hub,
+		accessRepo:      accessRepo,
 	}
 }
 
@@ -165,6 +168,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	h.setAuthCookies(c, accessToken, refreshToken)
 
+	if h.accessRepo != nil {
+		_ = h.accessRepo.LogAccess(c.Context(), user.ID, c.IP(), c.Get("User-Agent"))
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(models.AuthResponse{
 		User:        user.ToResponse(),
 		AccessToken: accessToken,
@@ -210,6 +217,10 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	h.setAuthCookies(c, accessToken, refreshToken)
+
+	if h.accessRepo != nil {
+		_ = h.accessRepo.LogAccess(c.Context(), user.ID, c.IP(), c.Get("User-Agent"))
+	}
 
 	return c.JSON(models.AuthResponse{
 		User:        user.ToResponse(),

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { api } from "@/lib/api";
 import {
   X,
   User,
@@ -12,6 +13,10 @@ import {
   Camera,
   Loader2,
   Lock,
+  History,
+  Laptop,
+  Smartphone,
+  Globe,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -24,7 +29,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
   const router = useRouter();
   const { user, updateProfile, uploadAvatar, updatePrivacy, logout } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<"profile" | "privacy">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "privacy" | "access_logs">("profile");
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [readReceipts, setReadReceipts] = useState(user?.privacy_settings?.read_receipts ?? true);
@@ -34,6 +39,19 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [accessLogs, setAccessLogs] = useState<any[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && activeTab === "access_logs") {
+      setIsLoadingLogs(true);
+      api
+        .get("/users/access-logs")
+        .then((res) => setAccessLogs(res.data))
+        .catch((err) => console.error("Access log hatası:", err))
+        .finally(() => setIsLoadingLogs(false));
+    }
+  }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
@@ -128,6 +146,17 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           >
             <Shield className="w-4 h-4" />
             <span>Gizlilik ve Güvenlik</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("access_logs")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === "access_logs"
+                ? "border-grupo-accent text-pink-400"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Giriş Kayıtları</span>
           </button>
         </div>
 
@@ -315,6 +344,82 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
                 <Lock className="w-4 h-4 flex-shrink-0" />
                 <span>Tüm iletişim ve görüşmeler self-hosted sunucumuzda şifrelenir.</span>
               </div>
+            </div>
+          )}
+
+          {activeTab === "access_logs" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-grupo-dark-border">
+                <div>
+                  <h4 className="text-sm font-bold text-white">Son Giriş Kayıtları (Access Logs)</h4>
+                  <p className="text-xs text-slate-400">
+                    Hesabınıza yapılan son oturum açma işlemleri ve kullanılan cihazlar.
+                  </p>
+                </div>
+                <History className="w-5 h-5 text-pink-400" />
+              </div>
+
+              {isLoadingLogs ? (
+                <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
+                  <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                  <span>Kayıtlar yükleniyor...</span>
+                </div>
+              ) : accessLogs.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  Henüz kayıtlı bir giriş geçmişi bulunamadı.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {accessLogs.map((log: any, idx: number) => {
+                    const isMobile =
+                      log.device_info?.toLowerCase().includes("iphone") ||
+                      log.device_info?.toLowerCase().includes("android");
+
+                    return (
+                      <div
+                        key={log.id || idx}
+                        className="p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-pink-400">
+                            {isMobile ? (
+                              <Smartphone className="w-4 h-4" />
+                            ) : (
+                              <Laptop className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white truncate flex items-center gap-2">
+                              <span>{log.device_info || "Bilinmeyen Cihaz"}</span>
+                              {idx === 0 && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                                  Son Giriş
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                              <span className="flex items-center gap-1 font-mono">
+                                <Globe className="w-3 h-3 text-slate-500" />
+                                {log.ip_address}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 text-right flex-shrink-0">
+                          {new Date(log.created_at).toLocaleString("tr-TR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

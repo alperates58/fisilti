@@ -116,6 +116,8 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		targetBucket = s.mediaBucket
 		if ext == ".webm" {
 			contentType = "video/webm"
+		} else if ext == ".mov" || ext == ".m4v" {
+			contentType = "video/mp4"
 		} else {
 			contentType = "video/mp4"
 		}

@@ -79,6 +79,7 @@ func main() {
 	userRepo := database.NewUserRepository(db)
 	chatRepo := database.NewChatRepository(db)
 	callRepo := database.NewCallRepository(db)
+	accessRepo := database.NewAccessRepository(db)
 
 	// LiveKit SFU Servisi
 	livekitService := livekit.NewLiveKitService(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret, cfg.LiveKitPublicURL)
@@ -89,8 +90,8 @@ func main() {
 	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
 
 	// 7. Handlers
-	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub)
-	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub, accessRepo)
+	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService, accessRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
 	mediaHandler := handlers.NewMediaHandler(storageService)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
@@ -191,6 +192,7 @@ func main() {
 	users.Post("/avatar", userHandler.UploadAvatar)
 	users.Patch("/privacy", userHandler.UpdatePrivacy)
 	users.Get("/search", userHandler.SearchUsers)
+	users.Get("/access-logs", userHandler.GetAccessLogs)
 
 	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
 	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaLimiter, mediaHandler.UploadMedia)
