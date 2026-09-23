@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fisilti/internal/config"
+	"fisilti/internal/cron"
 	"fisilti/internal/database"
 	"fisilti/internal/handlers"
 	"fisilti/internal/livekit"
@@ -106,11 +107,16 @@ func main() {
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
 	}))
 	app.Use(recover.New())
+	app.Use(middleware.SecurityHeadersMiddleware())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:3000, http://localhost:3002, http://127.0.0.1:3000, http://127.0.0.1:3002",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, Sec-WebSocket-Protocol",
 		AllowCredentials: true,
 	}))
+
+	// Süresi Dolan Mesajları Temizleme Servisi (Cron Worker)
+	cleaner := cron.NewExpiredMessagesCleaner(db, storageService, hub)
+	cleaner.Start(context.Background(), 30*time.Second)
 
 	// Kök karşılama rotası
 	app.Get("/", func(c *fiber.Ctx) error {
@@ -165,10 +171,14 @@ func main() {
 	// API v1 Rotaları
 	v1 := app.Group("/api/v1")
 
+	// Hız sınırlayıcılar (Rate Limiters)
+	authLimiter := middleware.NewRateLimiter(rdb, 15, 1*time.Minute)
+	mediaLimiter := middleware.NewRateLimiter(rdb, 20, 1*time.Minute)
+
 	// Kimlik Doğrulama Rotaları (Açık)
 	auth := v1.Group("/auth")
-	auth.Post("/register", authHandler.Register)
-	auth.Post("/login", authHandler.Login)
+	auth.Post("/register", authLimiter, authHandler.Register)
+	auth.Post("/login", authLimiter, authHandler.Login)
 	auth.Post("/refresh", authHandler.Refresh)
 	auth.Post("/logout", authHandler.Logout)
 
@@ -183,7 +193,7 @@ func main() {
 	users.Get("/search", userHandler.SearchUsers)
 
 	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
-	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaHandler.UploadMedia)
+	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaLimiter, mediaHandler.UploadMedia)
 
 	conversations := v1.Group("/conversations", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	conversations.Post("/", chatHandler.StartConversation)
