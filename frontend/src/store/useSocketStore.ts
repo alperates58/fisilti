@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { useChatStore } from "./useChatStore";
+import { soundEffects } from "@/lib/sounds";
+import { notificationManager } from "@/lib/notifications";
 
 interface SocketState {
   socket: WebSocket | null;
@@ -50,10 +52,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
         switch (data.action) {
           case "message_sent":
+            soundEffects.playSent();
             chatStore.onMessageSent(data.payload.temp_id, data.payload.message);
             break;
 
           case "new_message":
+            soundEffects.playReceived();
+            notificationManager.notify("Fısıltı - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
+            notificationManager.flashTitle(1);
             chatStore.onNewMessage(data.payload);
             // Mesajın ulaştığını onayla
             get().sendAction("delivered_ack", { message_ids: [data.payload.id] });
@@ -107,25 +113,28 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             break;
 
           case "incoming_call":
-            // Dinamik import veya useCallStore
+            soundEffects.startRingtone();
             import("./useCallStore").then(({ useCallStore }) => {
               useCallStore.getState().onIncomingCall(data.payload);
             });
             break;
 
           case "call_answered":
+            soundEffects.stopRingtone();
             import("./useCallStore").then(({ useCallStore }) => {
               useCallStore.getState().onCallAnswered(data.payload);
             });
             break;
 
           case "call_rejected":
+            soundEffects.stopRingtone();
             import("./useCallStore").then(({ useCallStore }) => {
               useCallStore.getState().onCallRejected(data.payload);
             });
             break;
 
           case "call_ended":
+            soundEffects.stopRingtone();
             import("./useCallStore").then(({ useCallStore }) => {
               useCallStore.getState().onCallEnded(data.payload);
             });

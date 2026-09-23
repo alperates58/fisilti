@@ -1,0 +1,17 @@
+{
+  "name": "Fısıltı - Yeni Nesil Özel Sohbet",
+  "short_name": "Fısıltı",
+  "description": "WhatsApp tarzı 3 aşamalı durum takibi ve self-hosted WebRTC görüşme",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0C0F",
+  "theme_color": "#0B0C0F",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
