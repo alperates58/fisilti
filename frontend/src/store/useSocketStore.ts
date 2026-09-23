@@ -105,6 +105,31 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           case "message_reaction":
             chatStore.onMessageReaction(data.payload.message_id, data.payload.reactions);
             break;
+
+          case "incoming_call":
+            // Dinamik import veya useCallStore
+            import("./useCallStore").then(({ useCallStore }) => {
+              useCallStore.getState().onIncomingCall(data.payload);
+            });
+            break;
+
+          case "call_answered":
+            import("./useCallStore").then(({ useCallStore }) => {
+              useCallStore.getState().onCallAnswered(data.payload);
+            });
+            break;
+
+          case "call_rejected":
+            import("./useCallStore").then(({ useCallStore }) => {
+              useCallStore.getState().onCallRejected(data.payload);
+            });
+            break;
+
+          case "call_ended":
+            import("./useCallStore").then(({ useCallStore }) => {
+              useCallStore.getState().onCallEnded(data.payload);
+            });
+            break;
         }
       } catch (e) {
         console.error("Mesaj parse edilemedi:", e);

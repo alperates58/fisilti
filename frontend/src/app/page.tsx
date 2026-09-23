@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSocketStore } from "@/store/useSocketStore";
+import { useCallStore } from "@/store/useCallStore";
+import IncomingCallModal from "@/components/call/IncomingCallModal";
+import ActiveCallModal from "@/components/call/ActiveCallModal";
 import SideNavigation, { NavTab } from "@/components/layout/SideNavigation";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import SettingsModal from "@/components/chat/SettingsModal";
@@ -50,6 +53,7 @@ export default function HomePage() {
     startNewConversation,
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
+  const initiateCall = useCallStore((state) => state.initiateCall);
 
   const [activeTab, setActiveTab] = useState<NavTab>("chats");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -529,14 +533,16 @@ export default function HomePage() {
               {/* Sesli / Görüntülü Arama & Profil Butonları */}
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
-                  title="Sesli Arama (Faz 5)"
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  onClick={() => initiateCall(activeConv.id, "audio")}
+                  title="Sesli Arama Başlat"
+                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors cursor-pointer"
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button
-                  title="Görüntülü Arama (Faz 5)"
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  onClick={() => initiateCall(activeConv.id, "video")}
+                  title="Görüntülü Arama Başlat"
+                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-pink-400 transition-colors cursor-pointer"
                 >
                   <Video className="w-4 h-4" />
                 </button>
@@ -701,6 +707,10 @@ export default function HomePage() {
 
         {/* Ayarlar ve Profil Modalı */}
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+        {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
+        <IncomingCallModal />
+        <ActiveCallModal />
       </main>
     </div>
   );

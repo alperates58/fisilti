@@ -1,0 +1,278 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"fisilti/internal/database"
+	"fisilti/internal/livekit"
+	"fisilti/internal/models"
+	fisiltiws "fisilti/internal/websocket"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+)
+
+type CallHandler struct {
+	callRepo       *database.CallRepository
+	chatRepo       *database.ChatRepository
+	userRepo       *database.UserRepository
+	livekitService *livekit.LiveKitService
+	hub            *fisiltiws.Hub
+	redisClient    *redis.Client
+}
+
+func NewCallHandler(
+	callRepo *database.CallRepository,
+	chatRepo *database.ChatRepository,
+	userRepo *database.UserRepository,
+	livekitService *livekit.LiveKitService,
+	hub *fisiltiws.Hub,
+	redisClient *redis.Client,
+) *CallHandler {
+	return &CallHandler{
+		callRepo:       callRepo,
+		chatRepo:       chatRepo,
+		userRepo:       userRepo,
+		livekitService: livekitService,
+		hub:            hub,
+		redisClient:    redisClient,
+	}
+}
+
+type InitiateCallRequest struct {
+	ConversationID uuid.UUID `json:"conversation_id"`
+	CallType       string    `json:"call_type"` // "audio" veya "video"
+}
+
+func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
+	callerID := c.Locals("user_id").(uuid.UUID)
+
+	var req InitiateCallRequest
+	if err := c.BodyParser(&req); err != nil || req.ConversationID == uuid.Nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz arama parametreleri."})
+	}
+	if req.CallType != "audio" && req.CallType != "video" {
+		req.CallType = "audio"
+	}
+
+	// 1. Konuşmayı ve Karşı Tarafı Bul
+	conv, err := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
+	if err != nil || conv == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Konuşma bulunamadı."})
+	}
+
+	receiverID := conv.UserTwoID
+	if conv.UserOneID != callerID {
+		receiverID = conv.UserOneID
+	}
+
+	// 2. Arayan ve Alıcı Bilgileri
+	caller, err := h.userRepo.GetUserByID(c.Context(), callerID)
+	if err != nil || caller == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Arayan kullanıcı bulunamadı."})
+	}
+
+	receiver, err := h.userRepo.GetUserByID(c.Context(), receiverID)
+	if err != nil || receiver == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Aranan kullanıcı bulunamadı."})
+	}
+
+	// 3. Karşı taraf aramalara izin veriyor mu?
+	var privacy models.PrivacySettings
+	if len(receiver.PrivacySettings) > 0 {
+		_ = json.Unmarshal(receiver.PrivacySettings, &privacy)
+		if !privacy.AllowCalls {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":  "Kullanıcı gelen aramaları kabul etmiyor.",
+				"reason": "busy",
+			})
+		}
+	}
+
+	// 4. Karşı taraf meşgul mü? (Redis kontrolü)
+	inCallKey := fmt.Sprintf("in_call:%s", receiverID.String())
+	if exists, _ := h.redisClient.Exists(c.Context(), inCallKey).Result(); exists > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":  "Kullanıcı şu anda başka bir görüşmede.",
+			"reason": "busy",
+		})
+	}
+
+	// 5. LiveKit Oda Adı ve Tokenları Üret
+	roomName := fmt.Sprintf("call_%s_%d", req.ConversationID.String()[:8], time.Now().Unix())
+
+	callerToken, err := h.livekitService.CreateRoomToken(roomName, callerID, caller.DisplayName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Arama tokenı üretilemedi."})
+	}
+
+	receiverToken, err := h.livekitService.CreateRoomToken(roomName, receiverID, receiver.DisplayName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Alıcı tokenı üretilemedi."})
+	}
+
+	// 6. DB Çağrı Kaydı Aç
+	callLog, err := h.callRepo.CreateCallLog(c.Context(), req.ConversationID, callerID, receiverID, req.CallType, "ringing")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Çağrı kaydı oluşturulamadı."})
+	}
+
+	// 7. Redis Arama Kilitleri (60 saniye arama süresi)
+	callerInCall := fmt.Sprintf("in_call:%s", callerID.String())
+	h.redisClient.Set(c.Context(), inCallKey, callLog.ID.String(), 60*time.Second)
+	h.redisClient.Set(c.Context(), callerInCall, callLog.ID.String(), 60*time.Second)
+
+	// 8. WebSocket ile Alıcıya incoming_call Sinyali Bas
+	incomingPayload, _ := fisiltiws.NewWSMessage("incoming_call", fiber.Map{
+		"call_id":         callLog.ID,
+		"conversation_id": req.ConversationID,
+		"caller": fiber.Map{
+			"id":           caller.ID,
+			"display_name": caller.DisplayName,
+			"avatar_url":   caller.AvatarURL,
+		},
+		"call_type":   req.CallType,
+		"room_name":   roomName,
+		"room_token":  receiverToken,
+		"livekit_url": h.livekitService.GetPublicURL(),
+	})
+	h.hub.SendToUser(receiverID, incomingPayload)
+
+	return c.JSON(fiber.Map{
+		"call_id":     callLog.ID,
+		"room_name":   roomName,
+		"token":       callerToken,
+		"livekit_url": h.livekitService.GetPublicURL(),
+	})
+}
+
+type AcceptCallRequest struct {
+	CallID         uuid.UUID `json:"call_id"`
+	ConversationID uuid.UUID `json:"conversation_id"`
+}
+
+func (h *CallHandler) AcceptCall(c *fiber.Ctx) error {
+	receiverID := c.Locals("user_id").(uuid.UUID)
+
+	var req AcceptCallRequest
+	if err := c.BodyParser(&req); err != nil || req.CallID == uuid.Nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
+	}
+
+	// Redis kilitlerini görüşme süresine uzat (2 saat)
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
+	if conv != nil {
+		callerID := conv.UserOneID
+		if callerID == receiverID {
+			callerID = conv.UserTwoID
+		}
+
+		h.redisClient.Expire(c.Context(), fmt.Sprintf("in_call:%s", receiverID.String()), 2*time.Hour)
+		h.redisClient.Expire(c.Context(), fmt.Sprintf("in_call:%s", callerID.String()), 2*time.Hour)
+
+		// Arayana kabul sinyali gönder
+		acceptedPayload, _ := fisiltiws.NewWSMessage("call_answered", fiber.Map{
+			"call_id": req.CallID,
+		})
+		h.hub.SendToUser(callerID, acceptedPayload)
+	}
+
+	return c.JSON(fiber.Map{"status": "accepted"})
+}
+
+type RejectCallRequest struct {
+	CallID         uuid.UUID `json:"call_id"`
+	ConversationID uuid.UUID `json:"conversation_id"`
+	Reason         string    `json:"reason"`
+}
+
+func (h *CallHandler) RejectCall(c *fiber.Ctx) error {
+	rejecterID := c.Locals("user_id").(uuid.UUID)
+
+	var req RejectCallRequest
+	if err := c.BodyParser(&req); err != nil || req.CallID == uuid.Nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
+	}
+
+	reason := req.Reason
+	if reason == "" {
+		reason = "rejected"
+	}
+
+	_ = h.callRepo.UpdateCallStatus(c.Context(), req.CallID, reason, 0)
+
+	// Redis kilitlerini kaldır
+	h.redisClient.Del(c.Context(), fmt.Sprintf("in_call:%s", rejecterID.String()))
+
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
+	if conv != nil {
+		otherID := conv.UserOneID
+		if otherID == rejecterID {
+			otherID = conv.UserTwoID
+		}
+		h.redisClient.Del(c.Context(), fmt.Sprintf("in_call:%s", otherID.String()))
+
+		rejectedPayload, _ := fisiltiws.NewWSMessage("call_rejected", fiber.Map{
+			"call_id": req.CallID,
+			"reason":  reason,
+		})
+		h.hub.SendToUser(otherID, rejectedPayload)
+	}
+
+	return c.JSON(fiber.Map{"status": "rejected"})
+}
+
+type EndCallRequest struct {
+	CallID          uuid.UUID `json:"call_id"`
+	ConversationID  uuid.UUID `json:"conversation_id"`
+	DurationSeconds int       `json:"duration_seconds"`
+}
+
+func (h *CallHandler) EndCall(c *fiber.Ctx) error {
+	enderID := c.Locals("user_id").(uuid.UUID)
+
+	var req EndCallRequest
+	if err := c.BodyParser(&req); err != nil || req.CallID == uuid.Nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
+	}
+
+	_ = h.callRepo.UpdateCallStatus(c.Context(), req.CallID, "completed", req.DurationSeconds)
+
+	h.redisClient.Del(c.Context(), fmt.Sprintf("in_call:%s", enderID.String()))
+
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
+	if conv != nil {
+		otherID := conv.UserOneID
+		if otherID == enderID {
+			otherID = conv.UserTwoID
+		}
+		h.redisClient.Del(c.Context(), fmt.Sprintf("in_call:%s", otherID.String()))
+
+		endPayload, _ := fisiltiws.NewWSMessage("call_ended", fiber.Map{
+			"call_id":          req.CallID,
+			"duration_seconds": req.DurationSeconds,
+		})
+		h.hub.SendToUser(otherID, endPayload)
+		h.hub.SendToUser(enderID, endPayload)
+
+		// Sohbet içine arama kaydı mesajı ekle
+		mins := req.DurationSeconds / 60
+		secs := req.DurationSeconds % 60
+		content := fmt.Sprintf("📞 Sesli Arama (%02d:%02d)", mins, secs)
+		if req.DurationSeconds == 0 {
+			content = "📞 Cevapsız Arama"
+		}
+
+		_ = h.chatRepo.SaveMessage(c.Context(), &models.Message{
+			ConversationID: req.ConversationID,
+			SenderID:       enderID,
+			RecipientID:    otherID,
+			MessageType:    "call_log",
+			Content:        content,
+		})
+	}
+
+	return c.JSON(fiber.Map{"status": "ended"})
+}

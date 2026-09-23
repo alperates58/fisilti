@@ -12,6 +12,7 @@ import (
 	"fisilti/internal/config"
 	"fisilti/internal/database"
 	"fisilti/internal/handlers"
+	"fisilti/internal/livekit"
 	"fisilti/internal/middleware"
 	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
@@ -76,6 +77,10 @@ func main() {
 	// 5. Repositories
 	userRepo := database.NewUserRepository(db)
 	chatRepo := database.NewChatRepository(db)
+	callRepo := database.NewCallRepository(db)
+
+	// LiveKit SFU Servisi
+	livekitService := livekit.NewLiveKitService(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret, cfg.LiveKitPublicURL)
 
 	// 6. WebSocket Hub Motoru
 	hub := fisiltiws.NewHub(chatRepo, userRepo, presenceService, typingService)
@@ -87,6 +92,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(userRepo, storageService)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
 	mediaHandler := handlers.NewMediaHandler(storageService)
+	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 
 	// 8. Fiber Web Uygulaması
@@ -191,6 +197,13 @@ func main() {
 	messages.Delete("/:id", chatHandler.DeleteMessage)
 	messages.Post("/:id/reactions", chatHandler.ToggleReaction)
 	messages.Post("/:id/star", chatHandler.ToggleStar)
+
+	// WebRTC Sesli & Görüntülü Arama Rotaları (JWT Korumalı)
+	calls := v1.Group("/calls", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	calls.Post("/initiate", callHandler.InitiateCall)
+	calls.Post("/accept", callHandler.AcceptCall)
+	calls.Post("/reject", callHandler.RejectCall)
+	calls.Post("/end", callHandler.EndCall)
 
 	// Graceful Shutdown
 	go func() {

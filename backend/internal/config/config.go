@@ -21,6 +21,7 @@ type Config struct {
 	MinioBucketMedia     string
 	MinioBucketFiles     string
 	LiveKitURL           string
+	LiveKitPublicURL     string
 	LiveKitAPIKey        string
 	LiveKitAPISecret     string
 	JWTAccessSecret      string
@@ -48,6 +49,7 @@ func LoadConfig() Config {
 	minioBucketFiles := getEnv("MINIO_BUCKET_FILES", "files")
 
 	livekitURL := getEnv("LIVEKIT_URL", "http://livekit:7880")
+	livekitPublicURL := getEnv("LIVEKIT_PUBLIC_URL", "http://localhost:7880")
 	livekitAPIKey := getEnv("LIVEKIT_API_KEY", "API_KEY_FISILTI")
 	livekitAPISecret := getEnv("LIVEKIT_API_SECRET", "SECRET_KEY_SUPER_SECURE_FISILTI_2026")
 
@@ -72,6 +74,7 @@ func LoadConfig() Config {
 		MinioBucketMedia:     minioBucketMedia,
 		MinioBucketFiles:     minioBucketFiles,
 		LiveKitURL:           livekitURL,
+		LiveKitPublicURL:     livekitPublicURL,
 		LiveKitAPIKey:        livekitAPIKey,
 		LiveKitAPISecret:     livekitAPISecret,
 		JWTAccessSecret:      jwtAccessSecret,
