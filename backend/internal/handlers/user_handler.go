@@ -135,11 +135,12 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 	q := strings.TrimSpace(c.Query("q"))
 
-	if len(q) < 2 {
+	// 1 karakter girilmişse arama yapma, 0 (tüm rehber) veya >= 2 ise getir
+	if len(q) == 1 {
 		return c.JSON([]models.UserResponse{})
 	}
 
-	users, err := h.userRepo.SearchUsers(c.Context(), q, userID, 20)
+	users, err := h.userRepo.SearchUsers(c.Context(), q, userID, 50)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Arama işlemi başarısız.",
