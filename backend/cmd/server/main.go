@@ -13,7 +13,9 @@ import (
 	"fisilti/internal/database"
 	"fisilti/internal/handlers"
 	"fisilti/internal/middleware"
+	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
+	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -67,12 +69,26 @@ func main() {
 	}
 	log.Printf("✅ [MinIO] S3 depolama servisi bağlandı (%s).", cfg.MinioEndpoint)
 
-	// 4. Repositories & Handlers
+	// 4. Redis Servisleri
+	presenceService := fisiltiredis.NewPresenceService(rdb)
+	typingService := fisiltiredis.NewTypingService(rdb)
+
+	// 5. Repositories
 	userRepo := database.NewUserRepository(db)
+	chatRepo := database.NewChatRepository(db)
+
+	// 6. WebSocket Hub Motoru
+	hub := fisiltiws.NewHub(chatRepo, userRepo, presenceService, typingService)
+	go hub.Run()
+	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
+
+	// 7. Handlers
 	authHandler := handlers.NewAuthHandler(cfg, userRepo)
 	userHandler := handlers.NewUserHandler(userRepo, storageService)
+	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService)
+	wsHandler := handlers.NewWSHandler(cfg, hub)
 
-	// 5. Fiber Web Uygulaması
+	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
 		AppName:      "Fısıltı API v1.0",
 		ServerHeader: "Fisilti-Server",
@@ -85,7 +101,7 @@ func main() {
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:3000, http://localhost:3002, http://127.0.0.1:3000, http://127.0.0.1:3002",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, Sec-WebSocket-Protocol",
 		AllowCredentials: true,
 	}))
 
@@ -135,6 +151,10 @@ func main() {
 		})
 	})
 
+	// WebSocket Uç Noktası
+	app.Use("/ws", wsHandler.UpgradeMiddleware())
+	app.Get("/ws", wsHandler.HandleConnection())
+
 	// API v1 Rotaları
 	v1 := app.Group("/api/v1")
 
@@ -154,6 +174,15 @@ func main() {
 	users.Post("/avatar", userHandler.UploadAvatar)
 	users.Patch("/privacy", userHandler.UpdatePrivacy)
 	users.Get("/search", userHandler.SearchUsers)
+
+	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
+	conversations := v1.Group("/conversations", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	conversations.Post("/", chatHandler.StartConversation)
+	conversations.Get("/", chatHandler.GetConversations)
+	conversations.Get("/:id/messages", chatHandler.GetMessages)
+	conversations.Delete("/:id/clear", chatHandler.ClearHistory)
+
+	v1.Get("/messages/:id/info", middleware.JWTMiddleware(cfg.JWTAccessSecret), chatHandler.GetMessageInfo)
 
 	// Graceful Shutdown
 	go func() {
