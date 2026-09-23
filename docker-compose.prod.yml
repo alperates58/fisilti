@@ -1,0 +1,134 @@
+services:
+  # 1. PostgreSQL 16
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fisilti_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-fisilti}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fisilti_user} -d ${POSTGRES_DB:-fisilti}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fisilti-network
+
+  # 2. Redis 7
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fisilti-network
+
+  # 3. MinIO S3 Depolama
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - fisilti-network
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fisilti-s3.rule=Host(`s3.${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.routers.fisilti-s3.entrypoints=https"
+      - "traefik.http.routers.fisilti-s3.tls=true"
+      - "traefik.http.routers.fisilti-s3.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fisilti-s3.loadbalancer.server.port=9000"
+
+  # 4. LiveKit WebRTC SFU
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: always
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7881:7881/udp"
+      - "7881:7881/tcp"
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      - redis
+    networks:
+      - fisilti-network
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fisilti-livekit.rule=Host(`livekit.${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.routers.fisilti-livekit.entrypoints=https"
+      - "traefik.http.routers.fisilti-livekit.tls=true"
+      - "traefik.http.routers.fisilti-livekit.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fisilti-livekit.loadbalancer.server.port=7880"
+
+  # 5. Go Backend Servisi
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    networks:
+      - fisilti-network
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fisilti-backend.rule=Host(`api.${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.routers.fisilti-backend.entrypoints=https"
+      - "traefik.http.routers.fisilti-backend.tls=true"
+      - "traefik.http.routers.fisilti-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fisilti-backend.loadbalancer.server.port=8080"
+
+  # 6. Next.js 15 Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: "https://api.${DOMAIN:-fisilti.app}"
+      NEXT_PUBLIC_WS_URL: "wss://api.${DOMAIN:-fisilti.app}/ws"
+      NEXT_PUBLIC_LIVEKIT_URL: "https://livekit.${DOMAIN:-fisilti.app}"
+    depends_on:
+      - backend
+    networks:
+      - fisilti-network
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fisilti-frontend.rule=Host(`${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.routers.fisilti-frontend.entrypoints=https"
+      - "traefik.http.routers.fisilti-frontend.tls=true"
+      - "traefik.http.routers.fisilti-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fisilti-frontend.loadbalancer.server.port=3000"
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
+
+networks:
+  fisilti-network:
+    driver: bridge
+  coolify:
+    external: true
