@@ -70,6 +70,7 @@ export default function HomePage() {
   const [showActiveChatMenu, setShowActiveChatMenu] = useState(false);
   const [showActiveDeleteConfirm, setShowActiveDeleteConfirm] = useState<"delete" | "clear" | null>(null);
   const [isDeletingActive, setIsDeletingActive] = useState(false);
+  const [confirmCallType, setConfirmCallType] = useState<"audio" | "video" | null>(null);
 
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -537,14 +538,14 @@ export default function HomePage() {
               {/* Sesli / Görüntülü Arama & Profil Butonları */}
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
-                  onClick={() => initiateCall(activeConv.id, "audio")}
+                  onClick={() => setConfirmCallType("audio")}
                   title="Sesli Arama Başlat"
                   className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors cursor-pointer"
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => initiateCall(activeConv.id, "video")}
+                  onClick={() => setConfirmCallType("video")}
                   title="Görüntülü Arama Başlat"
                   className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-pink-400 transition-colors cursor-pointer"
                 >
@@ -829,6 +830,80 @@ export default function HomePage() {
                     <>
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>{showActiveDeleteConfirm === "delete" ? "Sohbeti Sil" : "Temizle"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ARAMA BAŞLATMA ONAY MODALI */}
+        {confirmCallType && activeConv && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                    confirmCallType === "audio"
+                      ? "bg-emerald-500/20 text-emerald-400"
+                      : "bg-pink-500/20 text-pink-400"
+                  }`}
+                >
+                  {confirmCallType === "audio" ? (
+                    <Phone className="w-6 h-6 animate-pulse" />
+                  ) : (
+                    <Video className="w-6 h-6 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    {confirmCallType === "audio" ? "Sesli Arama Başlat" : "Görüntülü Arama Başlat"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    @{activeConv.other_user.username}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                <span className="font-semibold text-white">{activeConv.other_user.display_name}</span> ile{" "}
+                <span className="font-semibold text-white">
+                  {confirmCallType === "audio" ? "sesli arama" : "görüntülü arama"}
+                </span>{" "}
+                başlatmak istediğinize emin misiniz?
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmCallType(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const type = confirmCallType;
+                    setConfirmCallType(null);
+                    initiateCall(activeConv.id, type);
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-lg ${
+                    confirmCallType === "audio"
+                      ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30"
+                      : "bg-pink-600 hover:bg-pink-500 shadow-pink-600/30"
+                  }`}
+                >
+                  {confirmCallType === "audio" ? (
+                    <>
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Aramayı Başlat</span>
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-3.5 h-3.5" />
+                      <span>Aramayı Başlat</span>
                     </>
                   )}
                 </button>
