@@ -21,6 +21,8 @@ import {
 import { format } from "date-fns";
 import AudioWaveform from "./AudioWaveform";
 import { ReactionPicker, ReactionBadges } from "./ReactionPicker";
+import SocialMediaEmbed, { extractSocialMedia, extractGeneralUrl } from "./SocialMediaEmbed";
+import LinkPreviewCard from "./LinkPreviewCard";
 
 interface Props {
   message: Message;
@@ -40,6 +42,37 @@ export default function MessageBubble({ message }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const socialMediaData =
+    !message.is_deleted_for_all && message.content ? extractSocialMedia(message.content) : null;
+  const generalUrl =
+    !message.is_deleted_for_all && message.content && !socialMediaData
+      ? extractGeneralUrl(message.content)
+      : null;
+
+  const renderFormattedContent = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`underline hover:opacity-80 transition-opacity break-all ${
+              message.is_mine ? "text-pink-100 font-medium" : "text-pink-400 font-medium"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
 
   const formattedTime = (() => {
     try {
@@ -246,6 +279,16 @@ export default function MessageBubble({ message }: Props) {
             </div>
           )}
 
+          {/* 4b. Sosyal Medya Gömülü Kart / Oynatıcı (YouTube, YT Music, Instagram, Facebook) */}
+          {socialMediaData && (
+            <SocialMediaEmbed data={socialMediaData} isMine={message.is_mine} />
+          )}
+
+          {/* 4c. Genel Web Bağlantısı Önizleme Kartı (OpenGraph) */}
+          {generalUrl && (
+            <LinkPreviewCard url={generalUrl} isMine={message.is_mine} />
+          )}
+
           {/* 5. Metin İçeriği ve Düzenleme Modu */}
           {isEditing ? (
             <form onSubmit={handleEditSubmit} className="mt-1 flex items-center gap-1.5">
@@ -272,7 +315,9 @@ export default function MessageBubble({ message }: Props) {
             </form>
           ) : (
             message.content && (
-              <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+              <p className="whitespace-pre-wrap break-words leading-relaxed">
+                {renderFormattedContent(message.content)}
+              </p>
             )
           )}
 

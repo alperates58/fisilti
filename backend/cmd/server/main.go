@@ -15,6 +15,7 @@ import (
 	"fisilti/internal/handlers"
 	"fisilti/internal/livekit"
 	"fisilti/internal/middleware"
+	"fisilti/internal/preview"
 	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
 	fisiltiws "fisilti/internal/websocket"
@@ -89,11 +90,14 @@ func main() {
 	go hub.Run()
 	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
 
+	// Preview Servisi
+	previewService := preview.NewPreviewService(rdb)
+
 	// 7. Handlers
 	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub, accessRepo)
 	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService, accessRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
-	mediaHandler := handlers.NewMediaHandler(storageService)
+	mediaHandler := handlers.NewMediaHandler(storageService, previewService)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 
@@ -196,6 +200,7 @@ func main() {
 
 	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
 	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaLimiter, mediaHandler.UploadMedia)
+	v1.Get("/media/link-preview", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaHandler.GetLinkPreview)
 
 	conversations := v1.Group("/conversations", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	conversations.Post("/", chatHandler.StartConversation)
