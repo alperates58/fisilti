@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"fisilti/internal/database"
+	"fisilti/internal/push"
 	fisiltiredis "fisilti/internal/redis"
 	"github.com/google/uuid"
 )
@@ -20,6 +21,8 @@ type Hub struct {
 	mu              sync.RWMutex
 	chatRepo        *database.ChatRepository
 	userRepo        *database.UserRepository
+	pushRepo        *database.PushRepository
+	vapidService    *push.VAPIDService
 	presenceService *fisiltiredis.PresenceService
 	typingService   *fisiltiredis.TypingService
 }
@@ -27,6 +30,8 @@ type Hub struct {
 func NewHub(
 	chatRepo *database.ChatRepository,
 	userRepo *database.UserRepository,
+	pushRepo *database.PushRepository,
+	vapidService *push.VAPIDService,
 	presenceService *fisiltiredis.PresenceService,
 	typingService *fisiltiredis.TypingService,
 ) *Hub {
@@ -38,6 +43,8 @@ func NewHub(
 		broadcast:       make(chan []byte),
 		chatRepo:        chatRepo,
 		userRepo:        userRepo,
+		pushRepo:        pushRepo,
+		vapidService:    vapidService,
 		presenceService: presenceService,
 		typingService:   typingService,
 	}
@@ -211,4 +218,22 @@ func (h *Hub) BroadcastToAll(message []byte) {
 func (h *Hub) BroadcastToActiveSenders(messageIDs []uuid.UUID, payload []byte) {
 	// Teslim edilen mesajların gönderenlerine Çift Gri Tik basmak için
 	h.BroadcastToAll(payload)
+}
+
+func (h *Hub) SendWebPushToUser(userID uuid.UUID, title, body, icon, url string) {
+	if h.pushRepo == nil || h.vapidService == nil {
+		return
+	}
+
+	go func() {
+		ctx := context.Background()
+		subs, err := h.pushRepo.GetSubscriptionsForUser(ctx, userID)
+		if err != nil || len(subs) == 0 {
+			return
+		}
+
+		for _, sub := range subs {
+			_ = h.vapidService.SendPush(sub, title, body, icon, url)
+		}
+	}()
 }

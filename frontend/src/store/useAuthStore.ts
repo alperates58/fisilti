@@ -8,6 +8,9 @@ export interface User {
   email: string;
   avatar_url: string;
   bio: string;
+  role?: string;
+  is_banned?: boolean;
+  ban_reason?: string;
   online_status: number;
   last_seen_at: string;
   privacy_settings: {

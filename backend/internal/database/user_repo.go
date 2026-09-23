@@ -50,14 +50,15 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *models.User) error {
 
 func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, username, display_name, email, password_hash, avatar_url, bio, online_status, last_seen_at, privacy_settings, created_at, updated_at
+		SELECT id, username, display_name, email, password_hash, avatar_url, bio, role, is_banned, ban_reason, online_status, last_seen_at, privacy_settings, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 	var u models.User
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.PasswordHash,
-		&u.AvatarURL, &u.Bio, &u.OnlineStatus, &u.LastSeenAt,
+		&u.AvatarURL, &u.Bio, &u.Role, &u.IsBanned, &u.BanReason,
+		&u.OnlineStatus, &u.LastSeenAt,
 		&u.PrivacySettings, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -72,7 +73,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models
 func (r *UserRepository) GetUserByLogin(ctx context.Context, login string) (*models.User, error) {
 	cleanLogin := strings.ToLower(strings.TrimSpace(login))
 	query := `
-		SELECT id, username, display_name, email, password_hash, avatar_url, bio, online_status, last_seen_at, privacy_settings, created_at, updated_at
+		SELECT id, username, display_name, email, password_hash, avatar_url, bio, role, is_banned, ban_reason, online_status, last_seen_at, privacy_settings, created_at, updated_at
 		FROM users
 		WHERE LOWER(username) = $1 OR LOWER(email) = $1
 		LIMIT 1
@@ -80,7 +81,8 @@ func (r *UserRepository) GetUserByLogin(ctx context.Context, login string) (*mod
 	var u models.User
 	err := r.db.QueryRowContext(ctx, query, cleanLogin).Scan(
 		&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.PasswordHash,
-		&u.AvatarURL, &u.Bio, &u.OnlineStatus, &u.LastSeenAt,
+		&u.AvatarURL, &u.Bio, &u.Role, &u.IsBanned, &u.BanReason,
+		&u.OnlineStatus, &u.LastSeenAt,
 		&u.PrivacySettings, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -168,7 +170,7 @@ func (r *UserRepository) SearchUsers(ctx context.Context, search string, exclude
 
 	cleanSearch := "%" + strings.ToLower(strings.TrimSpace(search)) + "%"
 	query := `
-		SELECT id, username, display_name, email, avatar_url, bio, online_status, last_seen_at, privacy_settings, created_at
+		SELECT id, username, display_name, email, avatar_url, bio, role, is_banned, ban_reason, online_status, last_seen_at, privacy_settings, created_at
 		FROM users
 		WHERE id != $1 AND (LOWER(username) LIKE $2 OR LOWER(display_name) LIKE $2)
 		ORDER BY display_name ASC
@@ -186,6 +188,7 @@ func (r *UserRepository) SearchUsers(ctx context.Context, search string, exclude
 		var u models.UserResponse
 		if err := rows.Scan(
 			&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.AvatarURL, &u.Bio,
+			&u.Role, &u.IsBanned, &u.BanReason,
 			&u.OnlineStatus, &u.LastSeenAt, &u.PrivacySettings, &u.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -197,4 +200,120 @@ func (r *UserRepository) SearchUsers(ctx context.Context, search string, exclude
 		results = []models.UserResponse{}
 	}
 	return results, nil
+}
+
+func (r *UserRepository) GetAllUsers(ctx context.Context, search, roleFilter string, isBannedFilter *bool, limit, offset int) ([]models.UserResponse, int, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClauses := []string{"1=1"}
+	args := []interface{}{}
+	argIdx := 1
+
+	if strings.TrimSpace(search) != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("(LOWER(username) LIKE $%d OR LOWER(display_name) LIKE $%d OR LOWER(email) LIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(strings.TrimSpace(search))+"%")
+		argIdx++
+	}
+
+	if strings.TrimSpace(roleFilter) != "" && roleFilter != "all" {
+		whereClauses = append(whereClauses, fmt.Sprintf("role = $%d", argIdx))
+		args = append(args, strings.TrimSpace(roleFilter))
+		argIdx++
+	}
+
+	if isBannedFilter != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("is_banned = $%d", argIdx))
+		args = append(args, *isBannedFilter)
+		argIdx++
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	// Count total
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereSQL)
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch page
+	query := fmt.Sprintf(`
+		SELECT id, username, display_name, email, avatar_url, bio, role, is_banned, ban_reason, online_status, last_seen_at, privacy_settings, created_at
+		FROM users
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []models.UserResponse
+	for rows.Next() {
+		var u models.UserResponse
+		if err := rows.Scan(
+			&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.AvatarURL, &u.Bio,
+			&u.Role, &u.IsBanned, &u.BanReason,
+			&u.OnlineStatus, &u.LastSeenAt, &u.PrivacySettings, &u.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		users = append(users, u)
+	}
+
+	if users == nil {
+		users = []models.UserResponse{}
+	}
+	return users, total, nil
+}
+
+func (r *UserRepository) UpdateUserAdmin(ctx context.Context, userID uuid.UUID, role string, isBanned bool, banReason string) error {
+	query := `
+		UPDATE users
+		SET role = $1, is_banned = $2, ban_reason = $3, updated_at = NOW()
+		WHERE id = $4
+	`
+	_, err := r.db.ExecContext(ctx, query, role, isBanned, banReason, userID)
+	return err
+}
+
+func (r *UserRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	query := `DELETE FROM users WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	return err
+}
+
+func (r *UserRepository) GetSystemStats(ctx context.Context) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	var totalUsers, onlineUsers, bannedUsers int
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&totalUsers)
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE online_status = 1").Scan(&onlineUsers)
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE is_banned = true").Scan(&bannedUsers)
+
+	var totalMessages, totalMedia int
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages").Scan(&totalMessages)
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages WHERE message_type != 'text'").Scan(&totalMedia)
+
+	var totalCalls, totalCallSeconds int
+	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(duration_seconds), 0) FROM call_logs").Scan(&totalCalls, &totalCallSeconds)
+
+	stats["total_users"] = totalUsers
+	stats["online_users"] = onlineUsers
+	stats["banned_users"] = bannedUsers
+	stats["total_messages"] = totalMessages
+	stats["total_media"] = totalMedia
+	stats["total_calls"] = totalCalls
+	stats["total_call_seconds"] = totalCallSeconds
+
+	return stats, nil
 }

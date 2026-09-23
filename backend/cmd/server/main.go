@@ -16,6 +16,7 @@ import (
 	"fisilti/internal/livekit"
 	"fisilti/internal/middleware"
 	"fisilti/internal/preview"
+	"fisilti/internal/push"
 	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
 	fisiltiws "fisilti/internal/websocket"
@@ -81,12 +82,17 @@ func main() {
 	chatRepo := database.NewChatRepository(db)
 	callRepo := database.NewCallRepository(db)
 	accessRepo := database.NewAccessRepository(db)
+	pushRepo := database.NewPushRepository(db)
+	settingsRepo := database.NewSettingsRepository(db)
+
+	// VAPID Web Push Servisi
+	vapidService := push.NewVAPIDService()
 
 	// LiveKit SFU Servisi
 	livekitService := livekit.NewLiveKitService(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret, cfg.LiveKitPublicURL)
 
 	// 6. WebSocket Hub Motoru
-	hub := fisiltiws.NewHub(chatRepo, userRepo, presenceService, typingService)
+	hub := fisiltiws.NewHub(chatRepo, userRepo, pushRepo, vapidService, presenceService, typingService)
 	go hub.Run()
 	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
 
@@ -100,6 +106,8 @@ func main() {
 	mediaHandler := handlers.NewMediaHandler(storageService, previewService)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
+	pushHandler := handlers.NewPushHandler(pushRepo, vapidService)
+	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb)
 
 	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
@@ -222,6 +230,23 @@ func main() {
 	calls.Post("/accept", callHandler.AcceptCall)
 	calls.Post("/reject", callHandler.RejectCall)
 	calls.Post("/end", callHandler.EndCall)
+
+	// Web Push Bildirim Rotaları
+	v1.Get("/notifications/vapid-key", pushHandler.GetVapidKey)
+	notifications := v1.Group("/notifications", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	notifications.Post("/subscribe", pushHandler.Subscribe)
+	notifications.Post("/unsubscribe", pushHandler.Unsubscribe)
+	notifications.Post("/test", pushHandler.TestNotification)
+
+	// Yönetim Paneli ve Sistem Parametreleri Rotaları (Yalnızca Admin)
+	admin := v1.Group("/admin", middleware.JWTMiddleware(cfg.JWTAccessSecret), adminHandler.RequireAdmin)
+	admin.Get("/settings", adminHandler.GetSettings)
+	admin.Put("/settings", adminHandler.UpdateSetting)
+	admin.Get("/users", adminHandler.GetUsers)
+	admin.Put("/users/:id", adminHandler.UpdateUser)
+	admin.Delete("/users/:id", adminHandler.DeleteUser)
+	admin.Get("/stats", adminHandler.GetSystemStats)
+	admin.Get("/access-logs", adminHandler.GetAccessLogs)
 
 	// Graceful Shutdown
 	go func() {

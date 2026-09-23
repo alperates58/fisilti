@@ -63,6 +63,40 @@ func (r *AccessRepository) GetUserAccessLogs(ctx context.Context, userID uuid.UU
 	return logs, nil
 }
 
+func (r *AccessRepository) GetAllAccessLogs(ctx context.Context, limit int) ([]models.AccessLogWithUser, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	query := `
+		SELECT a.id, a.user_id, COALESCE(u.username, ''), COALESCE(u.display_name, ''), COALESCE(u.avatar_url, ''), a.ip_address, a.user_agent, a.device_info, a.created_at
+		FROM access_logs a
+		LEFT JOIN users u ON a.user_id = u.id
+		ORDER BY a.created_at DESC
+		LIMIT $1
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("tum erisim kayitlari sorgulanamadi: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []models.AccessLogWithUser
+	for rows.Next() {
+		var l models.AccessLogWithUser
+		if err := rows.Scan(&l.ID, &l.UserID, &l.Username, &l.DisplayName, &l.AvatarURL, &l.IPAddress, &l.UserAgent, &l.DeviceInfo, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		logs = append(logs, l)
+	}
+
+	if logs == nil {
+		logs = []models.AccessLogWithUser{}
+	}
+	return logs, nil
+}
+
 func ParseUserAgent(ua string) string {
 	lower := strings.ToLower(ua)
 

@@ -11,6 +11,7 @@ import ActiveCallModal from "@/components/call/ActiveCallModal";
 import SideNavigation, { NavTab } from "@/components/layout/SideNavigation";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import SettingsModal from "@/components/chat/SettingsModal";
+import { AdminPanelModal } from "@/components/admin/AdminPanelModal";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInfoModal from "@/components/chat/MessageInfoModal";
 import ReplyBar from "@/components/chat/ReplyBar";
@@ -71,6 +72,7 @@ export default function HomePage() {
   const [showActiveDeleteConfirm, setShowActiveDeleteConfirm] = useState<"delete" | "clear" | null>(null);
   const [isDeletingActive, setIsDeletingActive] = useState(false);
   const [confirmCallType, setConfirmCallType] = useState<"audio" | "video" | null>(null);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -231,7 +233,7 @@ export default function HomePage() {
 
   return (
     <div className="flex h-[100dvh] w-screen bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
-      {/* 1. SÜTUN: Grupo 64px Sol Dikey Menü (SideNavigation) */}
+      {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
       <SideNavigation
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -243,6 +245,7 @@ export default function HomePage() {
         isConnected={isConnected}
         user={user}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAdmin={() => setIsAdminPanelOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -917,6 +920,12 @@ export default function HomePage() {
 
         {/* Ayarlar ve Profil Modalı */}
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+        {/* Yönetim Paneli Modalı (Grupo Admin) */}
+        <AdminPanelModal
+          isOpen={isAdminPanelOpen}
+          onClose={() => setIsAdminPanelOpen(false)}
+        />
 
         {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
         <IncomingCallModal />

@@ -29,6 +29,9 @@ type User struct {
 	PasswordHash    string          `json:"-"` // Asla JSON çıktısına verilmez
 	AvatarURL       string          `json:"avatar_url"`
 	Bio             string          `json:"bio"`
+	Role            string          `json:"role"` // 'admin', 'moderator', 'member'
+	IsBanned        bool            `json:"is_banned"`
+	BanReason       string          `json:"ban_reason"`
 	OnlineStatus    int             `json:"online_status"` // 0: Offline, 1: Online, 2: Away
 	LastSeenAt      time.Time       `json:"last_seen_at"`
 	PrivacySettings json.RawMessage `json:"privacy_settings"`
@@ -43,6 +46,9 @@ type UserResponse struct {
 	Email           string          `json:"email"`
 	AvatarURL       string          `json:"avatar_url"`
 	Bio             string          `json:"bio"`
+	Role            string          `json:"role"`
+	IsBanned        bool            `json:"is_banned"`
+	BanReason       string          `json:"ban_reason"`
 	OnlineStatus    int             `json:"online_status"`
 	LastSeenAt      time.Time       `json:"last_seen_at"`
 	PrivacySettings json.RawMessage `json:"privacy_settings"`
@@ -57,6 +63,9 @@ func (u *User) ToResponse() UserResponse {
 		Email:           u.Email,
 		AvatarURL:       u.AvatarURL,
 		Bio:             u.Bio,
+		Role:            u.Role,
+		IsBanned:        u.IsBanned,
+		BanReason:       u.BanReason,
 		OnlineStatus:    u.OnlineStatus,
 		LastSeenAt:      u.LastSeenAt,
 		PrivacySettings: u.PrivacySettings,

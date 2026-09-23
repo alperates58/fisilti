@@ -128,6 +128,16 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 
+		// Ban kontrolü
+		senderUser, _ := c.hub.userRepo.GetUserByID(ctx, c.userID)
+		if senderUser != nil && senderUser.IsBanned {
+			errPayload, _ := NewWSMessage("error", map[string]string{
+				"message": "Hesabınız askıya alınmıştır. Mesaj gönderemezsiniz.",
+			})
+			c.send <- errPayload
+			return
+		}
+
 		// 1. Konuşmayı doğrula ve alıcıyı bul
 		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
 		if err != nil || conv == nil {
@@ -181,6 +191,32 @@ func (c *Client) handleAction(msg WSMessage) {
 				})
 				c.hub.SendToUser(c.userID, deliveredPayload)
 			}
+		} else {
+			// Alıcı sokete bağlı değil -> VAPID Web Push Bildirimi Gönder!
+			title := c.username
+			if senderUser != nil && senderUser.DisplayName != "" {
+				title = senderUser.DisplayName
+			}
+			preview := msgModel.Content
+			if msgModel.MessageType == "voice" {
+				preview = "🎤 Sesli Mesaj"
+			} else if msgModel.MessageType == "image" {
+				preview = "📷 Fotoğraf"
+			} else if msgModel.MessageType == "video" {
+				preview = "🎥 Video"
+			} else if msgModel.MessageType == "file" {
+				preview = "📎 Dosya"
+			} else if msgModel.MessageType == "location" {
+				preview = "📍 Konum Paylaşımı"
+			}
+
+			c.hub.SendWebPushToUser(
+				recipientID,
+				title,
+				preview,
+				"/icon-192.png",
+				"/",
+			)
 		}
 
 	case "delivered_ack":

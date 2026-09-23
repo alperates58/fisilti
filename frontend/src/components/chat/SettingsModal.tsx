@@ -17,8 +17,16 @@ import {
   Laptop,
   Smartphone,
   Globe,
+  Bell,
+  Send,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  getPushSubscription,
+  subscribeUserToPush,
+  unsubscribeUserFromPush,
+  sendTestPushNotification,
+} from "@/lib/push_notifications";
 
 interface Props {
   isOpen: boolean;
@@ -29,7 +37,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
   const router = useRouter();
   const { user, updateProfile, uploadAvatar, updatePrivacy, logout } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<"profile" | "privacy" | "access_logs">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "privacy" | "notifications" | "access_logs">("profile");
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [readReceipts, setReadReceipts] = useState(user?.privacy_settings?.read_receipts ?? true);
@@ -41,6 +49,17 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [accessLogs, setAccessLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  // Push notifications state
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+  const [isPushLoading, setIsPushLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      getPushSubscription().then((sub) => setIsPushSubscribed(!!sub));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && activeTab === "access_logs") {
@@ -95,6 +114,30 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
     }
   };
 
+  const handleTogglePush = async () => {
+    setIsPushLoading(true);
+    setPushStatusMessage(null);
+    if (isPushSubscribed) {
+      const res = await unsubscribeUserFromPush();
+      setIsPushSubscribed(false);
+      setPushStatusMessage(res.message);
+    } else {
+      const res = await subscribeUserToPush();
+      setIsPushSubscribed(res.success);
+      setPushStatusMessage(res.message);
+    }
+    setIsPushLoading(false);
+    setTimeout(() => setPushStatusMessage(null), 4000);
+  };
+
+  const handleTestPush = async () => {
+    setIsPushLoading(true);
+    const res = await sendTestPushNotification();
+    setPushStatusMessage(res.message);
+    setIsPushLoading(false);
+    setTimeout(() => setPushStatusMessage(null), 4000);
+  };
+
   const handleLogout = async () => {
     onClose();
     await logout();
@@ -145,7 +188,18 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
             }`}
           >
             <Shield className="w-4 h-4" />
-            <span>Gizlilik ve Güvenlik</span>
+            <span>Gizlilik</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("notifications")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+              activeTab === "notifications"
+                ? "border-grupo-accent text-pink-400"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            <span>Web Push</span>
           </button>
           <button
             onClick={() => setActiveTab("access_logs")}
@@ -343,6 +397,90 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
               <div className="flex items-center gap-2 p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-300">
                 <Lock className="w-4 h-4 flex-shrink-0" />
                 <span>Tüm iletişim ve görüşmeler self-hosted sunucumuzda şifrelenir.</span>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "notifications" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-grupo-dark-border">
+                <div>
+                  <h4 className="text-sm font-bold text-white">Web Push Bildirimleri (VAPID)</h4>
+                  <p className="text-xs text-slate-400">
+                    Tarayıcı kapalıyken veya telefon kilitliyken bile anlık mesaj bildirimleri alın.
+                  </p>
+                </div>
+                <Bell className="w-5 h-5 text-pink-400" />
+              </div>
+
+              {pushStatusMessage && (
+                <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-300 animate-fadeIn">
+                  {pushStatusMessage}
+                </div>
+              )}
+
+              {/* Web Push Aç / Kapat */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    Anlık Cihaz Bildirimleri
+                    {isPushSubscribed ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Aktif
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
+                        Kapalı
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    Yeni bir mesaj geldiğinde cihazınızda zil sesi ve önizleme ile bildirim çıkar.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isPushLoading}
+                  onClick={handleTogglePush}
+                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    isPushSubscribed ? "bg-grupo-accent" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      isPushSubscribed ? "translate-x-6" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Test Bildirimi Butonu */}
+              {isPushSubscribed && (
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-white">Test Bildirimi Gönder</div>
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      Bildirimlerin cihazınıza ulaştığını hemen test edin.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isPushLoading}
+                    onClick={handleTestPush}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-pink-400 border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Test Et</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px] text-slate-400 space-y-1">
+                <p className="font-semibold text-slate-300">💡 Nasıl Çalışır?</p>
+                <p>
+                  Fısıltı, Google FCM veya Apple Push sunucularına doğrudan şifreli RFC standardında VAPID istekleri gönderir. Sekmeniz tamamen kapalı olsa dahi telefonunuz uyanır.
+                </p>
               </div>
             </div>
           )}
