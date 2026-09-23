@@ -36,11 +36,13 @@ func (r *ChatRepository) GetOrCreateConversation(ctx context.Context, userA, use
 		INSERT INTO conversations (user_one_id, user_two_id, created_at, updated_at)
 		VALUES ($1, $2, NOW(), NOW())
 		ON CONFLICT (user_one_id, user_two_id) DO UPDATE
-		SET updated_at = conversations.updated_at
+		SET updated_at = NOW(),
+		    user_one_cleared_at = CASE WHEN conversations.user_one_id = $3 THEN '1970-01-01 00:00:00+00' ELSE conversations.user_one_cleared_at END,
+		    user_two_cleared_at = CASE WHEN conversations.user_two_id = $3 THEN '1970-01-01 00:00:00+00' ELSE conversations.user_two_cleared_at END
 		RETURNING id, user_one_id, user_two_id, user_one_cleared_at, user_two_cleared_at, is_blocked, blocked_by, created_at, updated_at
 	`
 	var c models.Conversation
-	err := r.db.QueryRowContext(ctx, query, u1, u2).Scan(
+	err := r.db.QueryRowContext(ctx, query, u1, u2, userA).Scan(
 		&c.ID, &c.UserOneID, &c.UserTwoID,
 		&c.UserOneClearedAt, &c.UserTwoClearedAt,
 		&c.IsBlocked, &c.BlockedBy,
@@ -102,7 +104,17 @@ func (r *ChatRepository) GetUserConversations(ctx context.Context, userID uuid.U
 			  AND created_at > (CASE WHEN c.user_one_id = $1 THEN c.user_one_cleared_at ELSE c.user_two_cleared_at END)
 			  AND NOT ($1 = ANY(deleted_for_users))
 		) unread ON true
-		WHERE c.user_one_id = $1 OR c.user_two_id = $1
+		WHERE (c.user_one_id = $1 OR c.user_two_id = $1)
+		  AND (
+		      (CASE WHEN c.user_one_id = $1 THEN c.user_one_cleared_at ELSE c.user_two_cleared_at END) <= c.created_at
+		      OR
+		      EXISTS (
+		          SELECT 1 FROM messages m
+		          WHERE m.conversation_id = c.id
+		            AND m.created_at > (CASE WHEN c.user_one_id = $1 THEN c.user_one_cleared_at ELSE c.user_two_cleared_at END)
+		            AND NOT ($1 = ANY(m.deleted_for_users))
+		      )
+		  )
 		ORDER BY c.updated_at DESC
 	`
 

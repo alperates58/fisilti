@@ -90,23 +90,32 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
           case "new_message":
             soundEffects.playReceived();
-            notificationManager.notify("Fısıltı - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
-            notificationManager.flashTitle(1);
             chatStore.onNewMessage(data.payload);
             // Mesajın ulaştığını onayla
             get().sendAction("delivered_ack", { message_ids: [data.payload.id] });
-            // Yalnızca sayfa görünür durumdaysa ve kilitli değilse okundu bilgisi gönder
+
+            // Kullanıcı şu an bu sohbette mi ve ekran açık/odaklanmış mı?
             const isVisibleAndFocused =
               typeof document !== "undefined" &&
               !document.hidden &&
               document.visibilityState === "visible" &&
               document.hasFocus();
 
-            if (isVisibleAndFocused && chatStore.activeConversationId === data.payload.conversation_id) {
+            const isCurrentChatActive =
+              isVisibleAndFocused && chatStore.activeConversationId === data.payload.conversation_id;
+
+            if (isCurrentChatActive) {
+              // Kullanıcı zaten aktif olarak bu sohbet ekranında!
+              // Yanıp sönmeyi durdur ve anında okundu bilgisi gönder
+              notificationManager.stopFlash();
               get().sendAction("read_ack", {
                 conversation_id: data.payload.conversation_id,
                 message_ids: [data.payload.id],
               });
+            } else {
+              // Kullanıcı başka sohbette veya tarayıcı arka planda / telefon kilitli
+              notificationManager.notify("Fısıltı - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
+              notificationManager.flashTitle(1);
             }
             break;
 

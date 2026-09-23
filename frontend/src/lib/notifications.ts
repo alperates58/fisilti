@@ -1,13 +1,32 @@
 // notifications.ts - Tarayıcı sekme başlığı ve Web Notifications yönetimi
 
 class NotificationManager {
-  private originalTitle = "Fısıltı - Özel & Güvenli Sohbet";
+  private defaultTitle = "Fısıltı - Özel & Güvenli Sohbet";
   private flashInterval: NodeJS.Timeout | null = null;
+  private isInitialized = false;
+
+  constructor() {
+    this.init();
+  }
 
   init() {
-    if (typeof document !== "undefined") {
-      this.originalTitle = document.title || "Fısıltı - Özel & Güvenli Sohbet";
-    }
+    if (typeof window === "undefined" || this.isInitialized) return;
+    this.isInitialized = true;
+
+    // Kullanıcı sekmeye odaklandığında, tıkladığında veya sekme görünür olduğunda yanıp sönmeyi anında durdur
+    window.addEventListener("focus", () => {
+      this.stopFlash();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && document.visibilityState === "visible") {
+        this.stopFlash();
+      }
+    });
+
+    window.addEventListener("click", () => {
+      this.stopFlash();
+    });
   }
 
   async requestPermission(): Promise<boolean> {
@@ -38,13 +57,25 @@ class NotificationManager {
     }
   }
 
-  flashTitle(unreadCount: number) {
+  flashTitle(unreadCount: number = 1) {
     if (typeof document === "undefined" || unreadCount <= 0) return;
+
+    // Kullanıcı zaten aktif olarak sekmeye odaklanmış ve görüyorsa ASLA yanıp söndürme
+    if (!document.hidden && document.visibilityState === "visible" && document.hasFocus()) {
+      this.stopFlash();
+      return;
+    }
 
     this.stopFlash();
 
     let state = false;
     this.flashInterval = setInterval(() => {
+      // Eğer kullanıcı bu esnada sayfaya döndüyse anında durdur
+      if (!document.hidden && document.visibilityState === "visible" && document.hasFocus()) {
+        this.stopFlash();
+        return;
+      }
+
       document.title = state
         ? `(${unreadCount}) Yeni Mesaj! - Fısıltı`
         : `💬 Fısıltı Özel Mesaj`;
@@ -58,8 +89,12 @@ class NotificationManager {
       this.flashInterval = null;
     }
     if (typeof document !== "undefined") {
-      document.title = this.originalTitle;
+      document.title = this.defaultTitle;
     }
+  }
+
+  isFlashing(): boolean {
+    return this.flashInterval !== null;
   }
 }
 

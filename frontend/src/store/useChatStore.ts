@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api } from "@/lib/api";
 import { useSocketStore } from "./useSocketStore";
 import { User } from "./useAuthStore";
+import { notificationManager } from "@/lib/notifications";
 
 export interface Message {
   id: string;
@@ -92,6 +93,8 @@ interface ChatState {
   onMessageDeleted: (messageId: string, isDeletedForAll: boolean) => void;
   onMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
 
+  deleteConversation: (convId: string) => Promise<void>;
+  clearConversation: (convId: string) => Promise<void>;
   startNewConversation: (recipientId: string) => Promise<string>;
   reset: () => void;
 }
@@ -115,6 +118,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   selectConversation: async (convId: string) => {
     set({ activeConversationId: convId, replyingTo: null });
+    notificationManager.stopFlash();
     await get().loadMessages(convId);
 
     // Açılan sohbetteki okunmamış mesajlar için read_ack gönder
@@ -132,6 +136,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   deselectConversation: () => {
     set({ activeConversationId: null, replyingTo: null });
+  },
+
+  deleteConversation: async (convId: string) => {
+    try {
+      await api.delete(`/conversations/${convId}`);
+      set((state) => {
+        const nextConversations = state.conversations.filter((c) => c.id !== convId);
+        const nextMessages = { ...state.messages };
+        delete nextMessages[convId];
+        return {
+          conversations: nextConversations,
+          messages: nextMessages,
+          activeConversationId: state.activeConversationId === convId ? null : state.activeConversationId,
+        };
+      });
+    } catch (err) {
+      console.error("Sohbet silinemedi:", err);
+      throw err;
+    }
+  },
+
+  clearConversation: async (convId: string) => {
+    try {
+      await api.delete(`/conversations/${convId}/clear`);
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [convId]: [],
+        },
+      }));
+    } catch (err) {
+      console.error("Sohbet geçmişi temizlenemedi:", err);
+      throw err;
+    }
   },
 
   loadMessages: async (convId: string) => {

@@ -207,6 +207,7 @@ func main() {
 	conversations.Get("/", chatHandler.GetConversations)
 	conversations.Get("/:id/messages", chatHandler.GetMessages)
 	conversations.Delete("/:id/clear", chatHandler.ClearHistory)
+	conversations.Delete("/:id", chatHandler.ClearHistory)
 
 	messages := v1.Group("/messages", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	messages.Get("/:id/info", chatHandler.GetMessageInfo)

@@ -18,6 +18,8 @@ import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
 import AudioRecorder from "@/components/chat/AudioRecorder";
 import { api } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
+import { notificationManager } from "@/lib/notifications";
+import ConversationListItem from "@/components/chat/ConversationListItem";
 import {
   MessageSquare,
   LogOut,
@@ -36,6 +38,10 @@ import {
   X,
   FileText,
   Image as ImageIcon,
+  Trash2,
+  Eraser,
+  MoreVertical,
+  AlertCircle,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -49,6 +55,8 @@ export default function HomePage() {
     loadConversations,
     selectConversation,
     deselectConversation,
+    deleteConversation,
+    clearConversation,
     sendMessage,
     sendTyping,
     startNewConversation,
@@ -59,6 +67,9 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<NavTab>("chats");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showContactDrawer, setShowContactDrawer] = useState(false);
+  const [showActiveChatMenu, setShowActiveChatMenu] = useState(false);
+  const [showActiveDeleteConfirm, setShowActiveDeleteConfirm] = useState<"delete" | "clear" | null>(null);
+  const [isDeletingActive, setIsDeletingActive] = useState(false);
 
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,6 +110,10 @@ export default function HomePage() {
         typeof document !== "undefined" &&
         !document.hidden &&
         document.visibilityState === "visible";
+
+      if (isVisible) {
+        notificationManager.stopFlash();
+      }
 
       if (isVisible && activeConversationId) {
         const convMessages = messages[activeConversationId] || [];
@@ -425,80 +440,17 @@ export default function HomePage() {
                 </p>
               </div>
             ) : (
-              conversations.map((conv) => {
-                const isActive = conv.id === activeConversationId;
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => selectConversation(conv.id)}
-                    className={`w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-all cursor-pointer ${
-                      isActive
-                        ? "bg-slate-800/90 border border-slate-700/80 shadow-md"
-                        : "hover:bg-slate-800/40 border border-transparent"
-                    }`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div className="w-11 h-11 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
-                        {conv.other_user.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={conv.other_user.avatar_url}
-                            alt={conv.other_user.display_name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          conv.other_user.display_name.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      {conv.is_online && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-grupo-dark-card shadow-sm"></span>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-white truncate">
-                          {conv.other_user.display_name}
-                        </span>
-                        <span className="text-[10px] text-slate-400 flex-shrink-0">
-                          {conv.is_online ? (
-                            <span className="text-emerald-400 font-medium">Çevrimiçi</span>
-                          ) : (
-                            formatLastSeen(
-                              conv.other_user.last_seen_at,
-                              conv.other_user.privacy_settings?.last_seen
-                            ) || "Çevrimdışı"
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span className="truncate max-w-[180px]">
-                          {typingMap[conv.id] ? (
-                            <span className="text-pink-400 font-medium animate-pulse">
-                              yazıyor...
-                            </span>
-                          ) : conv.last_message ? (
-                            conv.last_message.message_type === "voice" ? (
-                              "🎤 Sesli Mesaj"
-                            ) : conv.last_message.message_type === "image" ? (
-                              "📷 Fotoğraf"
-                            ) : (
-                              conv.last_message.content
-                            )
-                          ) : (
-                            <span className="italic text-slate-600">Sohbeti başlatın</span>
-                          )}
-                        </span>
-                        {conv.unread_count > 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-grupo-accent text-white text-[10px] font-bold shadow-sm shadow-pink-500/50">
-                            {conv.unread_count}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })
+              conversations.map((conv) => (
+                <ConversationListItem
+                  key={conv.id}
+                  conversation={conv}
+                  isActive={conv.id === activeConversationId}
+                  isTyping={!!typingMap[conv.id]}
+                  onSelect={() => selectConversation(conv.id)}
+                  onDelete={() => deleteConversation(conv.id)}
+                  onClearHistory={() => clearConversation(conv.id)}
+                />
+              ))
             )}
           </div>
         )}
@@ -605,6 +557,46 @@ export default function HomePage() {
                 >
                   <Info className="w-4 h-4" />
                 </button>
+
+                {/* Sohbet İşlemleri Menüsü (Web & Mobil) */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowActiveChatMenu(!showActiveChatMenu)}
+                    title="Sohbet Seçenekleri"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+
+                  {showActiveChatMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-0 top-11 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95"
+                    >
+                      <button
+                        onClick={() => {
+                          setShowActiveChatMenu(false);
+                          setShowActiveDeleteConfirm("clear");
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Eraser className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Geçmişi Temizle</span>
+                      </button>
+                      <div className="h-px bg-slate-800 my-1" />
+                      <button
+                        onClick={() => {
+                          setShowActiveChatMenu(false);
+                          setShowActiveDeleteConfirm("delete");
+                        }}
+                        className="w-full px-3 py-2 text-left text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors font-medium cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Sohbeti Sil</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
 
@@ -755,8 +747,94 @@ export default function HomePage() {
                     ))}
                 </div>
               </div>
+
+              {/* Sohbet Temizleme ve Silme Butonları */}
+              <div className="pt-4 border-t border-slate-800 space-y-2">
+                <button
+                  onClick={() => setShowActiveDeleteConfirm("clear")}
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Eraser className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Sohbet Geçmişini Temizle</span>
+                </button>
+                <button
+                  onClick={() => setShowActiveDeleteConfirm("delete")}
+                  className="w-full py-2.5 px-3 rounded-xl bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/30 text-rose-400 hover:text-rose-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Sohbeti Sil</span>
+                </button>
+              </div>
             </div>
           </aside>
+        )}
+
+        {/* AKTİF SOHBETİ SİL / TEMİZLE ONAY MODALI */}
+        {showActiveDeleteConfirm && activeConv && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-500 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    {showActiveDeleteConfirm === "delete" ? "Sohbeti Sil" : "Geçmişi Temizle"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    @{activeConv.other_user.username} ile olan sohbet
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {showActiveDeleteConfirm === "delete"
+                  ? "Bu sohbeti listenizden silmek istediğinize emin misiniz? Sohbet ve mesajlar sizin için kaldırılacaktır."
+                  : "Bu sohbetteki tüm mesajları temizlemek istediğinize emin misiniz? Mesajlar sizin için görünmez olacaktır."}
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowActiveDeleteConfirm(null)}
+                  disabled={isDeletingActive}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsDeletingActive(true);
+                    try {
+                      if (showActiveDeleteConfirm === "delete") {
+                        await deleteConversation(activeConv.id);
+                        setShowContactDrawer(false);
+                      } else {
+                        await clearConversation(activeConv.id);
+                      }
+                    } catch (e) {
+                      alert("İşlem gerçekleştirilemedi.");
+                    } finally {
+                      setIsDeletingActive(false);
+                      setShowActiveDeleteConfirm(null);
+                    }
+                  }}
+                  disabled={isDeletingActive}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/30"
+                >
+                  {isDeletingActive ? (
+                    <span>İşleniyor...</span>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{showActiveDeleteConfirm === "delete" ? "Sohbeti Sil" : "Temizle"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* WhatsApp Mesaj Bilgisi Modalı */}
