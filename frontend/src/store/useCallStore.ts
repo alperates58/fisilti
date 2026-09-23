@@ -34,6 +34,20 @@ interface CallStoreState {
   onCallEnded: (payload: any) => void;
 }
 
+const getLivekitUrl = () => {
+  if (process.env.NEXT_PUBLIC_LIVEKIT_URL) return process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:7880";
+    }
+    const proto = window.location.protocol;
+    const base = host.replace(/^chat\./, "");
+    return `${proto}//livekit.${base}`;
+  }
+  return "http://localhost:7880";
+};
+
 export const useCallStore = create<CallStoreState>((set, get) => ({
   callState: "idle",
   callType: "audio",
@@ -41,7 +55,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   conversationId: null,
   roomName: null,
   token: null,
-  livekitUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL || "http://localhost:7880",
+  livekitUrl: getLivekitUrl(),
   caller: null,
   duration: 0,
 

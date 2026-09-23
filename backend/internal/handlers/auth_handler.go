@@ -10,6 +10,8 @@ import (
 	"fisilti/internal/database"
 	"fisilti/internal/middleware"
 	"fisilti/internal/models"
+	fisiltiredis "fisilti/internal/redis"
+	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -17,14 +19,23 @@ import (
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 type AuthHandler struct {
-	cfg      config.Config
-	userRepo *database.UserRepository
+	cfg             config.Config
+	userRepo        *database.UserRepository
+	presenceService *fisiltiredis.PresenceService
+	hub             *fisiltiws.Hub
 }
 
-func NewAuthHandler(cfg config.Config, userRepo *database.UserRepository) *AuthHandler {
+func NewAuthHandler(
+	cfg config.Config,
+	userRepo *database.UserRepository,
+	presenceService *fisiltiredis.PresenceService,
+	hub *fisiltiws.Hub,
+) *AuthHandler {
 	return &AuthHandler{
-		cfg:      cfg,
-		userRepo: userRepo,
+		cfg:             cfg,
+		userRepo:        userRepo,
+		presenceService: presenceService,
+		hub:             hub,
 	}
 }
 
@@ -132,7 +143,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		PasswordHash: hash,
 		AvatarURL:    "",
 		Bio:          "Merhaba, ben Fısıltı kullanıyorum!",
-		OnlineStatus: 1, // Yeni kaydolan anında online
+		OnlineStatus: 0, // WebSocket bağlanana kadar offline
 	}
 
 	if err := h.userRepo.CreateUser(c.Context(), &user); err != nil {
@@ -250,6 +261,37 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	var userID uuid.UUID
+	if id, ok := c.Locals("user_id").(uuid.UUID); ok {
+		userID = id
+	} else {
+		tokenStr := c.Cookies("access_token")
+		if tokenStr == "" {
+			authHeader := c.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+		if tokenStr != "" {
+			if claims, err := middleware.ValidateToken(tokenStr, h.cfg.JWTAccessSecret); err == nil {
+				userID = claims.UserID
+			}
+		}
+	}
+
+	if userID != uuid.Nil {
+		ctx := c.Context()
+		if h.hub != nil {
+			h.hub.DisconnectUser(userID)
+		}
+		if h.presenceService != nil {
+			_ = h.presenceService.SetUserOffline(ctx, userID)
+		}
+		if h.userRepo != nil {
+			_ = h.userRepo.UpdateOnlineStatus(ctx, userID, 0)
+		}
+	}
+
 	h.clearAuthCookies(c)
 	return c.JSON(fiber.Map{
 		"message": "Oturum başarıyla kapatıldı.",

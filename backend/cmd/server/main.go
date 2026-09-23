@@ -36,7 +36,7 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := database.RunMigrations(db, "internal/database/migrations/001_init_schema.sql"); err != nil {
+	if err := database.RunMigrations(db, "internal/database/migrations"); err != nil {
 		log.Printf("⚠️ [DB] Migration uyarısı: %v", err)
 	}
 
@@ -89,8 +89,8 @@ func main() {
 	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
 
 	// 7. Handlers
-	authHandler := handlers.NewAuthHandler(cfg, userRepo)
-	userHandler := handlers.NewUserHandler(userRepo, storageService)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub)
+	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
 	mediaHandler := handlers.NewMediaHandler(storageService)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)

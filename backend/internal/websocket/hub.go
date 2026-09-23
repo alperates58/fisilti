@@ -116,6 +116,27 @@ func (h *Hub) onUserOnline(userID uuid.UUID) {
 	log.Printf("🟢 [Online] Kullanıcı bağlandı: %s", userID)
 }
 
+func (h *Hub) DisconnectUser(userID uuid.UUID) {
+	h.mu.RLock()
+	clients, ok := h.userClients[userID]
+	var toClose []*Client
+	if ok && len(clients) > 0 {
+		for c := range clients {
+			toClose = append(toClose, c)
+		}
+	}
+	h.mu.RUnlock()
+
+	if len(toClose) == 0 {
+		h.onUserOffline(userID)
+		return
+	}
+
+	for _, c := range toClose {
+		_ = c.conn.Close()
+	}
+}
+
 func (h *Hub) onUserOffline(userID uuid.UUID) {
 	ctx := context.Background()
 	_ = h.presenceService.SetUserOffline(ctx, userID)

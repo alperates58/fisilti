@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { useChatStore } from "./useChatStore";
+import { useAuthStore } from "./useAuthStore";
 import { soundEffects } from "@/lib/sounds";
 import { notificationManager } from "@/lib/notifications";
 
 interface SocketState {
   socket: WebSocket | null;
   isConnected: boolean;
+  isManualDisconnect: boolean;
   connect: (token?: string) => void;
   disconnect: () => void;
   sendAction: (action: string, payload: any) => void;
@@ -14,13 +16,37 @@ interface SocketState {
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   isConnected: false,
+  isManualDisconnect: false,
 
   connect: (token?: string) => {
-    if (get().socket) {
-      return; // Zaten bağlı
+    // Oturum açık değilse soket açma
+    const isAuthed = useAuthStore.getState().isAuthenticated;
+    if (!isAuthed && !token) {
+      return;
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+    const currentWs = get().socket;
+    if (currentWs && (currentWs.readyState === WebSocket.OPEN || currentWs.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    set({ isManualDisconnect: false });
+
+    let wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (!wsUrl && typeof window !== "undefined") {
+      const isHttps = window.location.protocol === "https:";
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1") {
+        wsUrl = "ws://localhost:8080/ws";
+      } else {
+        const proto = isHttps ? "wss:" : "ws:";
+        const base = host.replace(/^chat\./, "");
+        wsUrl = `${proto}//api.${base}/ws`;
+      }
+    }
+    if (!wsUrl) {
+      wsUrl = "ws://localhost:8080/ws";
+    }
     const url = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
 
     const ws = new WebSocket(url);
@@ -33,12 +59,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     ws.onclose = () => {
       console.log("🔌 [WS] WebSocket bağlantısı kapandı.");
       set({ socket: null, isConnected: false });
-      // 3 saniye sonra otomatik yeniden bağlan
-      setTimeout(() => {
-        if (!get().socket) {
-          get().connect(token);
-        }
-      }, 3000);
+      // Eğer kullanıcı çıkış yapmadıysa ve hala giriş yapmış durumdaysa yeniden bağlan
+      if (!get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
+        setTimeout(() => {
+          if (!get().socket && !get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
+            get().connect(token);
+          }
+        }, 3000);
+      }
     };
 
     ws.onerror = (err) => {
@@ -46,6 +74,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     };
 
     ws.onmessage = (event) => {
+      // Oturum kapatıldıysa mesajları işleme ve ACK gönderme
+      if (!useAuthStore.getState().isAuthenticated) {
+        return;
+      }
       try {
         const data = JSON.parse(event.data);
         const chatStore = useChatStore.getState();
@@ -148,9 +180,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
   disconnect: () => {
     const ws = get().socket;
+    set({ isManualDisconnect: true, socket: null, isConnected: false });
     if (ws) {
-      ws.close();
-      set({ socket: null, isConnected: false });
+      try {
+        ws.close(1000, "User logged out");
+      } catch (e) {
+        console.error("Soket kapatılırken hata:", e);
+      }
     }
   },
 

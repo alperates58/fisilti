@@ -6,20 +6,23 @@ import (
 
 	"fisilti/internal/database"
 	"fisilti/internal/models"
+	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
 type UserHandler struct {
-	userRepo *database.UserRepository
-	storage  *storage.StorageService
+	userRepo        *database.UserRepository
+	storage         *storage.StorageService
+	presenceService *fisiltiredis.PresenceService
 }
 
-func NewUserHandler(userRepo *database.UserRepository, storage *storage.StorageService) *UserHandler {
+func NewUserHandler(userRepo *database.UserRepository, storage *storage.StorageService, presenceService *fisiltiredis.PresenceService) *UserHandler {
 	return &UserHandler{
-		userRepo: userRepo,
-		storage:  storage,
+		userRepo:        userRepo,
+		storage:         storage,
+		presenceService: presenceService,
 	}
 }
 
@@ -145,6 +148,14 @@ func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Arama işlemi başarısız.",
 		})
+	}
+
+	for i := range users {
+		if h.presenceService != nil && h.presenceService.IsUserOnline(c.Context(), users[i].ID) {
+			users[i].OnlineStatus = 1
+		} else {
+			users[i].OnlineStatus = 0
+		}
 	}
 
 	return c.JSON(users)

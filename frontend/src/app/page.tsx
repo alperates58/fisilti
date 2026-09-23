@@ -17,6 +17,7 @@ import ReplyBar from "@/components/chat/ReplyBar";
 import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
 import AudioRecorder from "@/components/chat/AudioRecorder";
 import { api } from "@/lib/api";
+import { formatLastSeen } from "@/lib/utils";
 import {
   MessageSquare,
   LogOut,
@@ -313,19 +314,33 @@ export default function HomePage() {
                   onClick={() => handleStartChat(contact.id)}
                   className="w-full p-3 rounded-2xl hover:bg-slate-800/60 flex items-center gap-3 text-left transition-all cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden flex-shrink-0">
-                    {contact.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={contact.avatar_url} alt={contact.display_name} className="w-full h-full object-cover" />
-                    ) : (
-                      contact.display_name.charAt(0).toUpperCase()
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
+                      {contact.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={contact.avatar_url} alt={contact.display_name} className="w-full h-full object-cover" />
+                      ) : (
+                        contact.display_name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    {contact.online_status === 1 && (
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{contact.display_name}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-white truncate">{contact.display_name}</div>
+                      {contact.online_status === 1 ? (
+                        <span className="text-[10px] text-emerald-400 font-medium">Çevrimiçi</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                          {formatLastSeen(contact.last_seen_at, contact.privacy_settings?.last_seen)}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-400 truncate">@{contact.username}</div>
                   </div>
-                  <UserPlus className="w-4 h-4 text-pink-400" />
+                  <UserPlus className="w-4 h-4 text-pink-400 flex-shrink-0" />
                 </button>
               ))
             )}
@@ -418,7 +433,10 @@ export default function HomePage() {
                           {conv.is_online ? (
                             <span className="text-emerald-400 font-medium">Çevrimiçi</span>
                           ) : (
-                            "Çevrimdışı"
+                            formatLastSeen(
+                              conv.other_user.last_seen_at,
+                              conv.other_user.privacy_settings?.last_seen
+                            ) || "Çevrimdışı"
                           )}
                         </span>
                       </div>
@@ -524,7 +542,10 @@ export default function HomePage() {
                     ) : activeConv.is_online ? (
                       <span className="text-emerald-400 font-medium">Çevrimiçi</span>
                     ) : (
-                      "Son görülme yakınlarda"
+                      formatLastSeen(
+                        activeConv.other_user.last_seen_at,
+                        activeConv.other_user.privacy_settings?.last_seen
+                      ) || "Çevrimdışı"
                     )}
                   </p>
                 </div>
@@ -671,7 +692,12 @@ export default function HomePage() {
                   }`}
                 />
                 <span className={activeConv.is_online ? "text-emerald-400" : "text-slate-400"}>
-                  {activeConv.is_online ? "Çevrimiçi" : "Çevrimdışı"}
+                  {activeConv.is_online
+                    ? "Çevrimiçi"
+                    : formatLastSeen(
+                        activeConv.other_user.last_seen_at,
+                        activeConv.other_user.privacy_settings?.last_seen
+                      ) || "Çevrimdışı"}
                 </span>
               </div>
             </div>

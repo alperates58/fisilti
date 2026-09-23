@@ -1,6 +1,20 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:8080";
+    }
+    const proto = window.location.protocol;
+    const base = host.replace(/^chat\./, "");
+    return `${proto}//api.${base}`;
+  }
+  return "http://localhost:8080";
+};
+
+const API_URL = getApiBaseUrl();
 
 export const api = axios.create({
   baseURL: `${API_URL}/api/v1`,

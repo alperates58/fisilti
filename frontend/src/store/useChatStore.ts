@@ -90,6 +90,7 @@ interface ChatState {
   onMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
 
   startNewConversation: (recipientId: string) => Promise<string>;
+  reset: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -474,5 +475,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await get().loadConversations();
     await get().selectConversation(res.data.id);
     return res.data.id;
+  },
+
+  reset: () => {
+    set({
+      conversations: [],
+      activeConversationId: null,
+      messages: {},
+      typingMap: {},
+      selectedMessageInfo: null,
+      replyingTo: null,
+    });
   },
 }));

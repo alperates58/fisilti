@@ -93,7 +93,13 @@ func (h *ChatHandler) GetConversations(c *fiber.Ctx) error {
 	}
 
 	for i := range convs {
-		convs[i].IsOnline = h.presenceService.IsUserOnline(c.Context(), convs[i].OtherUser.ID)
+		isOnline := h.presenceService.IsUserOnline(c.Context(), convs[i].OtherUser.ID)
+		convs[i].IsOnline = isOnline
+		if isOnline {
+			convs[i].OtherUser.OnlineStatus = 1
+		} else {
+			convs[i].OtherUser.OnlineStatus = 0
+		}
 	}
 
 	return c.JSON(convs)

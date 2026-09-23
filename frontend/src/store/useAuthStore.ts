@@ -65,7 +65,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
+      // 1. WebSocket'i manuel olarak kapat ve otomatik yeniden bağlanmasını engelle
+      const { useSocketStore } = await import("./useSocketStore");
+      useSocketStore.getState().disconnect();
+
+      // 2. ChatStore durumunu sıfırla (aktif sohbeti ve mesajları temizle)
+      const { useChatStore } = await import("./useChatStore");
+      useChatStore.getState().reset();
+
+      // 3. Arama durumunu sıfırla
+      const { useCallStore } = await import("./useCallStore");
+      useCallStore.getState().resetCall();
+
+      // 4. Sunucuya logout isteği gönder (sunucu da soketi kapatıp offline yayınlar)
       await api.post("/auth/logout");
+    } catch (err) {
+      console.error("Çıkış hatası:", err);
     } finally {
       set({ user: null, isAuthenticated: false });
     }

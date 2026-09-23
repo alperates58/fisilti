@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
+import ServiceWorkerRegister from "@/components/layout/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
   title: "Fısıltı - Özel Sohbet Platformu",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="bg-grupo-dark-bg text-slate-100 antialiased h-screen w-screen overflow-hidden flex flex-col">
+        <ServiceWorkerRegister />
         {children}
       </body>
     </html>
