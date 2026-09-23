@@ -134,7 +134,7 @@ func main() {
 	// Kök karşılama rotası
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"app":         "Fısıltı Özel Sohbet Platformu",
+			"app":         "Fısıltı",
 			"version":     "1.0.0",
 			"status":      "running",
 			"environment": cfg.Environment,

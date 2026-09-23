@@ -43,7 +43,7 @@ export default function LoginPage() {
             F
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Fısıltı&apos;ya Giriş Yap</h1>
-          <p className="text-sm text-slate-400 mt-1">Özel, güvenli ve gerçek zamanlı sohbet</p>
+          <p className="text-sm text-slate-400 mt-1">Giriş yaparak devam edin</p>
         </div>
 
         {error && (

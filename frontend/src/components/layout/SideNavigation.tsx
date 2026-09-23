@@ -78,14 +78,13 @@ export default function SideNavigation({
               F
             </div>
             {isExpanded && (
-              <div className="flex flex-col overflow-hidden whitespace-nowrap animate-fadeIn">
-                <span className="font-extrabold text-sm text-white tracking-wide flex items-center gap-1.5">
+              <div className="flex items-center overflow-hidden whitespace-nowrap animate-fadeIn">
+                <span className="font-extrabold text-base text-white tracking-wide flex items-center gap-2">
                   Fısıltı
                   <span className="text-[9px] font-mono uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded">
                     v3.15
                   </span>
                 </span>
-                <span className="text-[10px] text-slate-400">Özel & Güvenli Sohbet</span>
               </div>
             )}
           </div>

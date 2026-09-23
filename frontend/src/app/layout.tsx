@@ -3,8 +3,8 @@ import "../styles/globals.css";
 import ServiceWorkerRegister from "@/components/layout/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Fısıltı - Özel Sohbet Platformu",
-  description: "Gerçek zamanlı, WhatsApp tipi durum takipli, self-hosted WebRTC özel sohbet platformu.",
+  title: "Fısıltı",
+  description: "Gerçek zamanlı sohbet platformu.",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",

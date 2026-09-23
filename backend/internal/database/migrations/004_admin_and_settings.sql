@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 INSERT INTO system_settings (key, value) VALUES
 ('site_info', '{
     "site_name": "Fısıltı",
-    "site_tagline": "Yeni Nesil Güvenli ve Özel Sohbet",
+    "site_tagline": "",
     "site_url": "http://localhost:3002",
     "logo_url": "",
     "allow_registration": true,

@@ -1,7 +1,7 @@
 // notifications.ts - Tarayıcı sekme başlığı ve Web Notifications yönetimi
 
 class NotificationManager {
-  private defaultTitle = "Fısıltı - Özel & Güvenli Sohbet";
+  private defaultTitle = "Fısıltı";
   private flashInterval: NodeJS.Timeout | null = null;
   private isInitialized = false;
 
@@ -78,7 +78,7 @@ class NotificationManager {
 
       document.title = state
         ? `(${unreadCount}) Yeni Mesaj! - Fısıltı`
-        : `💬 Fısıltı Özel Mesaj`;
+        : `💬 Fısıltı`;
       state = !state;
     }, 1000);
   }

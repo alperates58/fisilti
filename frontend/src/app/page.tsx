@@ -673,7 +673,7 @@ export default function HomePage() {
             <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-pink-400 mb-4 shadow-xl">
               <MessageSquare className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-1">Fısıltı Özel Mesajlaşma</h3>
+            <h3 className="text-lg font-bold text-white mb-1">Fısıltı</h3>
             <p className="text-sm text-slate-400 max-w-sm mb-6">
               Sol taraftan bir sohbet seçin veya &quot;Kişiler&quot; menüsünden birini bularak mesajlaşmaya başlayın.
             </p>
