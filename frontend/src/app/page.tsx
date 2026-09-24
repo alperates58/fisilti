@@ -17,7 +17,7 @@ import MessageInfoModal from "@/components/chat/MessageInfoModal";
 import ReplyBar from "@/components/chat/ReplyBar";
 import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
 import AudioRecorder from "@/components/chat/AudioRecorder";
-import { api } from "@/lib/api";
+import { api, resolveMediaUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
 import { notificationManager } from "@/lib/notifications";
 import ConversationListItem from "@/components/chat/ConversationListItem";
@@ -767,7 +767,7 @@ export default function HomePage() {
                     .map((m) => (
                       <div key={m.id} className="aspect-square rounded-lg overflow-hidden bg-slate-800">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={m.media_url} alt="medya" className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(m.media_url)} alt="medya" className="w-full h-full object-cover" />
                       </div>
                     ))}
                 </div>

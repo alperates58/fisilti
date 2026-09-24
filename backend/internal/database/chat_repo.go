@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"fisilti/internal/models"
@@ -541,6 +543,49 @@ func (r *ChatRepository) ToggleStar(ctx context.Context, messageID, userID uuid.
 	return starred, err
 }
 
+// CanUserAccessMedia dosya nesnesinin adına ve kullanıcının yetkisine bakar.
+// Avatarlar herkese açıktır.
+// Özel mesaj medyaları için (ses, fotoğraf, video, belge):
+// Kullanıcı admin ise, dosyanın yükleyicisi (sender) ise veya mesajın alıcısı ise erişebilir.
+func (r *ChatRepository) CanUserAccessMedia(ctx context.Context, userID uuid.UUID, userRole string, bucket, objectName string) (bool, error) {
+	// 1. Avatarlar herkese açık profil fotoğraflarıdır
+	if bucket == "avatars" {
+		return true, nil
+	}
+
+	// 2. Admin sistemdeki tüm medyaları inceleme yetkisine sahiptir
+	if userRole == "admin" {
+		return true, nil
+	}
+
+	// 3. Dosya adındaki sender ID kontrolü: objectName = "{senderUUID}_{timestamp}.ext"
+	parts := strings.Split(objectName, "_")
+	if len(parts) >= 2 {
+		if senderUUID, err := uuid.Parse(parts[0]); err == nil {
+			if senderUUID == userID {
+				return true, nil
+			}
+		}
+	}
+
+	// 4. Eğer yükleyen değilse, alıcı mı? Veritabanındaki messages tablosunda bu dosya bulunuyor mu?
+	baseObj := strings.TrimSuffix(objectName, filepath.Ext(objectName))
+	query := `
+		SELECT 1 FROM messages
+		WHERE (media_url LIKE '%' || $1 || '%')
+		  AND (sender_id = $2 OR recipient_id = $2)
+		LIMIT 1
+	`
+	var exists int
+	err := r.db.QueryRowContext(ctx, query, baseObj, userID).Scan(&exists)
+	if err == nil && exists == 1 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // Unused import warning prevention helper
 var _ = pgx.ErrNoRows
 var _ = stdlib.GetDefaultDriver
+

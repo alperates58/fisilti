@@ -24,29 +24,13 @@ export default function ConversationListItem({
 }: Props) {
   const [translateX, setTranslateX] = useState(0);
   const [isSwiped, setIsSwiped] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<"delete" | "clear" | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const isSwiping = useRef<boolean>(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Menü dışına tıklandığında menüyü kapat
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowContextMenu(false);
-      }
-    };
-    if (showContextMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showContextMenu]);
 
   // Mobil Dokunma ve Kaydırma Hareketleri (Swipe Gestures)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -129,7 +113,7 @@ export default function ConversationListItem({
       <div
         className={`relative rounded-2xl group select-none ${
           translateX !== 0 ? "overflow-hidden" : ""
-        } ${showContextMenu ? "z-30" : "z-0"}`}
+        } ${contextMenuPos ? "z-30" : "z-0"}`}
       >
         {/* ARKA PLAN MOBİL SİLME BUTONLARI (Sadece mobilde ve kart sürüklenirken DOM'da görünür) */}
         {translateX !== 0 && (
@@ -170,7 +154,12 @@ export default function ConversationListItem({
           onClick={handleCardClick}
           onContextMenu={(e) => {
             e.preventDefault();
-            setShowContextMenu(true);
+            e.stopPropagation();
+            const menuWidth = 180;
+            const menuHeight = 110;
+            const x = Math.max(10, Math.min(e.clientX, window.innerWidth - menuWidth - 10));
+            const y = Math.max(10, Math.min(e.clientY, window.innerHeight - menuHeight - 10));
+            setContextMenuPos({ x, y });
           }}
           style={{
             transform: translateX !== 0 ? `translateX(${translateX}px)` : undefined,
@@ -178,7 +167,7 @@ export default function ConversationListItem({
               ? "none"
               : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
-          className={`relative ${showContextMenu ? "z-30" : "z-10"} w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-colors cursor-pointer border ${
+          className={`relative ${contextMenuPos ? "z-30" : "z-10"} w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-colors cursor-pointer border ${
             isActive
               ? "bg-[#1E232B] border-slate-700/80 shadow-md"
               : "bg-[#16191E] hover:bg-[#1D2128] border-transparent hover:border-slate-800/80"
@@ -224,48 +213,23 @@ export default function ConversationListItem({
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
 
-                {/* Masaüstü Ek Menü (Geçmişi Temizle vb.) */}
-                <div className="relative hidden md:block" ref={menuRef}>
+                {/* Masaüstü Ek Menü Butonu (3 Nokta) */}
+                <div className="relative hidden md:block">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowContextMenu(!showContextMenu);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const menuWidth = 180;
+                      const menuHeight = 110;
+                      const x = Math.max(10, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 10));
+                      const y = Math.max(10, Math.min(rect.bottom + 6, window.innerHeight - menuHeight - 10));
+                      setContextMenuPos({ x, y });
                     }}
                     title="Seçenekler"
                     className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   >
                     <MoreHorizontal className="w-3.5 h-3.5" />
                   </button>
-
-                  {/* Masaüstü Dropdown Açılır Menü */}
-                  {showContextMenu && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-6 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100"
-                    >
-                      <button
-                        onClick={() => {
-                          setShowContextMenu(false);
-                          setShowConfirmModal("clear");
-                        }}
-                        className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <Eraser className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Geçmişi Temizle</span>
-                      </button>
-                      <div className="h-px bg-slate-800 my-1" />
-                      <button
-                        onClick={() => {
-                          setShowContextMenu(false);
-                          setShowConfirmModal("delete");
-                        }}
-                        className="w-full px-3 py-2 text-left text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors font-medium cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                        <span>Sohbeti Sil</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Durum / Saat */}
@@ -311,6 +275,56 @@ export default function ConversationListItem({
           </div>
         </div>
       </div>
+
+      {/* SABİT KOORDİNATLI CONTEXT MENU (Ekran sınırlarına duyarlı, asla kesilmez) */}
+      {contextMenuPos && (
+        <>
+          {/* Sayfa tıklandığında menüyü kapatan görünmez katman */}
+          <div
+            className="fixed inset-0 z-50 bg-black/10 cursor-default"
+            onClick={(e) => {
+              e.stopPropagation();
+              setContextMenuPos(null);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenuPos(null);
+            }}
+          />
+
+          {/* Sabit Açılır Menü */}
+          <div
+            style={{ top: contextMenuPos.y, left: contextMenuPos.x }}
+            onClick={(e) => e.stopPropagation()}
+            className="fixed z-50 w-44 bg-[#141722]/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 select-none space-y-0.5"
+          >
+            <button
+              onClick={() => {
+                setContextMenuPos(null);
+                setShowConfirmModal("clear");
+              }}
+              className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-slate-800/80 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+            >
+              <Eraser className="w-4 h-4 text-amber-400" />
+              <span className="font-medium">Geçmişi Temizle</span>
+            </button>
+
+            <div className="h-px bg-slate-800 my-1" />
+
+            <button
+              onClick={() => {
+                setContextMenuPos(null);
+                setShowConfirmModal("delete");
+              }}
+              className="w-full px-3 py-2 text-left text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 rounded-xl flex items-center gap-2.5 transition-colors font-medium cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-rose-500" />
+              <span className="font-medium">Sohbeti Sil</span>
+            </button>
+          </div>
+        </>
+      )}
 
       {/* SİLME / TEMİZLEME ONAY MODALI */}
       {showConfirmModal && (

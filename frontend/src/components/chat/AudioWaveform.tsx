@@ -53,6 +53,7 @@ export default function AudioWaveform({ audioUrl, isMine, initialDuration, peaks
         barRadius: 2,
         height: 32,
         url: finalUrl,
+        fetchParams: { credentials: "include" },
         peaks: peaks && peaks.length > 0 ? [peaks] : undefined,
         duration: initialDuration && initialDuration > 0 ? initialDuration : undefined,
       });

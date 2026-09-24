@@ -105,7 +105,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub, accessRepo)
 	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService, accessRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
-	mediaHandler := handlers.NewMediaHandler(storageService, previewService)
+	mediaHandler := handlers.NewMediaHandler(storageService, previewService, chatRepo, userRepo, cfg.JWTAccessSecret)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService)

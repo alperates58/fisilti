@@ -97,9 +97,9 @@ services:
       mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
       mc mb --ignore-existing local/$${MINIO_BUCKET_FILES};
       mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
-      mc anonymous set download local/$${MINIO_BUCKET_VOICE};
-      mc anonymous set download local/$${MINIO_BUCKET_MEDIA};
-      mc anonymous set download local/$${MINIO_BUCKET_FILES};
+      mc anonymous set none local/$${MINIO_BUCKET_VOICE};
+      mc anonymous set none local/$${MINIO_BUCKET_MEDIA};
+      mc anonymous set none local/$${MINIO_BUCKET_FILES};
       echo 'MinIO bucketlari hazirlandi.';
       exit 0;
       "

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"fisilti/internal/database"
+	"fisilti/internal/middleware"
 	"fisilti/internal/preview"
 	"fisilti/internal/storage"
 	"fisilti/internal/transcoder"
@@ -17,14 +19,26 @@ import (
 )
 
 type MediaHandler struct {
-	storage *storage.StorageService
-	preview *preview.PreviewService
+	storage   *storage.StorageService
+	preview   *preview.PreviewService
+	chatRepo  *database.ChatRepository
+	userRepo  *database.UserRepository
+	jwtSecret string
 }
 
-func NewMediaHandler(storage *storage.StorageService, preview *preview.PreviewService) *MediaHandler {
+func NewMediaHandler(
+	storage *storage.StorageService,
+	preview *preview.PreviewService,
+	chatRepo *database.ChatRepository,
+	userRepo *database.UserRepository,
+	jwtSecret string,
+) *MediaHandler {
 	return &MediaHandler{
-		storage: storage,
-		preview: preview,
+		storage:   storage,
+		preview:   preview,
+		chatRepo:  chatRepo,
+		userRepo:  userRepo,
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -100,6 +114,51 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 	objectName := c.Params("*")
 	if bucket == "" || objectName == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("Geçersiz medya yolu")
+	}
+
+	// 0. Güvenlik & Gizlilik Doğrulaması:
+	// Avatarlar dışındaki tüm medyalar (sesli mesajlar, videolar, fotoğraflar, belgeler)
+	// özel konuşmalara aittir. Yalnızca kimliği doğrulanmış ve konuşmanın tarafı olan kullanıcılar erişebilir.
+	if bucket != "avatars" {
+		tokenStr := c.Cookies("access_token")
+		if tokenStr == "" {
+			authHeader := c.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+		if tokenStr == "" {
+			tokenStr = c.Query("token")
+		}
+
+		if tokenStr == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Bu özel medyayı görüntülemek için giriş yapmalısınız.",
+			})
+		}
+
+		claims, err := middleware.ValidateToken(tokenStr, h.jwtSecret)
+		if err != nil || claims.IsRefresh {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Geçersiz veya süresi dolmuş oturum.",
+			})
+		}
+
+		var userRole string = "member"
+		if h.userRepo != nil {
+			if u, err := h.userRepo.GetUserByID(c.Context(), claims.UserID); err == nil && u != nil {
+				userRole = u.Role
+			}
+		}
+
+		if h.chatRepo != nil {
+			allowed, err := h.chatRepo.CanUserAccessMedia(c.Context(), claims.UserID, userRole, bucket, objectName)
+			if err != nil || !allowed {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"error": "Bu özel medyayı görüntüleme yetkiniz bulunmuyor.",
+				})
+			}
+		}
 	}
 
 	ua := strings.ToLower(c.Get("User-Agent"))
