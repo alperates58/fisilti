@@ -206,7 +206,8 @@ func main() {
 	users.Get("/search", userHandler.SearchUsers)
 	users.Get("/access-logs", userHandler.GetAccessLogs)
 
-	// Sohbet ve Mesajlaşma Rotaları (JWT Korumalı)
+	// Sohbet ve Mesajlaşma Rotaları
+	v1.Get("/media/file/:bucket/*", mediaHandler.GetMediaFile)
 	v1.Post("/media/upload", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaLimiter, mediaHandler.UploadMedia)
 	v1.Get("/media/link-preview", middleware.JWTMiddleware(cfg.JWTAccessSecret), mediaHandler.GetLinkPreview)
 

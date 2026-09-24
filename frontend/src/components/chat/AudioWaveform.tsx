@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import { Play, Pause } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/api";
 
 interface Props {
   audioUrl: string;
@@ -18,8 +19,9 @@ export default function AudioWaveform({ audioUrl, isMine }: Props) {
   const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !audioUrl) return;
 
+    const finalUrl = resolveMediaUrl(audioUrl);
     const ws = WaveSurfer.create({
       container: containerRef.current,
       waveColor: isMine ? "rgba(255, 255, 255, 0.4)" : "rgba(148, 163, 184, 0.4)",
@@ -29,7 +31,7 @@ export default function AudioWaveform({ audioUrl, isMine }: Props) {
       barGap: 2,
       barRadius: 2,
       height: 32,
-      url: audioUrl,
+      url: finalUrl,
     });
 
     ws.on("ready", () => {

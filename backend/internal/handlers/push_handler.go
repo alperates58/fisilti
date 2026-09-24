@@ -34,11 +34,15 @@ type SubscribeRequest struct {
 }
 
 func (h *PushHandler) Subscribe(c *fiber.Ctx) error {
-	userIDVal := c.Locals("userID")
-	if userIDVal == nil {
+	var userID uuid.UUID
+	if val, ok := c.Locals("user_id").(uuid.UUID); ok {
+		userID = val
+	} else if val, ok := c.Locals("userID").(uuid.UUID); ok {
+		userID = val
+	}
+	if userID == uuid.Nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	var req SubscribeRequest
 	if err := c.BodyParser(&req); err != nil || req.Endpoint == "" || req.P256dh == "" || req.Auth == "" {
@@ -75,11 +79,15 @@ func (h *PushHandler) Unsubscribe(c *fiber.Ctx) error {
 }
 
 func (h *PushHandler) TestNotification(c *fiber.Ctx) error {
-	userIDVal := c.Locals("userID")
-	if userIDVal == nil {
+	var userID uuid.UUID
+	if val, ok := c.Locals("user_id").(uuid.UUID); ok {
+		userID = val
+	} else if val, ok := c.Locals("userID").(uuid.UUID); ok {
+		userID = val
+	}
+	if userID == uuid.Nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Yetkisiz erişim"})
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	subs, err := h.pushRepo.GetSubscriptionsForUser(context.Background(), userID)
 	if err != nil || len(subs) == 0 {

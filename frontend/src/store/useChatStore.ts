@@ -354,6 +354,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   onMessageSent: (tempId: string, confirmed: Message) => {
+    const convExists = get().conversations.some((c) => c.id === confirmed.conversation_id);
+    if (!convExists) {
+      get().loadConversations();
+    }
+
     set((state) => {
       const convId = confirmed.conversation_id;
       const list = state.messages[convId] || [];
@@ -371,6 +376,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   onNewMessage: (msg: Message) => {
+    const convExists = get().conversations.some((c) => c.id === msg.conversation_id);
+    if (!convExists) {
+      get().loadConversations();
+    }
+
     set((state) => {
       const convId = msg.conversation_id;
       const list = state.messages[convId] || [];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Message, useChatStore } from "@/store/useChatStore";
 import {
   Check,
@@ -23,6 +23,7 @@ import AudioWaveform from "./AudioWaveform";
 import { ReactionPicker, ReactionBadges } from "./ReactionPicker";
 import SocialMediaEmbed, { extractSocialMedia, extractGeneralUrl } from "./SocialMediaEmbed";
 import LinkPreviewCard from "./LinkPreviewCard";
+import { resolveMediaUrl } from "@/lib/api";
 
 interface Props {
   message: Message;
@@ -39,9 +40,41 @@ export default function MessageBubble({ message }: Props) {
 
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuDirection, setMenuDirection] = useState<"up" | "down">("up");
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const resolvedMediaUrl = resolveMediaUrl(message.media_url);
+
+  // Menü dışına tıklanınca kapat
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
+
+  const handleToggleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!showMenu) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      // Ekranın veya scroll konteynerinin üst 240px'i içindeyse aşağı doğru aç
+      if (rect.top < 240) {
+        setMenuDirection("down");
+      } else {
+        setMenuDirection("up");
+      }
+    }
+    setShowMenu(!showMenu);
+  };
 
   const socialMediaData =
     !message.is_deleted_for_all && message.content ? extractSocialMedia(message.content) : null;
@@ -180,35 +213,36 @@ export default function MessageBubble({ message }: Props) {
           )}
 
           {/* 1. Sesli Mesaj (Voice Note) */}
-          {message.message_type === "voice" && message.media_url && !message.is_deleted_for_all && (
-            <AudioWaveform audioUrl={message.media_url} isMine={message.is_mine} />
+          {message.message_type === "voice" && resolvedMediaUrl && !message.is_deleted_for_all && (
+            <AudioWaveform audioUrl={resolvedMediaUrl} isMine={message.is_mine} />
           )}
 
           {/* 2. Fotoğraf (Image) */}
-          {message.message_type === "image" && message.media_url && !message.is_deleted_for_all && (
+          {message.message_type === "image" && resolvedMediaUrl && !message.is_deleted_for_all && (
             <div className="my-1 cursor-pointer overflow-hidden rounded-xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={message.media_url}
+                src={resolvedMediaUrl}
                 alt="Fotoğraf"
                 className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
-                onClick={() => setPreviewImage(message.media_url || null)}
+                onClick={() => setPreviewImage(resolvedMediaUrl || null)}
               />
             </div>
           )}
 
           {/* 3. Video (iOS & Android Evrensel Uyumluluk) */}
-          {message.message_type === "video" && message.media_url && !message.is_deleted_for_all && (
+          {message.message_type === "video" && resolvedMediaUrl && !message.is_deleted_for_all && (
             <div className="my-1 overflow-hidden rounded-2xl max-h-72 bg-black">
               <video
                 controls
                 playsInline
                 preload="metadata"
                 className="max-h-72 w-full rounded-2xl object-contain bg-black"
+                src={resolvedMediaUrl}
               >
-                <source src={message.media_url} type="video/mp4" />
-                <source src={message.media_url} type="video/webm" />
-                <source src={message.media_url} type="video/quicktime" />
+                <source src={resolvedMediaUrl} type="video/mp4" />
+                <source src={resolvedMediaUrl} type="video/webm" />
+                <source src={resolvedMediaUrl} type="video/quicktime" />
                 Tarayıcınız bu videoyu oynatmayı desteklemiyor.
               </video>
             </div>
@@ -250,7 +284,7 @@ export default function MessageBubble({ message }: Props) {
           )}
 
           {/* 4. Belge / Dosya */}
-          {message.message_type === "file" && message.media_url && !message.is_deleted_for_all && (
+          {message.message_type === "file" && resolvedMediaUrl && !message.is_deleted_for_all && (
             <div
               className={`my-1 p-3 rounded-xl flex items-center gap-3 ${
                 message.is_mine ? "bg-black/25" : "bg-slate-900/80"
@@ -268,7 +302,7 @@ export default function MessageBubble({ message }: Props) {
                 </div>
               </div>
               <a
-                href={message.media_url}
+                href={resolvedMediaUrl}
                 target="_blank"
                 rel="noreferrer"
                 download
@@ -354,9 +388,9 @@ export default function MessageBubble({ message }: Props) {
             </button>
 
             {/* Daha Fazla Seçenek Menüsü */}
-            <div className="relative">
+            <div ref={menuRef} className="relative">
               <button
-                onClick={() => setShowMenu(!showMenu)}
+                onClick={handleToggleMenu}
                 title="Daha Fazla"
                 className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
@@ -365,7 +399,9 @@ export default function MessageBubble({ message }: Props) {
 
               {showMenu && (
                 <div
-                  className={`absolute bottom-6 ${
+                  className={`absolute ${
+                    menuDirection === "up" ? "bottom-6" : "top-6"
+                  } ${
                     message.is_mine ? "right-0" : "left-0"
                   } w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl p-1 z-40 text-xs text-slate-200 animate-in fade-in zoom-in-95`}
                 >

@@ -93,7 +93,7 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
     const data = event.data.json();
-    const title = data.title || 'Fısıltı';
+    const title = data.title || 'Aura';
     const options = {
       body: data.body || 'Yeni bir mesajınız var.',
       icon: data.icon || `${appScope}favicon.ico`,

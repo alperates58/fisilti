@@ -140,6 +140,9 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 	}
 
 	mediaURL := fmt.Sprintf("%s/%s/%s", s.publicURL, targetBucket, objectName)
+	if s.publicURL == "" || strings.Contains(s.publicURL, "localhost:9000") || strings.Contains(s.publicURL, "minio:9000") {
+		mediaURL = fmt.Sprintf("/api/v1/media/file/%s/%s", targetBucket, objectName)
+	}
 
 	metadata := map[string]interface{}{
 		"file_name": fileName,
@@ -152,6 +155,18 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		MediaURL: mediaURL,
 		Metadata: metadata,
 	}, nil
+}
+
+func (s *StorageService) GetObject(ctx context.Context, bucket, objectName string, opts minio.GetObjectOptions) (*minio.Object, minio.ObjectInfo, error) {
+	obj, err := s.client.GetObject(ctx, bucket, objectName, opts)
+	if err != nil {
+		return nil, minio.ObjectInfo{}, err
+	}
+	stat, err := obj.Stat()
+	if err != nil {
+		return nil, minio.ObjectInfo{}, err
+	}
+	return obj, stat, nil
 }
 
 func (s *StorageService) DeleteMedia(ctx context.Context, mediaURL string) error {

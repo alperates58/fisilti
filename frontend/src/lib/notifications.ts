@@ -1,7 +1,7 @@
 // notifications.ts - Tarayıcı sekme başlığı ve Web Notifications yönetimi
 
 class NotificationManager {
-  private defaultTitle = "Fısıltı";
+  private defaultTitle = "Aura";
   private flashInterval: NodeJS.Timeout | null = null;
   private isInitialized = false;
 
@@ -41,7 +41,7 @@ class NotificationManager {
     return false;
   }
 
-  notify(title: string, body: string, icon?: string) {
+  async notify(title: string, body: string, icon?: string) {
     if (typeof window === "undefined" || !("Notification" in window)) return;
 
     const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -54,6 +54,23 @@ class NotificationManager {
     const notifIcon = icon || defaultIcon;
 
     if (Notification.permission === "granted" && document.hidden) {
+      if ("serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && reg.showNotification) {
+            await reg.showNotification(title, {
+              body,
+              icon: notifIcon,
+              badge: notifIcon,
+              tag: "fisilti-message",
+            });
+            return;
+          }
+        } catch (swErr) {
+          console.warn("ServiceWorker bildirim hatası:", swErr);
+        }
+      }
+
       try {
         new Notification(title, {
           body,
@@ -86,8 +103,8 @@ class NotificationManager {
       }
 
       document.title = state
-        ? `(${unreadCount}) Yeni Mesaj! - Fısıltı`
-        : `💬 Fısıltı`;
+        ? `(${unreadCount}) Yeni Mesaj! - Aura`
+        : `💬 Aura`;
       state = !state;
     }, 1000);
   }

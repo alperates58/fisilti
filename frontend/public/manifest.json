@@ -1,7 +1,7 @@
 {
-  "name": "Fısıltı",
-  "short_name": "Fısıltı",
-  "description": "Fısıltı",
+  "name": "Aura",
+  "short_name": "Aura",
+  "description": "Aura",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B0C0F",

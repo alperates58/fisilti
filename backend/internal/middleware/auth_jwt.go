@@ -102,6 +102,7 @@ func JWTMiddleware(jwtSecret string) fiber.Handler {
 		}
 
 		c.Locals("user_id", claims.UserID)
+		c.Locals("userID", claims.UserID)
 		c.Locals("username", claims.Username)
 		return c.Next()
 	}

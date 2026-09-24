@@ -106,7 +106,7 @@ export default function HomePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeConversationId]);
 
-  // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde okunmamış mesajları 'read_ack' ile onayla
+  // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve konuşmaları yükle
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
       const isVisible =
@@ -116,30 +116,43 @@ export default function HomePage() {
 
       if (isVisible) {
         notificationManager.stopFlash();
-      }
 
-      if (isVisible && activeConversationId) {
-        const convMessages = messages[activeConversationId] || [];
-        const unreadIds = convMessages
-          .filter((m) => !m.is_mine && !m.read_at)
-          .map((m) => m.id);
+        // 1. WebSocket kopmuşsa yeniden bağla
+        const socketState = useSocketStore.getState();
+        if (!socketState.socket || socketState.socket.readyState !== WebSocket.OPEN) {
+          socketState.connect();
+        }
 
-        if (unreadIds.length > 0) {
-          useSocketStore.getState().sendAction("read_ack", {
-            conversation_id: activeConversationId,
-            message_ids: unreadIds,
-          });
+        // 2. Kilit açıldığında güncel konuşmaları ve okunmamış sayılarını çek
+        loadConversations();
+
+        // 3. Eğer açık bir sohbet varsa mesajları tazele ve read_ack gönder
+        if (activeConversationId) {
+          useChatStore.getState().loadMessages(activeConversationId);
+          const convMessages = messages[activeConversationId] || [];
+          const unreadIds = convMessages
+            .filter((m) => !m.is_mine && !m.read_at)
+            .map((m) => m.id);
+
+          if (unreadIds.length > 0) {
+            useSocketStore.getState().sendAction("read_ack", {
+              conversation_id: activeConversationId,
+              message_ids: unreadIds,
+            });
+          }
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityOrFocus);
     window.addEventListener("focus", handleVisibilityOrFocus);
+    window.addEventListener("online", handleVisibilityOrFocus);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("focus", handleVisibilityOrFocus);
+      window.removeEventListener("online", handleVisibilityOrFocus);
     };
-  }, [activeConversationId, messages]);
+  }, [activeConversationId, messages, loadConversations]);
 
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
@@ -225,14 +238,14 @@ export default function HomePage() {
       <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm text-slate-400 font-medium">Fısıltı yükleniyor...</p>
+          <p className="text-sm text-slate-400 font-medium">Aura yükleniyor...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[100dvh] w-screen bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
+    <div className="flex h-full h-[100dvh] w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
       {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
       <SideNavigation
         activeTab={activeTab}
@@ -619,7 +632,7 @@ export default function HomePage() {
             </div>
 
             {/* Mesaj Giriş Barı & Alıntılama & Medya Menüsü */}
-            <footer className="p-2.5 sm:p-4 border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0">
+            <footer className="p-2.5 sm:p-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0">
               <ReplyBar />
 
               <div className="flex items-center gap-2 sm:gap-3">
@@ -673,7 +686,7 @@ export default function HomePage() {
             <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-pink-400 mb-4 shadow-xl">
               <MessageSquare className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-1">Fısıltı</h3>
+            <h3 className="text-lg font-bold text-white mb-1">Aura</h3>
             <p className="text-sm text-slate-400 max-w-sm mb-6">
               Sol taraftan bir sohbet seçin veya &quot;Kişiler&quot; menüsünden birini bularak mesajlaşmaya başlayın.
             </p>

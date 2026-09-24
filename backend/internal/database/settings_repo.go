@@ -46,10 +46,10 @@ func (r *SettingsRepository) GetSetting(ctx context.Context, key string) (json.R
 func (r *SettingsRepository) UpdateSetting(ctx context.Context, key string, value json.RawMessage) error {
 	query := `
 		INSERT INTO system_settings (key, value, updated_at)
-		VALUES ($1, $2, NOW())
+		VALUES ($1, $2::jsonb, NOW())
 		ON CONFLICT (key) DO UPDATE
 		SET value = EXCLUDED.value, updated_at = NOW()
 	`
-	_, err := r.db.ExecContext(ctx, query, key, value)
+	_, err := r.db.ExecContext(ctx, query, key, string(value))
 	return err
 }

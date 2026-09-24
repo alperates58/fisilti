@@ -33,25 +33,31 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     set({ isManualDisconnect: false });
 
     let wsUrl = process.env.NEXT_PUBLIC_WS_URL;
-    if (!wsUrl && typeof window !== "undefined") {
+    if (typeof window !== "undefined") {
       const isHttps = window.location.protocol === "https:";
       const proto = isHttps ? "wss:" : "ws:";
       const host = window.location.hostname;
-      const port = window.location.port ? `:${window.location.port}` : "";
-      const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-      const basePath = rawBasePath.startsWith("/")
-        ? rawBasePath.replace(/\/+$/, "")
-        : rawBasePath
-        ? "/" + rawBasePath.replace(/\/+$/, "")
-        : "";
+      const isLocalhost = host === "localhost" || host === "127.0.0.1";
 
-      if (host === "localhost" || host === "127.0.0.1") {
-        wsUrl = "ws://localhost:8080/ws";
-      } else if (basePath) {
-        wsUrl = `${proto}//${host}${port}${basePath}/ws`;
-      } else {
-        const base = host.replace(/^chat\./, "");
-        wsUrl = `${proto}//api.${base}/ws`;
+      if (wsUrl && !isLocalhost && (wsUrl.includes("localhost") || wsUrl.includes("127.0.0.1"))) {
+        wsUrl = wsUrl.replace(/localhost|127\.0\.0\.1/, host);
+      } else if (!wsUrl) {
+        const port = window.location.port ? `:${window.location.port}` : "";
+        const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+        const basePath = rawBasePath.startsWith("/")
+          ? rawBasePath.replace(/\/+$/, "")
+          : rawBasePath
+          ? "/" + rawBasePath.replace(/\/+$/, "")
+          : "";
+
+        if (isLocalhost) {
+          wsUrl = "ws://localhost:8080/ws";
+        } else if (basePath) {
+          wsUrl = `${proto}//${host}${port}${basePath}/ws`;
+        } else {
+          const base = host.replace(/^chat\./, "");
+          wsUrl = `${proto}//api.${base}/ws`;
+        }
       }
     }
     if (!wsUrl) {
@@ -124,7 +130,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
               });
             } else {
               // Kullanıcı başka sohbette veya tarayıcı arka planda / telefon kilitli
-              notificationManager.notify("Fısıltı - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
+              notificationManager.notify("Aura - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
               notificationManager.flashTitle(1);
             }
             break;

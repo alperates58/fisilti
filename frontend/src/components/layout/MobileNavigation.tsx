@@ -19,7 +19,7 @@ export default function MobileNavigation({
   onOpenSettings,
 }: Props) {
   return (
-    <nav className="md:hidden h-14 bg-grupo-dark-card border-t border-grupo-dark-border flex items-center justify-around px-2 z-20 flex-shrink-0 select-none">
+    <nav className="md:hidden h-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-grupo-dark-card border-t border-grupo-dark-border flex items-center justify-around px-2 z-20 flex-shrink-0 select-none">
       {/* 1. Sohbetler */}
       <button
         onClick={() => onTabChange("chats")}

@@ -171,51 +171,54 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        {/* Tab Butonları (Mobilde yatay kaydırılabilir) */}
-        <div className="flex overflow-x-auto border-b border-grupo-dark-border px-3 sm:px-6 pt-2 bg-slate-900/40">
+        {/* Tab Butonları (Mobilde tam genişlik ve responsive etiketler) */}
+        <div className="flex items-center overflow-x-auto scrollbar-none border-b border-grupo-dark-border px-1.5 sm:px-6 pt-1 sm:pt-2 bg-slate-900/40">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
+            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "profile"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
             }`}
           >
-            <User className="w-4 h-4" />
-            <span>Profilim</span>
+            <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Profilim</span>
+            <span className="sm:hidden">Profil</span>
           </button>
           <button
             onClick={() => setActiveTab("privacy")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
+            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "privacy"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
             }`}
           >
-            <Shield className="w-4 h-4" />
+            <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
             <span>Gizlilik</span>
           </button>
           <button
             onClick={() => setActiveTab("notifications")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
+            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "notifications"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
             }`}
           >
-            <Bell className="w-4 h-4" />
-            <span>Web Push</span>
+            <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Web Push</span>
+            <span className="sm:hidden">Push</span>
           </button>
           <button
             onClick={() => setActiveTab("access_logs")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
+            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "access_logs"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
             }`}
           >
-            <History className="w-4 h-4" />
-            <span>Giriş Kayıtları</span>
+            <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Giriş Kayıtları</span>
+            <span className="sm:hidden">Girişler</span>
           </button>
         </div>
 
@@ -287,7 +290,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
                     type="text"
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Müsait, Fısıltı kullanıyor..."
+                    placeholder="Müsait, Aura kullanıyor..."
                     className="w-full bg-slate-900 border border-grupo-dark-border rounded-xl py-2.5 px-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
                   />
                 </div>
@@ -484,7 +487,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
               <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 text-[11px] text-slate-400 space-y-1">
                 <p className="font-semibold text-slate-300">💡 Nasıl Çalışır?</p>
                 <p>
-                  Fısıltı, Google FCM veya Apple Push sunucularına doğrudan şifreli RFC standardında VAPID istekleri gönderir. Sekmeniz tamamen kapalı olsa dahi telefonunuz uyanır.
+                  Aura, Google FCM veya Apple Push sunucularına doğrudan şifreli RFC standardında VAPID istekleri gönderir. Sekmeniz tamamen kapalı olsa dahi telefonunuz uyanır.
                 </p>
               </div>
             </div>
@@ -492,14 +495,14 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
 
           {activeTab === "access_logs" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-grupo-dark-border">
-                <div>
+              <div className="flex items-center justify-between pb-2 border-b border-grupo-dark-border gap-2">
+                <div className="min-w-0 pr-1">
                   <h4 className="text-sm font-bold text-white">Son Giriş Kayıtları (Access Logs)</h4>
                   <p className="text-xs text-slate-400">
                     Hesabınıza yapılan son oturum açma işlemleri ve kullanılan cihazlar.
                   </p>
                 </div>
-                <History className="w-5 h-5 text-pink-400" />
+                <History className="w-5 h-5 text-pink-400 flex-shrink-0" />
               </div>
 
               {isLoadingLogs ? (
@@ -521,42 +524,56 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
                     return (
                       <div
                         key={log.id || idx}
-                        className="p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-center justify-between gap-3 text-xs"
+                        className="p-3 sm:p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800 text-xs transition-colors hover:border-slate-700/80"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-pink-400">
-                            {isMobile ? (
-                              <Smartphone className="w-4 h-4" />
-                            ) : (
-                              <Laptop className="w-4 h-4" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-white truncate flex items-center gap-2">
-                              <span>{log.device_info || "Bilinmeyen Cihaz"}</span>
-                              {idx === 0 && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                                  Son Giriş
-                                </span>
+                        <div className="flex items-start sm:items-center justify-between gap-3">
+                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-pink-400 mt-0.5 sm:mt-0">
+                              {isMobile ? (
+                                <Smartphone className="w-4 h-4" />
+                              ) : (
+                                <Laptop className="w-4 h-4" />
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                              <span className="flex items-center gap-1 font-mono">
-                                <Globe className="w-3 h-3 text-slate-500" />
-                                {log.ip_address}
-                              </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center flex-wrap gap-1.5">
+                                <span className="font-semibold text-white truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
+                                  {log.device_info || "Bilinmeyen Cihaz"}
+                                </span>
+                                {idx === 0 && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 whitespace-nowrap flex-shrink-0">
+                                    Son Giriş
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span className="flex items-center gap-1 font-mono">
+                                  <Globe className="w-3 h-3 text-slate-500 flex-shrink-0" />
+                                  {log.ip_address}
+                                </span>
+                                <span className="text-slate-600 sm:hidden">•</span>
+                                <span className="text-[11px] text-slate-400 sm:hidden font-medium">
+                                  {new Date(log.created_at).toLocaleString("tr-TR", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="text-[11px] text-slate-400 text-right flex-shrink-0">
-                          {new Date(log.created_at).toLocaleString("tr-TR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {/* Geniş ekranda sağ tarafta tarih */}
+                          <div className="hidden sm:block text-[11px] text-slate-400 text-right flex-shrink-0 font-medium">
+                            {new Date(log.created_at).toLocaleString("tr-TR", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
                         </div>
                       </div>
                     );
@@ -568,17 +585,17 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Alt Bar: Çıkış Butonu */}
-        <div className="p-4 border-t border-grupo-dark-border bg-slate-900/80 flex items-center justify-between">
+        <div className="p-3 sm:p-4 border-t border-grupo-dark-border bg-slate-900/80 flex items-center justify-between gap-2">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 flex-shrink-0" />
             <span>Hesaptan Çıkış Yap</span>
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
           >
             Kapat
           </button>

@@ -12,9 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
   const iconUrl = basePath ? `${basePath}/favicon.ico` : "/favicon.ico";
 
   return {
-    name: "Fısıltı",
-    short_name: "Fısıltı",
-    description: "Fısıltı",
+    name: "Aura",
+    short_name: "Aura",
+    description: "Aura",
     start_url: startUrl,
     display: "standalone",
     background_color: "#0B0C0F",

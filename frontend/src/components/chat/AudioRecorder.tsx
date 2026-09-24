@@ -23,6 +23,8 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>("audio/webm");
+  const extRef = useRef<string>("webm");
 
   useEffect(() => {
     startRecording();
@@ -48,13 +50,31 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
-        ? "audio/ogg;codecs=opus"
-        : "audio/webm";
+      let chosenMimeType = "audio/webm";
+      let chosenExt = "webm";
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          chosenMimeType = "audio/webm;codecs=opus";
+          chosenExt = "webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          chosenMimeType = "audio/mp4";
+          chosenExt = "mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+          chosenMimeType = "audio/ogg;codecs=opus";
+          chosenExt = "ogg";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          chosenMimeType = "audio/webm";
+          chosenExt = "webm";
+        }
+      }
+
+      mimeTypeRef.current = chosenMimeType;
+      extRef.current = chosenExt;
+
+      const recorder = chosenMimeType
+        ? new MediaRecorder(stream, { mimeType: chosenMimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -95,7 +115,9 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
 
     mediaRecorderRef.current.onstop = async () => {
       stopTracks();
-      const recordedBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const mime = mimeTypeRef.current || "audio/webm";
+      const ext = extRef.current || "webm";
+      const recordedBlob = new Blob(audioChunksRef.current, { type: mime });
 
       if (recordedBlob.size < 100) {
         onCancel();
@@ -104,7 +126,7 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
 
       try {
         const formData = new FormData();
-        formData.append("file", recordedBlob, "voice_message.webm");
+        formData.append("file", recordedBlob, `voice_message.${ext}`);
         formData.append("category", "voice");
         formData.append("duration", seconds.toString());
 

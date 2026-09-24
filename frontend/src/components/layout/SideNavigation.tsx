@@ -40,20 +40,22 @@ export default function SideNavigation({
   onOpenAdmin,
   onLogout,
 }: Props) {
-  // Sidebar genişletilmiş / daraltılmış durumu (localStorage ile hatırlar)
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  // Sidebar varsayılan olarak açık (genişletilmiş)
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("fisilti_sidebar_expanded");
+    const saved = localStorage.getItem("aura_sidebar_expanded");
     if (saved !== null) {
       setIsExpanded(saved === "true");
+    } else {
+      setIsExpanded(true);
     }
   }, []);
 
   const toggleSidebar = () => {
     const next = !isExpanded;
     setIsExpanded(next);
-    localStorage.setItem("fisilti_sidebar_expanded", String(next));
+    localStorage.setItem("aura_sidebar_expanded", String(next));
   };
 
   const isAdminOrMod = user?.role === "admin" || user?.role === "moderator";
@@ -67,41 +69,47 @@ export default function SideNavigation({
       {/* Üst Kısım: Logo ve Menü Öğeleri */}
       <div className="flex flex-col w-full px-2.5">
         
-        {/* Başlık / Logo & Daralt/Genişlet Butonu (Grupo style) */}
-        <div className="flex items-center justify-between mb-5 px-1.5 h-11">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div
-              title="Fısıltı"
-              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center font-black text-white shadow-lg shadow-rose-950/50 flex-shrink-0 cursor-pointer"
-              onClick={toggleSidebar}
-            >
-              F
-            </div>
-            {isExpanded && (
-              <div className="flex items-center overflow-hidden whitespace-nowrap animate-fadeIn">
-                <span className="font-extrabold text-base text-white tracking-wide flex items-center gap-2">
-                  Fısıltı
-                  <span className="text-[9px] font-mono uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded">
-                    v3.15
-                  </span>
+        {/* Başlık / Logo & Daralt/Genişlet Butonu */}
+        {isExpanded ? (
+          <div className="flex items-center justify-between mb-5 px-1.5 h-11 animate-fadeIn">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div
+                title="Aura"
+                className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-lg shadow-rose-950/50 flex-shrink-0 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                onClick={toggleSidebar}
+              >
+                A
+              </div>
+              <div className="flex items-center overflow-hidden whitespace-nowrap">
+                <span className="font-extrabold text-base text-white tracking-wide">
+                  Aura
                 </span>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Daralt / Genişlet Toggle Butonu */}
-          <button
-            onClick={toggleSidebar}
-            title={isExpanded ? "Menüyü Daralt" : "Menüyü Genişlet"}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-[#1E222D] transition-colors flex-shrink-0"
-          >
-            {isExpanded ? (
+            {/* Daralt Butonu */}
+            <button
+              onClick={toggleSidebar}
+              title="Menüyü Daralt"
+              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-[#1E222D] transition-colors flex-shrink-0 cursor-pointer"
+            >
               <ChevronLeft className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center mb-5 h-11 w-full">
+            <button
+              onClick={toggleSidebar}
+              title="Menüyü Genişlet"
+              className="group relative w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-lg shadow-rose-950/50 cursor-pointer transition-transform hover:scale-105 active:scale-95 flex-shrink-0"
+            >
+              <span>A</span>
+              <span className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full bg-[#1E222D] border border-slate-700/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                <ChevronRight className="w-2.5 h-2.5 text-slate-300" />
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Menü Linkleri */}
         <div className="space-y-1.5 w-full">

@@ -35,11 +35,27 @@ func NewAdminHandler(
 
 // Middleware: Admin Yetki Kontrolü
 func (h *AdminHandler) RequireAdmin(c *fiber.Ctx) error {
-	userIDVal := c.Locals("userID")
-	if userIDVal == nil {
+	var userID uuid.UUID
+	if val := c.Locals("user_id"); val != nil {
+		if id, ok := val.(uuid.UUID); ok {
+			userID = id
+		} else if str, ok := val.(string); ok {
+			userID, _ = uuid.Parse(str)
+		}
+	}
+	if userID == uuid.Nil {
+		if val := c.Locals("userID"); val != nil {
+			if id, ok := val.(uuid.UUID); ok {
+				userID = id
+			} else if str, ok := val.(string); ok {
+				userID, _ = uuid.Parse(str)
+			}
+		}
+	}
+
+	if userID == uuid.Nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Giriş yapmalısınız"})
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	user, err := h.userRepo.GetUserByID(context.Background(), userID)
 	if err != nil || user == nil {
@@ -155,7 +171,12 @@ func (h *AdminHandler) DeleteUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz kullanıcı ID"})
 	}
 
-	currentUserID := c.Locals("userID").(uuid.UUID)
+	var currentUserID uuid.UUID
+	if val, ok := c.Locals("user_id").(uuid.UUID); ok {
+		currentUserID = val
+	} else if val, ok := c.Locals("userID").(uuid.UUID); ok {
+		currentUserID = val
+	}
 	if currentUserID == targetID {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Kendinizi silemezsiniz."})
 	}

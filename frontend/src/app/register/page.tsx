@@ -55,10 +55,10 @@ export default function RegisterPage() {
       <div className="w-full max-w-md bg-grupo-dark-card border border-grupo-dark-border rounded-2xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-grupo-accent to-grupo-accent-secondary flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-pink-500/25">
-            F
+            A
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Hesap Oluştur</h1>
-          <p className="text-sm text-slate-400 mt-1">Hızlıca Fısıltı ailesine katılın</p>
+          <p className="text-sm text-slate-400 mt-1">Hızlıca Aura&apos;ya katılın</p>
         </div>
 
         {error && (

@@ -51,6 +51,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Settings state
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Users state
   const [users, setUsers] = useState<User[]>([]);
@@ -73,11 +75,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   }, [isOpen, activeTab]);
 
   const loadSettings = async () => {
+    setIsSettingsLoading(true);
+    setSettingsError(null);
     try {
       const data = await adminApi.getSettings();
       setSettings(data);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Ayarlar yüklenemedi", e);
+      setSettingsError(e.response?.data?.error || "Ayarlar yüklenemedi.");
+    } finally {
+      setIsSettingsLoading(false);
     }
   };
 
@@ -191,9 +198,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                Fısıltı Yönetim & Sistem Kontrol Merkezi
+                Aura Yönetim & Sistem Kontrol Merkezi
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                  Grupo Admin
+                  Admin Panel
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
@@ -435,6 +442,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
           )}
 
+          {/* PARAMETRE YÜKLENİYOR / HATA DURUMU */}
+          {["general", "chat", "calls", "security"].includes(activeTab) && isSettingsLoading && (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+              <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs">Sistem parametreleri yükleniyor...</span>
+            </div>
+          )}
+          {["general", "chat", "calls", "security"].includes(activeTab) && !isSettingsLoading && settingsError && (
+            <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-4 rounded-xl text-xs flex items-center justify-between">
+              <span>{settingsError}</span>
+              <button onClick={loadSettings} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition-colors">
+                Tekrar Dene
+              </button>
+            </div>
+          )}
+
           {/* TAB 2: GENEL PARAMETRELER */}
           {activeTab === "general" && settings && (
             <div className="max-w-2xl space-y-6">
@@ -644,9 +667,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                 <div className="pt-4 flex justify-end gap-3">
                   <button
-                    onClick={() => {
-                      handleSaveSetting("media_limits", settings.media_limits);
-                      handleSaveSetting("chat_settings", settings.chat_settings);
+                    onClick={async () => {
+                      try {
+                        await adminApi.updateSetting("media_limits", settings.media_limits);
+                        await adminApi.updateSetting("chat_settings", settings.chat_settings);
+                        setSaveSuccess("Medya ve sohbet parametreleri kaydedildi!");
+                        setTimeout(() => setSaveSuccess(null), 3000);
+                        loadSettings();
+                      } catch (e) {
+                        alert("Ayar kaydedilirken bir hata oluştu.");
+                      }
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-rose-950/40 transition-colors"
                   >
