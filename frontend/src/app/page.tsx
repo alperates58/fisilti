@@ -910,23 +910,32 @@ export default function HomePage() {
             </div>
           </div>
         )}
-
-        {/* WhatsApp Mesaj Bilgisi Modalı */}
-        <MessageInfoModal />
-
-        {/* Ayarlar ve Profil Modalı */}
-        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-
-        {/* Yönetim Paneli Modalı (Grupo Admin) */}
-        <AdminPanelModal
-          isOpen={isAdminPanelOpen}
-          onClose={() => setIsAdminPanelOpen(false)}
-        />
-
-        {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
-        <IncomingCallModal />
-        <ActiveCallModal />
       </main>
+
+      {/* Global Modallar (Mobilde sohbet açık değilken <main> hidden olsa dahi her zaman erişilebilir) */}
+      {/* WhatsApp Mesaj Bilgisi Modalı */}
+      <MessageInfoModal />
+
+      {/* Ayarlar ve Profil Modalı */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          if (activeTab === "settings") {
+            setActiveTab("chats");
+          }
+        }}
+      />
+
+      {/* Yönetim Paneli Modalı (Grupo Admin) */}
+      <AdminPanelModal
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
+      />
+
+      {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
+      <IncomingCallModal />
+      <ActiveCallModal />
     </div>
   );
 }

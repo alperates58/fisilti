@@ -145,10 +145,15 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in select-none">
-      <div className="w-full max-w-lg bg-grupo-dark-card border border-grupo-dark-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in select-none"
+    >
+      <div className="w-full max-w-lg bg-grupo-dark-card border border-grupo-dark-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
         {/* Başlık Barı */}
-        <div className="px-6 py-4 border-b border-grupo-dark-border flex items-center justify-between bg-slate-900/60">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-grupo-dark-border flex items-center justify-between bg-slate-900/60">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center font-bold">
               ⚙️
@@ -166,11 +171,11 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        {/* Tab Butonları */}
-        <div className="flex border-b border-grupo-dark-border px-6 pt-2 bg-slate-900/40">
+        {/* Tab Butonları (Mobilde yatay kaydırılabilir) */}
+        <div className="flex overflow-x-auto border-b border-grupo-dark-border px-3 sm:px-6 pt-2 bg-slate-900/40">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "profile"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
@@ -181,7 +186,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           </button>
           <button
             onClick={() => setActiveTab("privacy")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "privacy"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
@@ -192,7 +197,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           </button>
           <button
             onClick={() => setActiveTab("notifications")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "notifications"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
@@ -203,7 +208,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           </button>
           <button
             onClick={() => setActiveTab("access_logs")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
               activeTab === "access_logs"
                 ? "border-grupo-accent text-pink-400"
                 : "border-transparent text-slate-400 hover:text-white"
@@ -215,7 +220,7 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Tab İçerikleri */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5 sm:space-y-6">
           {activeTab === "profile" && (
             <div className="space-y-6">
               {/* Avatar Yükleme */}
