@@ -215,9 +215,9 @@ export default function StoryViewerModal() {
       <div
         className="relative w-full max-w-md h-[100dvh] sm:h-[88vh] sm:max-h-[820px] bg-slate-950 sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl border border-slate-800"
         onMouseDown={() => setIsPaused(true)}
-        onMouseUp={() => setIsPaused(false)}
+        onMouseUp={() => !viewersModalOpen && setIsPaused(false)}
         onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
+        onTouchEnd={() => !viewersModalOpen && setIsPaused(false)}
       >
         {/* 1. ÜST BAR: Progress Barlar & Yazar Bilgisi */}
         <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
@@ -394,10 +394,16 @@ export default function StoryViewerModal() {
               </div>
               <div className="text-left pr-1 min-w-0 max-w-[200px]">
                 <div className="text-[11px] font-bold truncate">
-                  {currentStory.music_title || "YouTube Music"}
+                  {currentStory.music_title && !currentStory.music_title.startsWith("http")
+                    ? currentStory.music_title
+                    : "YouTube Music"}
                 </div>
                 <div className="text-[9px] text-white/70 truncate flex items-center gap-1.5">
-                  <span>{currentStory.music_artist || "YouTube"}</span>
+                  <span>
+                    {currentStory.music_artist && !currentStory.music_artist.startsWith("http")
+                      ? currentStory.music_artist
+                      : "Müzik Parçası"}
+                  </span>
                   <span className="w-1 h-1 rounded-full bg-emerald-400" />
                   <span className="text-[8px] text-emerald-400 font-mono">
                     {formatTimeSeconds(currentStory.music_start || 0)} - {formatTimeSeconds(currentStory.music_end || ((currentStory.music_start || 0) + (currentStory.duration_seconds || 10)))}
@@ -448,7 +454,11 @@ export default function StoryViewerModal() {
         </div>
 
         {/* 3. ALT ALAN: Altyazı, İzleyenler & Yanıt Gönderme */}
-        <div className="relative z-30 p-3.5 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-2">
+        <div
+          className={`relative z-30 p-3.5 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-2 transition-opacity duration-200 ${
+            viewersModalOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
           {/* Görsel/Video Hikayesi için Altyazı */}
           {(currentStory.media_type === "image" || currentStory.media_type === "video") &&
             currentStory.caption && (
@@ -490,63 +500,95 @@ export default function StoryViewerModal() {
             </form>
           )}
         </div>
-      </div>
 
-      {/* İZLEYENLER BOTTOM SHEET / MODAL */}
-      {viewersModalOpen && (
-        <div className="fixed inset-0 z-60 bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-5 flex flex-col max-h-[70vh] shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2 text-sm font-bold text-white">
-                <Eye className="w-4 h-4 text-emerald-400" />
-                <span>Görüntüleyenler ({viewersList.length})</span>
-              </div>
-              <button
+        {/* İZLEYENLER BOTTOM SHEET (INSTAGRAM / WHATSAPP STYLE - KART İÇİNDE) */}
+        {viewersModalOpen && (
+          <div className="absolute inset-0 z-50 flex flex-col justify-end">
+            {/* Üst Karartma Katmanı (Tıklayınca Kapanır) */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewersModalOpen(false);
+                setIsPaused(false);
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+            />
+
+            {/* Alttan Açılan Çekmece Kartı */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 w-full bg-slate-900/98 backdrop-blur-xl border-t border-slate-700/80 rounded-t-3xl p-5 flex flex-col max-h-[75%] shadow-2xl animate-in slide-in-from-bottom duration-300"
+            >
+              {/* Üst Tutamaç Çubuğu (Drag Handle) */}
+              <div
                 onClick={() => {
                   setViewersModalOpen(false);
                   setIsPaused(false);
                 }}
-                className="p-1 text-slate-400 hover:text-white rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                className="w-12 h-1 bg-slate-600 rounded-full mx-auto mb-3.5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+              />
 
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 py-2">
-              {viewersList.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
-                  Henüz kimse bu hikayeyi görmedi.
+              {/* Başlık ve Kapatma Butonu */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
+                <div className="flex items-center gap-2 text-sm font-bold text-white">
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                  <span>Görüntüleyenler ({viewersList.length})</span>
                 </div>
-              ) : (
-                viewersList.map((viewer) => (
-                  <div key={viewer.id} className="py-2.5 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-800 overflow-hidden flex items-center justify-center font-bold text-xs text-pink-400">
-                      {viewer.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={resolveMediaUrl(viewer.avatar_url)}
-                          alt={viewer.display_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        viewer.display_name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">
-                        {viewer.display_name}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        @{viewer.username}
-                      </div>
-                    </div>
+                <button
+                  onClick={() => {
+                    setViewersModalOpen(false);
+                    setIsPaused(false);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Kapat"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Kullanıcı Listesi */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 py-2 min-h-0">
+                {viewersList.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    Henüz kimse bu hikayeyi görmedi.
                   </div>
-                ))
-              )}
+                ) : (
+                  viewersList.map((viewer) => (
+                    <div key={viewer.id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden border border-slate-700 flex items-center justify-center font-bold text-xs text-pink-400 flex-shrink-0">
+                          {viewer.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={resolveMediaUrl(viewer.avatar_url)}
+                              alt={viewer.display_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            viewer.display_name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">
+                            {viewer.display_name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            @{viewer.username}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium flex-shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <Eye className="w-3 h-3" />
+                        <span>Gördü</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

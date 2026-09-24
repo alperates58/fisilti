@@ -172,8 +172,12 @@ export default function StoryCreatorModal() {
         media_url: finalMediaUrl,
         caption: caption.trim(),
         background_color: selectedGradient,
-        music_title: musicTitle.trim() || (extractedVideoId ? "YouTube Music Parçası" : ""),
-        music_artist: musicArtist.trim() || (extractedVideoId ? "YouTube Music" : ""),
+        music_title:
+          (musicTitle.trim().startsWith("http") ? "" : musicTitle.trim()) ||
+          (extractedVideoId ? "YouTube Music" : ""),
+        music_artist:
+          (musicArtist.trim().startsWith("http") ? "" : musicArtist.trim()) ||
+          (extractedVideoId ? "YouTube" : ""),
         music_url: musicUrl.trim(),
         duration_seconds: durationSeconds,
         music_start: musicStart,
