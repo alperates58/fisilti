@@ -936,7 +936,6 @@ export default function HomePage() {
                       onChange={handleInputChange}
                       placeholder="Bir mesaj yazın..."
                       className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
-                      autoFocus
                     />
 
                     {inputMessage.trim() ? (
