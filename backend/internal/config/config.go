@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -36,7 +37,10 @@ type Config struct {
 func LoadConfig() Config {
 	port := getEnv("PORT", "8080")
 	env := getEnv("ENVIRONMENT", "development")
-	dbURL := getEnv("DATABASE_URL", "postgres://fisilti_user:fisilti_secure_pass_2026@postgres:5432/fisilti?sslmode=disable")
+	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if dbURL == "" {
+		log.Fatal("❌ [Config Error] DATABASE_URL environment variable zorunludur ve tanimlanmamis. Lutfen gecerli bir veritabani baglanti adresi saglayin.")
+	}
 	redisAddr := getEnv("REDIS_ADDR", "redis:6379")
 	redisPass := getEnv("REDIS_PASSWORD", "")
 
