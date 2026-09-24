@@ -62,6 +62,7 @@ services:
     labels:
       - 'traefik.enable=${TRAEFIK_ENABLE_S3:-true}'
       - 'traefik.http.middlewares.fisilti-s3-strip.stripprefix.prefixes=${TRAEFIK_S3_STRIP_PREFIX:-}'
+      - 'traefik.http.middlewares.fisilti-s3-noauth.headers.customrequestheaders.Authorization='
       - 'traefik.http.routers.fisilti-s3-http.rule=${TRAEFIK_S3_RULE:-Host(`s3.fisilti.app`)}'
       - 'traefik.http.routers.fisilti-s3-http.entrypoints=http'
       - 'traefik.http.routers.fisilti-s3-http.middlewares=fisilti-redirect-https,crowdsec@file'
@@ -69,7 +70,7 @@ services:
       - 'traefik.http.routers.fisilti-s3.entrypoints=https'
       - 'traefik.http.routers.fisilti-s3.tls=true'
       - 'traefik.http.routers.fisilti-s3.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.fisilti-s3.middlewares=${TRAEFIK_S3_MIDDLEWARES:-crowdsec@file}'
+      - 'traefik.http.routers.fisilti-s3.middlewares=fisilti-s3-noauth,${TRAEFIK_S3_MIDDLEWARES:-crowdsec@file}'
       - 'traefik.http.routers.fisilti-s3.priority=${TRAEFIK_S3_PRIORITY:-120}'
       - 'traefik.http.services.fisilti-s3.loadbalancer.server.port=9000'
 

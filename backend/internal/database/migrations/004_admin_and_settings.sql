@@ -58,6 +58,17 @@ INSERT INTO system_settings (key, value) VALUES
     "enable_web_push": true,
     "enable_sound_alerts": true,
     "vapid_public_key": "BNh5aJj8u5u8K6H0qC-wX0zT0kM2_f1kE3hP-nL4sO9aB2cD5eF8gH1iJ3kL5mN7oP9qR1sT3uV5wX7yZ9"
+}'::jsonb),
+('theme_settings', '{
+    "primary_color": "#E91E63",
+    "card_bg": "#16191E",
+    "nav_bg": "#0F1115",
+    "main_bg": "#0D0F12",
+    "border_color": "#23272F",
+    "outgoing_bubble": "#BE185D",
+    "incoming_bubble": "#1E232B",
+    "font_family": "Inter",
+    "border_radius": "rounded-2xl"
 }'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 

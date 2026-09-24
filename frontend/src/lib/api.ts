@@ -77,6 +77,15 @@ export const resolveMediaUrl = (url?: string): string => {
     return `${apiBase}${subPath}`;
   }
 
+  // S3 url'leri (/s3/bucket/object veya https://domain/subpath/s3/bucket/object):
+  // MinIO'ya doğrudan Basic Auth credential gitmesini önlemek ve on-the-fly transcoding
+  // ile Range streaming sağlamak için Go backend proxy'sine yönlendir.
+  const s3Match = url.match(/(?:\/s3\/|^s3\/)(.+)$/);
+  if (s3Match) {
+    const objectPath = s3Match[1].replace(/^\/+/, "");
+    return `${apiBase}/media/file/${objectPath}`;
+  }
+
   // MinIO internal url: http://localhost:9000/... veya http://minio:9000/... veya IP
   const minioMatch = url.match(/^https?:\/\/(?:[a-zA-Z0-9_.-]+):9000\/(.+)$/);
   if (minioMatch) {

@@ -91,6 +91,18 @@ export default function HomePage() {
         router.push("/login");
       }
     });
+
+    // Kayıtlı sistem temasını yükle ve uygula
+    try {
+      api.get("/admin/settings").then((res) => {
+        if (res.data?.theme_settings) {
+          const t = res.data.theme_settings;
+          if (t.primary_color) document.documentElement.style.setProperty("--accent", t.primary_color);
+          if (t.card_bg) document.documentElement.style.setProperty("--card", t.card_bg);
+          if (t.border_color) document.documentElement.style.setProperty("--border", t.border_color);
+        }
+      }).catch(() => {});
+    } catch {}
   }, [checkAuth, router]);
 
   // 2. WebSocket ve Konuşmaları Yükle

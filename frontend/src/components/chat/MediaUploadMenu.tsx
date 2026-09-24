@@ -43,11 +43,32 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
     setIsUploading(true);
 
     try {
+      const fileName = file.name.toLowerCase();
+      const isVideo =
+        file.type.startsWith("video/") ||
+        /\.(mp4|mov|webm|m4v|mkv|avi|3gp)$/i.test(fileName);
+      const isAudio =
+        file.type.startsWith("audio/") ||
+        /\.(mp3|m4a|wav|ogg|aac|weba)$/i.test(fileName);
+      const isImage =
+        !isVideo &&
+        !isAudio &&
+        (file.type.startsWith("image/") ||
+          /\.(jpg|jpeg|png|webp|gif|heic|heif)$/i.test(fileName));
+
+      const effectiveCategory = isVideo
+        ? "video"
+        : isAudio
+        ? "voice"
+        : isImage
+        ? "image"
+        : category || "file";
+
       let fileToUpload = file;
-      if (file.type.startsWith("image/")) {
+      if (isImage) {
         // İstemci tarafı kayıpsıza yakın sıkıştırma uygula
         fileToUpload = await compressImage(file);
-      } else if (file.type.startsWith("video/")) {
+      } else if (isVideo) {
         const val = validateVideo(file);
         if (!val.valid) {
           alert(val.error);
@@ -58,18 +79,14 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
 
       const formData = new FormData();
       formData.append("file", fileToUpload);
-      formData.append("category", category);
+      formData.append("category", effectiveCategory);
 
       const res = await api.post("/media/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       const { media_url, metadata } = res.data;
-      const mediaType = file.type.startsWith("image/")
-        ? "image"
-        : file.type.startsWith("video/")
-        ? "video"
-        : "file";
+      const mediaType = isVideo ? "video" : isAudio ? "voice" : isImage ? "image" : "file";
 
       sendMediaMessage(conversationId, media_url, mediaType, metadata, "");
     } catch (err) {

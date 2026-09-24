@@ -10,11 +10,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Grupo Chat Obsidian Dark Teması
+        // Grupo Chat Obsidian Dark Teması (CSS değişkenleri üzerinden dinamik tema desteği)
         grupo: {
-          "dark-bg": "#0B0C0F",
-          "dark-card": "#16191E",
-          "dark-border": "#1E293B",
+          "dark-bg": "var(--background, #0B0C0F)",
+          "dark-card": "var(--card, #16191E)",
+          "dark-border": "var(--border, #1E293B)",
           "dark-hover": "#222731",
           
           // Grupo Chat Cream Paper Açık Mod Teması
@@ -23,8 +23,8 @@ const config: Config = {
           "light-border": "#DBD2C9",
           
           // Ortak Vurgu (Accent) Renkleri
-          accent: "#E91E63",
-          "accent-hover": "#D81B60",
+          accent: "var(--accent, #E91E63)",
+          "accent-hover": "var(--accent-hover, #D81B60)",
           "accent-secondary": "#E86A6A",
           
           // Durum ve WhatsApp Tik Renkleri

@@ -126,7 +126,11 @@ export default function ConversationListItem({
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-2xl group select-none">
+      <div
+        className={`relative rounded-2xl group select-none ${
+          translateX !== 0 ? "overflow-hidden" : ""
+        } ${showContextMenu ? "z-30" : "z-0"}`}
+      >
         {/* ARKA PLAN MOBİL SİLME BUTONLARI (Sadece mobilde ve kart sürüklenirken DOM'da görünür) */}
         {translateX !== 0 && (
           <div className="md:hidden">
@@ -174,7 +178,7 @@ export default function ConversationListItem({
               ? "none"
               : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
-          className={`relative z-10 w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-colors cursor-pointer border ${
+          className={`relative ${showContextMenu ? "z-30" : "z-10"} w-full p-3 rounded-2xl flex items-center gap-3 text-left transition-colors cursor-pointer border ${
             isActive
               ? "bg-[#1E232B] border-slate-700/80 shadow-md"
               : "bg-[#16191E] hover:bg-[#1D2128] border-transparent hover:border-slate-800/80"

@@ -145,6 +145,26 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		}
 	}
 
+	// 3. MOV videolarını evrensel H.264 MP4'e on-the-fly dönüştür ve önbelleğe al
+	if bucket == "media" && strings.HasSuffix(objectName, ".mov") && transcoder.IsAvailable() {
+		mp4ObjectName := strings.TrimSuffix(objectName, ".mov") + ".mp4"
+		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp4ObjectName); statErr == nil {
+			objectName = mp4ObjectName
+		} else {
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%d.mov", os.Getpid()))
+			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
+				if convertedPath, err := transcoder.ConvertVideoToUniversalMP4(tmpIn); err == nil {
+					_, _ = h.storage.FPutObject(c.Context(), bucket, mp4ObjectName, convertedPath, minio.PutObjectOptions{
+						ContentType: "video/mp4",
+					})
+					_ = os.Remove(convertedPath)
+					objectName = mp4ObjectName
+				}
+				_ = os.Remove(tmpIn)
+			}
+		}
+	}
+
 	rangeHeader := c.Get("Range")
 	var opts minio.GetObjectOptions
 
@@ -186,6 +206,8 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		} else {
 			contentType = "video/mp4"
 		}
+	case ".mov":
+		contentType = "video/quicktime"
 	case ".aac":
 		contentType = "audio/aac"
 	case ".wav":

@@ -222,23 +222,8 @@ export default function MessageBubble({ message }: Props) {
             />
           )}
 
-          {/* 2. Fotoğraf (Image) */}
-          {message.message_type === "image" && resolvedMediaUrl && !message.is_deleted_for_all && (
-            <div className="my-1 cursor-pointer overflow-hidden rounded-xl">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={resolvedMediaUrl}
-                alt="Fotoğraf"
-                loading="lazy"
-                decoding="async"
-                className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
-                onClick={() => setPreviewImage(resolvedMediaUrl || null)}
-              />
-            </div>
-          )}
-
-          {/* 3. Video (iOS & Android Evrensel Uyumluluk) */}
-          {message.message_type === "video" && resolvedMediaUrl && !message.is_deleted_for_all && (
+          {/* 2. Video (iOS & Android Evrensel Uyumluluk - Geçmişte image olarak kaydedilmiş videoları da otomatik video oynatıcı ile gösterir) */}
+          {(message.message_type === "video" || /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(resolvedMediaUrl)) && resolvedMediaUrl && !message.is_deleted_for_all && (
             <div className="my-1 overflow-hidden rounded-2xl max-h-72 bg-black">
               <video
                 controls
@@ -260,6 +245,21 @@ export default function MessageBubble({ message }: Props) {
               >
                 Tarayıcınız bu videoyu oynatmayı desteklemiyor.
               </video>
+            </div>
+          )}
+
+          {/* 3. Fotoğraf (Image) */}
+          {message.message_type === "image" && !/\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(resolvedMediaUrl) && resolvedMediaUrl && !message.is_deleted_for_all && (
+            <div className="my-1 cursor-pointer overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={resolvedMediaUrl}
+                alt="Fotoğraf"
+                loading="lazy"
+                decoding="async"
+                className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
+                onClick={() => setPreviewImage(resolvedMediaUrl || null)}
+              />
             </div>
           )}
 

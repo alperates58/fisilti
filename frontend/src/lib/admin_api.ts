@@ -46,6 +46,17 @@ export interface SystemSettings {
     enable_sound_alerts: boolean;
     vapid_public_key: string;
   };
+  theme_settings?: {
+    primary_color: string;
+    card_bg: string;
+    nav_bg: string;
+    main_bg: string;
+    border_color: string;
+    outgoing_bubble: string;
+    incoming_bubble: string;
+    font_family: string;
+    border_radius: string;
+  };
 }
 
 export interface AdminUsersResponse {

@@ -105,6 +105,16 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 	uploadFilePath := tmpIn.Name()
 	var uploadDuration float64 = 0
 
+	// Dosya uzantısına göre kategoriyi otomatik doğrula (frontend yanlış göndermiş olsa bile):
+	switch ext {
+	case ".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv", ".3gp":
+		mediaCategory = "video"
+	case ".mp3", ".m4a", ".aac", ".wav", ".ogg", ".opus", ".weba":
+		mediaCategory = "voice"
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".svg", ".bmp":
+		mediaCategory = "image"
+	}
+
 	switch mediaCategory {
 	case "voice":
 		targetBucket = s.voiceBucket
@@ -161,6 +171,8 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 			} else {
 				if ext == ".webm" {
 					contentType = "video/webm"
+				} else if ext == ".mov" {
+					contentType = "video/quicktime"
 				} else {
 					contentType = "video/mp4"
 				}
@@ -168,6 +180,8 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		} else {
 			if ext == ".webm" {
 				contentType = "video/webm"
+			} else if ext == ".mov" {
+				contentType = "video/quicktime"
 			} else {
 				contentType = "video/mp4"
 			}
@@ -202,10 +216,7 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		return nil, fmt.Errorf("dosya MinIO'ya yuklenemedi: %w", err)
 	}
 
-	mediaURL := fmt.Sprintf("%s/%s/%s", s.publicURL, targetBucket, objectName)
-	if s.publicURL == "" || strings.Contains(s.publicURL, "localhost:9000") || strings.Contains(s.publicURL, "minio:9000") {
-		mediaURL = fmt.Sprintf("/api/v1/media/file/%s/%s", targetBucket, objectName)
-	}
+	mediaURL := fmt.Sprintf("/api/v1/media/file/%s/%s", targetBucket, objectName)
 
 	metadata := map[string]interface{}{
 		"file_name": fileName,
