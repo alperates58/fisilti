@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-fisilti}
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_PATH}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fisilti_user} -d ${POSTGRES_DB:-fisilti}"]
       interval: 10s
@@ -23,7 +23,7 @@ services:
     restart: always
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
     volumes:
-      - redis_data:/data
+      - ${REDIS_DATA_PATH}:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -41,13 +41,13 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - minio_data:/data
+      - ${MINIO_DATA_PATH}:/data
     networks:
       - fisilti-network
       - coolify
     labels:
       - "traefik.enable=${TRAEFIK_ENABLE_S3:-true}"
-      - "traefik.http.middlewares.fisilti-s3-strip.stripprefix.prefixes=${TRAEFIK_S3_STRIP_PREFIX:-/b/s3}"
+      - "traefik.http.middlewares.fisilti-s3-strip.stripprefix.prefixes=${TRAEFIK_S3_STRIP_PREFIX:-}"
       - "traefik.http.routers.fisilti-s3-http.rule=${TRAEFIK_S3_RULE:-Host(`s3.${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-s3-http.entrypoints=http"
       - "traefik.http.routers.fisilti-s3-http.middlewares=fisilti-redirect-https,crowdsec@file"
@@ -75,16 +75,16 @@ services:
     networks:
       - fisilti-network
     entrypoint: >
-      /bin/sh -c "
-      until (/usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_VOICE};
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_FILES};
-      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
-      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_VOICE};
-      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_MEDIA};
-      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_FILES};
+      sh -c "
+      until (mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
+      mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
+      mc mb --ignore-existing local/$${MINIO_BUCKET_VOICE};
+      mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
+      mc mb --ignore-existing local/$${MINIO_BUCKET_FILES};
+      mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
+      mc anonymous set download local/$${MINIO_BUCKET_VOICE};
+      mc anonymous set download local/$${MINIO_BUCKET_MEDIA};
+      mc anonymous set download local/$${MINIO_BUCKET_FILES};
       echo 'MinIO bucketlari hazirlandi.';
       exit 0;
       "
@@ -122,7 +122,7 @@ services:
   # 5. Go Backend Servisi
   backend:
     build:
-      context: ./backend
+      context: backend
       dockerfile: Dockerfile
     restart: always
     env_file:
@@ -140,7 +140,7 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.middlewares.fisilti-backend-strip.stripprefix.prefixes=${TRAEFIK_BACKEND_STRIP_PREFIX:-/b}"
+      - "traefik.http.middlewares.fisilti-backend-strip.stripprefix.prefixes=${TRAEFIK_BACKEND_STRIP_PREFIX:-}"
       - "traefik.http.routers.fisilti-backend-http.rule=${TRAEFIK_BACKEND_RULE:-Host(`api.${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-backend-http.entrypoints=http"
       - "traefik.http.routers.fisilti-backend-http.middlewares=fisilti-redirect-https,crowdsec@file"
@@ -187,11 +187,6 @@ services:
       - "traefik.http.routers.fisilti-frontend.middlewares=crowdsec@file"
       - "traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}"
       - "traefik.http.services.fisilti-frontend.loadbalancer.server.port=3000"
-
-volumes:
-  pg_data:
-  redis_data:
-  minio_data:
 
 networks:
   fisilti-network:
