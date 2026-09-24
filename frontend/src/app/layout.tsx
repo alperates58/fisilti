@@ -9,10 +9,11 @@ const basePath = rawBasePath.startsWith("/")
   ? "/" + rawBasePath.replace(/\/+$/, "")
   : "";
 
+const manifestPath = basePath ? `${basePath}/manifest.webmanifest` : "/manifest.webmanifest";
+
 export const metadata: Metadata = {
   title: "Aura",
   description: "Aura",
-  manifest: basePath ? `${basePath}/manifest.webmanifest` : "/manifest.webmanifest",
   icons: {
     icon: basePath ? `${basePath}/favicon.ico` : "/favicon.ico",
     apple: basePath ? `${basePath}/favicon.ico` : "/favicon.ico",
@@ -37,6 +38,11 @@ export default function RootLayout({
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link
+          rel="manifest"
+          href={manifestPath}
+          crossOrigin="use-credentials"
+        />
       </head>
       <body className="bg-grupo-dark-bg text-slate-100 antialiased h-full h-[100dvh] w-full overflow-hidden flex flex-col">
         <ServiceWorkerRegister />

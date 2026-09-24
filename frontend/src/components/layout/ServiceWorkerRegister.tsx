@@ -4,7 +4,15 @@ import { useEffect } from "react";
 
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    if (typeof window === "undefined") return;
+
+    // Web manifest linkine crossorigin="use-credentials" güvencesi ver
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink && !manifestLink.hasAttribute("crossorigin")) {
+      manifestLink.setAttribute("crossorigin", "use-credentials");
+    }
+
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       const registerSW = () => {
         const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
         const basePath = rawBasePath.startsWith("/")
