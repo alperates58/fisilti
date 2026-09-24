@@ -889,7 +889,7 @@ export default function HomePage() {
             )}
 
             {/* Mesaj Akışı */}
-            <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+            <div className="flex-1 p-3 sm:p-6 overflow-y-auto overflow-x-hidden">
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
                   <Sparkles className="w-8 h-8 text-pink-500/50 mb-2" />

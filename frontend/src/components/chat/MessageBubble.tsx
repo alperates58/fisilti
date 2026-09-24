@@ -289,7 +289,7 @@ export default function MessageBubble({
 
       {/* Mesaj Balonu ve Yan Menüsü */}
       <div
-        className={`relative flex items-end gap-1.5 max-w-[85%] sm:max-w-[70%] md:max-w-[60%] ${
+        className={`relative flex items-end gap-1.5 max-w-[85%] sm:max-w-[70%] md:max-w-[60%] min-w-0 ${
           message.is_mine ? "flex-row-reverse" : "flex-row"
         }`}
       >
@@ -316,7 +316,7 @@ export default function MessageBubble({
             transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined,
             transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28)",
           }}
-          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none ${
+          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none max-w-full min-w-0 overflow-hidden break-words ${
             isHighlightedMatch
               ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-950 shadow-2xl shadow-amber-400/40 scale-[1.02]"
               : ""
@@ -336,39 +336,53 @@ export default function MessageBubble({
                   onJumpToMessage(targetId);
                 }
               }}
-              className={`mb-2 p-2.5 rounded-xl text-xs border-l-4 cursor-pointer transition-all hover:opacity-95 active:scale-[0.99] select-none ${
+              className={`mb-2 rounded-xl overflow-hidden flex w-full max-w-full cursor-pointer transition-all hover:opacity-95 active:scale-[0.99] select-none ${
                 message.is_mine
-                  ? "bg-black/25 border-l-white text-white/95"
-                  : "bg-slate-900/80 border-l-pink-500 text-slate-200 shadow-inner"
+                  ? "bg-black/25 text-white/95"
+                  : "bg-slate-950/70 text-slate-200 border border-white/5"
               }`}
               title="Alıntılanan mesaja git"
             >
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="font-bold text-[11px] text-pink-400">
+              {/* Dikey Düz Şerit (WhatsApp Style) */}
+              <div
+                className={`w-1 self-stretch flex-shrink-0 ${
+                  message.is_mine ? "bg-white/90" : "bg-pink-500"
+                }`}
+              />
+
+              {/* Alıntı Metin Alanı */}
+              <div className="py-1.5 px-2.5 flex-1 min-w-0 overflow-hidden">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span
+                    className={`font-bold text-[11px] truncate ${
+                      message.is_mine ? "text-pink-200" : "text-pink-400"
+                    }`}
+                  >
+                    {targetRepliedMessage
+                      ? Boolean(
+                          (targetRepliedMessage as any).is_mine ||
+                          (user?.id && targetRepliedMessage.sender_id === user.id) ||
+                          (message.is_mine && targetRepliedMessage.sender_id === message.sender_id)
+                        )
+                        ? "Sen"
+                        : otherUserName || "Karşı Taraf"
+                      : "Alıntılanan Mesaj"}
+                  </span>
+                  <CornerUpLeft className="w-3 h-3 opacity-60 flex-shrink-0" />
+                </div>
+                <div className="text-[11px] opacity-85 truncate overflow-hidden text-ellipsis whitespace-nowrap block">
                   {targetRepliedMessage
-                    ? Boolean(
-                        (targetRepliedMessage as any).is_mine ||
-                        (user?.id && targetRepliedMessage.sender_id === user.id) ||
-                        (message.is_mine && targetRepliedMessage.sender_id === message.sender_id)
-                      )
-                      ? "Sen"
-                      : otherUserName || "Karşı Taraf"
-                    : "Alıntılanan Mesaj"}
-                </span>
-                <CornerUpLeft className="w-3 h-3 opacity-60 flex-shrink-0" />
-              </div>
-              <div className="text-[11px] opacity-90 truncate line-clamp-1">
-                {targetRepliedMessage
-                  ? targetRepliedMessage.message_type === "voice"
-                    ? "🎤 Sesli Mesaj"
-                    : targetRepliedMessage.message_type === "image"
-                    ? "📷 Fotoğraf"
-                    : targetRepliedMessage.message_type === "video"
-                    ? "🎬 Video"
-                    : targetRepliedMessage.message_type === "file"
-                    ? "📄 Belge"
-                    : targetRepliedMessage.content
-                  : "Orijinal mesaja git..."}
+                    ? targetRepliedMessage.message_type === "voice"
+                      ? "🎤 Sesli Mesaj"
+                      : targetRepliedMessage.message_type === "image"
+                      ? "📷 Fotoğraf"
+                      : targetRepliedMessage.message_type === "video"
+                      ? "🎬 Video"
+                      : targetRepliedMessage.message_type === "file"
+                      ? "📄 Belge"
+                      : targetRepliedMessage.content
+                    : "Orijinal mesaja git..."}
+                </div>
               </div>
             </div>
           )}

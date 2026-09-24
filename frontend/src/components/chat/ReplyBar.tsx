@@ -48,8 +48,9 @@ export default function ReplyBar() {
   };
 
   return (
-    <div className="mx-3 sm:mx-6 mb-2 p-2.5 rounded-2xl bg-slate-900/95 border-l-4 border-l-pink-500 border border-slate-700/80 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+    <div className="mb-2 rounded-2xl bg-slate-900/95 border border-slate-700/80 overflow-hidden flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div className="w-1.5 self-stretch bg-pink-500 flex-shrink-0" />
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 p-2.5 pl-3">
         <CornerUpLeft className="w-4 h-4 text-pink-400 flex-shrink-0" />
         <div className="min-w-0 flex-1 text-xs">
           <div className="font-bold text-pink-400 truncate">
@@ -61,7 +62,7 @@ export default function ReplyBar() {
       <button
         onClick={() => setReplyingTo(null)}
         title="Yanıtlamayı İptal Et"
-        className="w-7 h-7 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer ml-2 flex-shrink-0"
+        className="w-7 h-7 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer mr-2 flex-shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
