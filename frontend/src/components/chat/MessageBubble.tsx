@@ -33,9 +33,15 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface Props {
   message: Message;
+  searchQuery?: string;
+  isHighlightedMatch?: boolean;
 }
 
-export default function MessageBubble({ message }: Props) {
+export default function MessageBubble({
+  message,
+  searchQuery,
+  isHighlightedMatch,
+}: Props) {
   const {
     setSelectedMessageInfo,
     setReplyingTo,
@@ -122,6 +128,29 @@ export default function MessageBubble({ message }: Props) {
           </a>
         );
       }
+
+      if (searchQuery && searchQuery.trim().length > 0) {
+        const q = searchQuery.trim();
+        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const searchRegex = new RegExp(`(${escaped})`, "gi");
+        const subParts = part.split(searchRegex);
+        if (subParts.length > 1) {
+          return subParts.map((sub, sIdx) => {
+            if (sub.toLowerCase() === q.toLowerCase()) {
+              return (
+                <mark
+                  key={sIdx}
+                  className="bg-amber-300 text-slate-950 font-bold px-0.5 rounded shadow-xs"
+                >
+                  {sub}
+                </mark>
+              );
+            }
+            return sub;
+          });
+        }
+      }
+
       return part;
     });
   };
@@ -203,7 +232,11 @@ export default function MessageBubble({ message }: Props) {
       >
         {/* Balon İçeriği */}
         <div
-          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-all ${
+          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-all duration-300 ${
+            isHighlightedMatch
+              ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-950 shadow-2xl shadow-amber-400/40 scale-[1.02]"
+              : ""
+          } ${
             message.is_mine
               ? "bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-br-xs"
               : "bg-grupo-dark-card border border-grupo-dark-border text-slate-100 rounded-bl-xs"

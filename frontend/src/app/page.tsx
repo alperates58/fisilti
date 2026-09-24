@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
@@ -50,6 +50,8 @@ import {
   Sliders,
   Play,
   Download,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -86,6 +88,11 @@ export default function HomePage() {
     type: "image" | "video";
     name?: string;
   } | null>(null);
+
+  // Sohbet İçi Arama Durumları (WhatsApp Tarzı)
+  const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -213,6 +220,51 @@ export default function HomePage() {
   const activeConv = conversations.find((c) => c.id === activeConversationId);
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
   const isOtherTyping = activeConversationId ? typingMap[activeConversationId] : false;
+
+  // Sohbet değiştiğinde aramayı sıfırla
+  useEffect(() => {
+    setIsChatSearchOpen(false);
+    setChatSearchQuery("");
+    setCurrentMatchIndex(0);
+  }, [activeConversationId]);
+
+  // Sohbet İçi Arama ve Eşleşmeler (WhatsApp Tarzı)
+  const searchFilteredMessages = useMemo(() => {
+    if (!chatSearchQuery.trim()) return [];
+    const q = chatSearchQuery.trim().toLowerCase();
+    return activeMessages.filter(
+      (m) =>
+        !m.is_deleted_for_all &&
+        (m.content?.toLowerCase().includes(q) ||
+          m.media_metadata?.file_name?.toLowerCase().includes(q))
+    );
+  }, [activeMessages, chatSearchQuery]);
+
+  const activeMatchedMessageId =
+    searchFilteredMessages.length > 0
+      ? searchFilteredMessages[currentMatchIndex]?.id
+      : null;
+
+  useEffect(() => {
+    if (activeMatchedMessageId) {
+      const el = document.getElementById(`msg-${activeMatchedMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [activeMatchedMessageId, currentMatchIndex]);
+
+  const handleNextMatch = () => {
+    if (searchFilteredMessages.length === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % searchFilteredMessages.length);
+  };
+
+  const handlePrevMatch = () => {
+    if (searchFilteredMessages.length === 0) return;
+    setCurrentMatchIndex((prev) =>
+      prev === 0 ? searchFilteredMessages.length - 1 : prev - 1
+    );
+  };
 
   // Toplam okunmamış mesaj sayısı
   const totalUnreadCount = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
@@ -611,6 +663,25 @@ export default function HomePage() {
                     <Video className="w-4 h-4" />
                   </button>
                 )}
+                {/* Sohbet İçi Arama Butonu (WhatsApp Tarzı) */}
+                <button
+                  onClick={() => {
+                    setIsChatSearchOpen(!isChatSearchOpen);
+                    if (isChatSearchOpen) {
+                      setChatSearchQuery("");
+                      setCurrentMatchIndex(0);
+                    }
+                  }}
+                  title="Sohbette Ara"
+                  className={`p-2 sm:p-2.5 rounded-xl transition-colors cursor-pointer ${
+                    isChatSearchOpen
+                      ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
+                      : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+
                 <button
                   onClick={() => setShowContactDrawer(!showContactDrawer)}
                   title="Kişi Bilgisi"
@@ -634,6 +705,17 @@ export default function HomePage() {
                       onClick={(e) => e.stopPropagation()}
                       className="absolute right-0 top-11 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95"
                     >
+                      <button
+                        onClick={() => {
+                          setShowActiveChatMenu(false);
+                          setIsChatSearchOpen(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Search className="w-3.5 h-3.5 text-pink-400" />
+                        <span>Sohbette Ara</span>
+                      </button>
+                      <div className="h-px bg-slate-800 my-1" />
                       <button
                         onClick={() => {
                           setShowActiveChatMenu(false);
@@ -661,6 +743,89 @@ export default function HomePage() {
               </div>
             </header>
 
+            {/* WHATSAPP TARZI SOHBET İÇİ ARAMA BARI */}
+            {isChatSearchOpen && (
+              <div className="bg-slate-900/95 border-b border-grupo-dark-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-3 shadow-lg z-10 animate-in slide-in-from-top-2 duration-150 flex-shrink-0">
+                <div className="flex-1 flex items-center gap-2 bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-1.5 focus-within:border-pink-500 transition-colors">
+                  <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={chatSearchQuery}
+                    onChange={(e) => {
+                      setChatSearchQuery(e.target.value);
+                      setCurrentMatchIndex(0);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (e.shiftKey) handlePrevMatch();
+                        else handleNextMatch();
+                      } else if (e.key === "Escape") {
+                        setIsChatSearchOpen(false);
+                        setChatSearchQuery("");
+                        setCurrentMatchIndex(0);
+                      }
+                    }}
+                    placeholder="Sohbette ara (Enter: sonraki, Shift+Enter: önceki)..."
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+                    autoFocus
+                  />
+                  {chatSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setChatSearchQuery("");
+                        setCurrentMatchIndex(0);
+                      }}
+                      className="p-0.5 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Sonuç Sayacı ve Gezinme Okları (WhatsApp Web Style) */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {chatSearchQuery.trim() && (
+                    <span className="text-[11px] font-semibold text-slate-400 px-2 py-1 rounded-lg bg-slate-800">
+                      {searchFilteredMessages.length > 0
+                        ? `${currentMatchIndex + 1} / ${searchFilteredMessages.length}`
+                        : "Sonuç yok"}
+                    </span>
+                  )}
+
+                  <button
+                    onClick={handlePrevMatch}
+                    disabled={searchFilteredMessages.length === 0}
+                    title="Önceki Eşleşme (Yukarı)"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 disabled:opacity-30 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={handleNextMatch}
+                    disabled={searchFilteredMessages.length === 0}
+                    title="Sonraki Eşleşme (Aşağı)"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 disabled:opacity-30 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsChatSearchOpen(false);
+                      setChatSearchQuery("");
+                      setCurrentMatchIndex(0);
+                    }}
+                    title="Aramayı Kapat (Esc)"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ml-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Mesaj Akışı */}
             <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
               {activeMessages.length === 0 ? (
@@ -670,7 +835,15 @@ export default function HomePage() {
                   <p className="text-xs text-slate-600 mt-1">İlk mesajı göndererek başlayın!</p>
                 </div>
               ) : (
-                activeMessages.map((m) => <MessageBubble key={m.id} message={m} />)
+                activeMessages.map((m) => (
+                  <div key={m.id} id={`msg-${m.id}`} className="transition-all duration-300">
+                    <MessageBubble
+                      message={m}
+                      searchQuery={chatSearchQuery}
+                      isHighlightedMatch={m.id === activeMatchedMessageId}
+                    />
+                  </div>
+                ))
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -800,7 +973,7 @@ export default function HomePage() {
                         !m.is_deleted_for_all &&
                         (m.message_type === "image" ||
                           m.message_type === "video" ||
-                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url))
+                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url || ""))
                     ).length;
                     return count > 0 ? (
                       <span className="text-[10px] text-slate-500 font-medium">{count} medya</span>
@@ -815,7 +988,7 @@ export default function HomePage() {
                       !m.is_deleted_for_all &&
                       (m.message_type === "image" ||
                         m.message_type === "video" ||
-                        /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url))
+                        /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url || ""))
                   );
 
                   if (mediaList.length === 0) {
@@ -831,7 +1004,7 @@ export default function HomePage() {
                       {mediaList.slice(0, 9).map((m) => {
                         const isVid =
                           m.message_type === "video" ||
-                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(m.media_url);
+                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(m.media_url || "");
                         const finalUrl = resolveMediaUrl(m.media_url);
                         return (
                           <div
@@ -1080,18 +1253,8 @@ export default function HomePage() {
             className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Üst Kapatma ve İndirme Butonu */}
+            {/* Üst Kapatma Butonu */}
             <div className="absolute -top-12 right-0 flex items-center gap-2">
-              <a
-                href={previewMedia.url}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-full bg-slate-800/90 hover:bg-slate-700 text-white transition-colors cursor-pointer shadow-lg"
-                title="İndir"
-              >
-                <Download className="w-5 h-5" />
-              </a>
               <button
                 onClick={() => setPreviewMedia(null)}
                 className="p-2 rounded-full bg-slate-800/90 hover:bg-slate-700 text-white transition-colors cursor-pointer shadow-lg"
