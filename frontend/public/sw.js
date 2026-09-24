@@ -18,10 +18,7 @@ const basePath = getScopePath();
 const appScope = basePath ? `${basePath}/` : '/';
 
 const STATIC_ASSETS = [
-  appScope,
-  `${appScope}manifest.webmanifest`,
   `${appScope}manifest.json`,
-  `${appScope}favicon.ico`,
 ];
 
 self.addEventListener('install', (event) => {
@@ -53,6 +50,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Yalnızca GET isteklerini ve web isteklerini yakala (WebSocket ve API hariç)
   if (event.request.method !== 'GET') return;
+
+  // Navigation (tam sayfa geçişleri / yenilemeler) isteklerini yerel tarayıcı pipeline'ına bırak.
+  // Bu sayede tarayıcının yerel HTTP Basic Auth ve oturum mekanizması bozulmaz;
+  // credential'sız worker fetch'i nedeniyle ikinci bir Basic Auth challenge'ı tetiklenmez.
+  if (event.request.mode === 'navigate') return;
+
   const url = new URL(event.request.url);
 
   // Kendi scope'umuz dışındaki isteklere ASLA dokunma (ana domain uygulamasını korur)
@@ -80,14 +83,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match(appScope);
-          }
-        });
+        return caches.match(event.request);
       })
   );
 });
