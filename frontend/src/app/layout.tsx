@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import ServiceWorkerRegister from "@/components/layout/ServiceWorkerRegister";
+import SystemSettingsInitializer from "@/components/layout/SystemSettingsInitializer";
 
 const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const basePath = rawBasePath.startsWith("/")
@@ -46,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className="bg-grupo-dark-bg text-slate-100 antialiased h-full h-[100dvh] w-full overflow-hidden flex flex-col">
         <ServiceWorkerRegister />
+        <SystemSettingsInitializer />
         {children}
       </body>
     </html>

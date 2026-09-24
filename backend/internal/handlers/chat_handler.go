@@ -21,6 +21,7 @@ type ChatHandler struct {
 	presenceService *fisiltiredis.PresenceService
 	storage         *storage.StorageService
 	hub             *fisiltiws.Hub
+	settingsRepo    *database.SettingsRepository
 }
 
 func NewChatHandler(
@@ -29,6 +30,7 @@ func NewChatHandler(
 	presenceService *fisiltiredis.PresenceService,
 	storage *storage.StorageService,
 	hub *fisiltiws.Hub,
+	settingsRepo *database.SettingsRepository,
 ) *ChatHandler {
 	return &ChatHandler{
 		chatRepo:        chatRepo,
@@ -36,6 +38,7 @@ func NewChatHandler(
 		presenceService: presenceService,
 		storage:         storage,
 		hub:             hub,
+		settingsRepo:    settingsRepo,
 	}
 }
 
@@ -177,8 +180,18 @@ func (h *ChatHandler) EditMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Mesaj içeriği boş olamaz."})
 	}
 
-	if err := h.chatRepo.EditMessage(c.Context(), msgID, userID, strings.TrimSpace(req.Content)); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if h.settingsRepo != nil {
+		chatSettings := h.settingsRepo.GetChatSettings(c.Context())
+		if !chatSettings.AllowMessageEdit {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Mesaj düzenleme yönetici tarafından devre dışı bırakılmıştır."})
+		}
+		if err := h.chatRepo.EditMessage(c.Context(), msgID, userID, strings.TrimSpace(req.Content), chatSettings.EditTimeLimitMinutes); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+	} else {
+		if err := h.chatRepo.EditMessage(c.Context(), msgID, userID, strings.TrimSpace(req.Content), 15); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 	}
 
 	// WebSocket ile karşı tarafa mesaj düzenleme bildirimi bas
@@ -205,7 +218,16 @@ func (h *ChatHandler) DeleteMessage(c *fiber.Ctx) error {
 	deleteType := c.Query("type", "for_me") // "for_me" veya "for_all"
 
 	if deleteType == "for_all" {
-		deletedMsg, err := h.chatRepo.DeleteMessageForAll(c.Context(), msgID, userID)
+		timeLimit := 60
+		if h.settingsRepo != nil {
+			chatSettings := h.settingsRepo.GetChatSettings(c.Context())
+			if !chatSettings.AllowDeleteForAll {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Herkesten silme özelliği devre dışı bırakılmıştır."})
+			}
+			timeLimit = chatSettings.DeleteTimeLimitMinutes
+		}
+
+		deletedMsg, err := h.chatRepo.DeleteMessageForAll(c.Context(), msgID, userID, timeLimit)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}

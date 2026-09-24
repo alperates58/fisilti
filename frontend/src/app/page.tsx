@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSocketStore } from "@/store/useSocketStore";
 import { useCallStore } from "@/store/useCallStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import IncomingCallModal from "@/components/call/IncomingCallModal";
 import ActiveCallModal from "@/components/call/ActiveCallModal";
 import SideNavigation, { NavTab } from "@/components/layout/SideNavigation";
@@ -52,6 +53,7 @@ import {
 export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
+  const settings = useSettingsStore((state) => state.settings);
   const {
     conversations,
     activeConversationId,
@@ -584,20 +586,24 @@ export default function HomePage() {
 
               {/* Sesli / Görüntülü Arama & Profil Butonları */}
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setConfirmCallType("audio")}
-                  title="Sesli Arama Başlat"
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors cursor-pointer"
-                >
-                  <Phone className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setConfirmCallType("video")}
-                  title="Görüntülü Arama Başlat"
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-pink-400 transition-colors cursor-pointer"
-                >
-                  <Video className="w-4 h-4" />
-                </button>
+                {settings?.call_settings?.enable_audio_calls !== false && (
+                  <button
+                    onClick={() => setConfirmCallType("audio")}
+                    title="Sesli Arama Başlat"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors cursor-pointer"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+                )}
+                {settings?.call_settings?.enable_video_calls !== false && (
+                  <button
+                    onClick={() => setConfirmCallType("video")}
+                    title="Görüntülü Arama Başlat"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-pink-400 transition-colors cursor-pointer"
+                  >
+                    <Video className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => setShowContactDrawer(!showContactDrawer)}
                   title="Kişi Bilgisi"

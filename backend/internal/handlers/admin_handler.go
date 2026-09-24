@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"fisilti/internal/database"
+	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -17,6 +18,7 @@ type AdminHandler struct {
 	settingsRepo *database.SettingsRepository
 	logRepo      *database.AccessRepository
 	redisClient  *redis.Client
+	hub          *fisiltiws.Hub
 }
 
 func NewAdminHandler(
@@ -24,12 +26,14 @@ func NewAdminHandler(
 	settingsRepo *database.SettingsRepository,
 	logRepo *database.AccessRepository,
 	redisClient *redis.Client,
+	hub *fisiltiws.Hub,
 ) *AdminHandler {
 	return &AdminHandler{
 		userRepo:     userRepo,
 		settingsRepo: settingsRepo,
 		logRepo:      logRepo,
 		redisClient:  redisClient,
+		hub:          hub,
 	}
 }
 
@@ -97,6 +101,14 @@ func (h *AdminHandler) UpdateSetting(c *fiber.Ctx) error {
 
 	if err := h.settingsRepo.UpdateSetting(context.Background(), req.Key, req.Value); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Ayar kaydedilemedi"})
+	}
+
+	if h.hub != nil {
+		payload, _ := fisiltiws.NewWSMessage("system_settings_updated", fiber.Map{
+			"key":   req.Key,
+			"value": req.Value,
+		})
+		h.hub.BroadcastToAll(payload)
 	}
 
 	return c.JSON(fiber.Map{

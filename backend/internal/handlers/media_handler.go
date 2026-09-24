@@ -19,11 +19,12 @@ import (
 )
 
 type MediaHandler struct {
-	storage   *storage.StorageService
-	preview   *preview.PreviewService
-	chatRepo  *database.ChatRepository
-	userRepo  *database.UserRepository
-	jwtSecret string
+	storage      *storage.StorageService
+	preview      *preview.PreviewService
+	chatRepo     *database.ChatRepository
+	userRepo     *database.UserRepository
+	settingsRepo *database.SettingsRepository
+	jwtSecret    string
 }
 
 func NewMediaHandler(
@@ -31,14 +32,16 @@ func NewMediaHandler(
 	preview *preview.PreviewService,
 	chatRepo *database.ChatRepository,
 	userRepo *database.UserRepository,
+	settingsRepo *database.SettingsRepository,
 	jwtSecret string,
 ) *MediaHandler {
 	return &MediaHandler{
-		storage:   storage,
-		preview:   preview,
-		chatRepo:  chatRepo,
-		userRepo:  userRepo,
-		jwtSecret: jwtSecret,
+		storage:      storage,
+		preview:      preview,
+		chatRepo:     chatRepo,
+		userRepo:     userRepo,
+		settingsRepo: settingsRepo,
+		jwtSecret:    jwtSecret,
 	}
 }
 
@@ -48,6 +51,15 @@ func (h *MediaHandler) GetLinkPreview(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Lütfen geçerli bir url parametresi belirtin.",
 		})
+	}
+
+	if h.settingsRepo != nil {
+		chatSettings := h.settingsRepo.GetChatSettings(c.Context())
+		if !chatSettings.EnableLinkPreviews {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Bağlantı önizlemeleri devre dışı bırakılmıştır.",
+			})
+		}
 	}
 
 	if h.preview == nil {
@@ -79,6 +91,51 @@ func (h *MediaHandler) UploadMedia(c *fiber.Ctx) error {
 	category := c.FormValue("category", "file") // voice, image, video, file
 	durationStr := c.FormValue("duration", "0")
 	waveformStr := c.FormValue("waveform", "")
+
+	// Sistem Medya Limitleri Denetimi
+	if h.settingsRepo != nil {
+		limits := h.settingsRepo.GetMediaLimits(c.Context())
+
+		// 1. Maksimum Dosya Boyutu Kontrolü
+		if limits.MaxFileSizeMB > 0 {
+			maxBytes := int64(limits.MaxFileSizeMB) * 1024 * 1024
+			if fileHeader.Size > maxBytes {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": fmt.Sprintf("Dosya boyutu sistem sınırını aşıyor (En fazla %d MB yüklenebilir).", limits.MaxFileSizeMB),
+				})
+			}
+		}
+
+		// 2. İzin Verilen Dosya Uzantıları Kontrolü (ses hariç)
+		if len(limits.AllowedExtensions) > 0 && category != "voice" {
+			ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+			allowed := false
+			for _, a := range limits.AllowedExtensions {
+				cleanA := strings.ToLower(strings.TrimSpace(a))
+				if !strings.HasPrefix(cleanA, ".") {
+					cleanA = "." + cleanA
+				}
+				if cleanA == ext {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": fmt.Sprintf("'%s' dosya uzantısına izin verilmiyor. İzin verilenler: %s", ext, strings.Join(limits.AllowedExtensions, ", ")),
+				})
+			}
+		}
+
+		// 3. Maksimum Ses Süresi Kontrolü
+		if category == "voice" && limits.MaxVoiceSeconds > 0 {
+			if duration, err := strconv.ParseFloat(durationStr, 64); err == nil && duration > float64(limits.MaxVoiceSeconds) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": fmt.Sprintf("Ses kaydı maksimum süreyi (%d saniye) aşıyor.", limits.MaxVoiceSeconds),
+				})
+			}
+		}
+	}
 
 	file, err := fileHeader.Open()
 	if err != nil {

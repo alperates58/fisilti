@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Trash2, Send, Mic, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatStore } from "@/store/useChatStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface Props {
   conversationId: string;
@@ -13,6 +14,9 @@ interface Props {
 
 export default function AudioRecorder({ conversationId, onCancel, onComplete }: Props) {
   const sendMediaMessage = useChatStore((state) => state.sendMediaMessage);
+  const maxVoiceSeconds = useSettingsStore(
+    (state) => state.settings?.media_limits?.max_voice_seconds || 300
+  );
 
   const [seconds, setSeconds] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -95,7 +99,12 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
       setIsRecording(true);
 
       timerRef.current = setInterval(() => {
-        setSeconds((prev) => prev + 1);
+        setSeconds((prev) => {
+          if (prev + 1 >= maxVoiceSeconds) {
+            return maxVoiceSeconds;
+          }
+          return prev + 1;
+        });
       }, 1000);
     } catch (err: any) {
       console.error("Mikrofon erişim hatası:", err);
@@ -146,9 +155,9 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
 
         sendMediaMessage(conversationId, media_url, "voice", metadata);
         onComplete();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Sesli mesaj yüklenemedi:", err);
-        setError("Sesli mesaj gönderilemedi.");
+        setError(err.response?.data?.error || "Sesli mesaj gönderilemedi.");
         setIsUploading(false);
       }
     };

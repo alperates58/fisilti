@@ -428,19 +428,31 @@ func (r *ChatRepository) GetMessageByID(ctx context.Context, messageID uuid.UUID
 	return &m, nil
 }
 
-func (r *ChatRepository) EditMessage(ctx context.Context, messageID, userID uuid.UUID, newContent string) error {
-	query := `
-		UPDATE messages
-		SET content = $1, is_edited = true, updated_at = NOW()
-		WHERE id = $2 AND sender_id = $3 AND created_at > NOW() - INTERVAL '15 minutes' AND is_deleted_for_all = false
-	`
+func (r *ChatRepository) EditMessage(ctx context.Context, messageID, userID uuid.UUID, newContent string, timeLimitMinutes int) error {
+	var query string
+	if timeLimitMinutes > 0 {
+		query = fmt.Sprintf(`
+			UPDATE messages
+			SET content = $1, is_edited = true, updated_at = NOW()
+			WHERE id = $2 AND sender_id = $3 AND created_at > NOW() - INTERVAL '%d minutes' AND is_deleted_for_all = false
+		`, timeLimitMinutes)
+	} else {
+		query = `
+			UPDATE messages
+			SET content = $1, is_edited = true, updated_at = NOW()
+			WHERE id = $2 AND sender_id = $3 AND is_deleted_for_all = false
+		`
+	}
 	res, err := r.db.ExecContext(ctx, query, newContent, messageID, userID)
 	if err != nil {
 		return err
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return errors.New("mesaj düzenlenemez (15 dakikalık süre dolmuş veya yetkiniz yok)")
+		if timeLimitMinutes > 0 {
+			return fmt.Errorf("mesaj düzenlenemez (%d dakikalık süre dolmuş veya yetkiniz yok)", timeLimitMinutes)
+		}
+		return errors.New("mesaj düzenlenemez veya yetkiniz yok")
 	}
 	return nil
 }
@@ -455,18 +467,31 @@ func (r *ChatRepository) DeleteMessageForMe(ctx context.Context, messageID, user
 	return err
 }
 
-func (r *ChatRepository) DeleteMessageForAll(ctx context.Context, messageID, userID uuid.UUID) (*models.Message, error) {
-	query := `
-		UPDATE messages
-		SET is_deleted_for_all = true, content = '', updated_at = NOW()
-		WHERE id = $1 AND sender_id = $2
-		RETURNING id, conversation_id, sender_id, recipient_id, media_url
-	`
+func (r *ChatRepository) DeleteMessageForAll(ctx context.Context, messageID, userID uuid.UUID, timeLimitMinutes int) (*models.Message, error) {
+	var query string
+	if timeLimitMinutes > 0 {
+		query = fmt.Sprintf(`
+			UPDATE messages
+			SET is_deleted_for_all = true, content = '', updated_at = NOW()
+			WHERE id = $1 AND sender_id = $2 AND created_at > NOW() - INTERVAL '%d minutes'
+			RETURNING id, conversation_id, sender_id, recipient_id, media_url
+		`, timeLimitMinutes)
+	} else {
+		query = `
+			UPDATE messages
+			SET is_deleted_for_all = true, content = '', updated_at = NOW()
+			WHERE id = $1 AND sender_id = $2
+			RETURNING id, conversation_id, sender_id, recipient_id, media_url
+		`
+	}
 	var m models.Message
 	err := r.db.QueryRowContext(ctx, query, messageID, userID).Scan(
 		&m.ID, &m.ConversationID, &m.SenderID, &m.RecipientID, &m.MediaURL,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
+		if timeLimitMinutes > 0 {
+			return nil, fmt.Errorf("mesaj bulunamadı, silme süresi (%d dakika) dolmuş veya yetkiniz yok", timeLimitMinutes)
+		}
 		return nil, errors.New("mesaj bulunamadı veya silme yetkiniz yok")
 	}
 	if err != nil {

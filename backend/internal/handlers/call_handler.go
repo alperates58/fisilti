@@ -21,6 +21,7 @@ type CallHandler struct {
 	livekitService *livekit.LiveKitService
 	hub            *fisiltiws.Hub
 	redisClient    *redis.Client
+	settingsRepo   *database.SettingsRepository
 }
 
 func NewCallHandler(
@@ -30,6 +31,7 @@ func NewCallHandler(
 	livekitService *livekit.LiveKitService,
 	hub *fisiltiws.Hub,
 	redisClient *redis.Client,
+	settingsRepo *database.SettingsRepository,
 ) *CallHandler {
 	return &CallHandler{
 		callRepo:       callRepo,
@@ -38,6 +40,7 @@ func NewCallHandler(
 		livekitService: livekitService,
 		hub:            hub,
 		redisClient:    redisClient,
+		settingsRepo:   settingsRepo,
 	}
 }
 
@@ -55,6 +58,21 @@ func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
 	}
 	if req.CallType != "audio" && req.CallType != "video" {
 		req.CallType = "audio"
+	}
+
+	// 0. Sistem Arama Parametreleri Denetimi
+	if h.settingsRepo != nil {
+		callSettings := h.settingsRepo.GetCallSettings(c.Context())
+		if req.CallType == "audio" && !callSettings.EnableAudioCalls {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Sesli arama özelliği yönetici tarafından geçici olarak kapatılmıştır.",
+			})
+		}
+		if req.CallType == "video" && !callSettings.EnableVideoCalls {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Görüntülü arama özelliği yönetici tarafından geçici olarak kapatılmıştır.",
+			})
+		}
 	}
 
 	// 1. Konuşmayı ve Karşı Tarafı Bul

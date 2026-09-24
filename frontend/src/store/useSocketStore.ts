@@ -179,6 +179,12 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             chatStore.onMessageReaction(data.payload.message_id, data.payload.reactions);
             break;
 
+          case "system_settings_updated":
+            import("./useSettingsStore").then(({ useSettingsStore }) => {
+              useSettingsStore.getState().updateSettingLocally(data.payload.key, data.payload.value);
+            });
+            break;
+
           case "incoming_call":
             soundEffects.startRingtone();
             import("./useCallStore").then(({ useCallStore }) => {

@@ -4,15 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
-import { LogIn, Lock, User as UserIcon, AlertCircle } from "lucide-react";
+import { useSettingsStore } from "@/store/useSettingsStore";
+import { LogIn, Lock, User as UserIcon, AlertCircle, AlertTriangle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const settings = useSettingsStore((state) => state.settings);
 
   const [form, setForm] = useState({ login: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const siteName = settings?.site_info?.site_name || "Aura";
+  const allowRegistration = settings?.site_info?.allow_registration !== false;
+  const isMaintenance = settings?.site_info?.maintenance_mode === true;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,11 +46,18 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-grupo-dark-card border border-grupo-dark-border rounded-2xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-8">
           <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-grupo-accent to-grupo-accent-secondary flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-pink-500/25">
-            A
+            {siteName.charAt(0) || "A"}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Aura&apos;ya Giriş Yap</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">{siteName}&apos;ya Giriş Yap</h1>
           <p className="text-sm text-slate-400 mt-1">Giriş yaparak devam edin</p>
         </div>
+
+        {isMaintenance && (
+          <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-amber-300 text-xs leading-relaxed">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+            <span>Sistem şu anda bakım modundadır. Yalnızca yöneticiler giriş yapabilir.</span>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3 text-rose-400 text-sm animate-shake">
@@ -104,10 +117,19 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-8 text-center text-sm text-slate-400">
-          Hesabınız yok mu?{" "}
-          <Link href="/register" className="text-grupo-accent hover:underline font-semibold ml-1">
-            Kayıt Olun
-          </Link>
+          {allowRegistration ? (
+            <>
+              Hesabınız yok mu?{" "}
+              <Link href="/register" className="text-grupo-accent hover:underline font-semibold ml-1">
+                Kayıt Olun
+              </Link>
+            </>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-400">
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Yeni üye kayıtları kapatılmıştır.</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

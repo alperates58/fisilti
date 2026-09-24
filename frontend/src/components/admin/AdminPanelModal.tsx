@@ -8,6 +8,7 @@ import {
   AdminAccessLog,
 } from "@/lib/admin_api";
 import { User } from "@/store/useAuthStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import {
   ShieldAlert,
   Users,
@@ -183,6 +184,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const handleSaveSetting = async (key: string, value: any) => {
     try {
       await adminApi.updateSetting(key, value);
+      useSettingsStore.getState().updateSettingLocally(key, value);
       setSaveSuccess(`"${key}" parametreleri kaydedildi!`);
       setTimeout(() => setSaveSuccess(null), 3000);
       loadSettings();

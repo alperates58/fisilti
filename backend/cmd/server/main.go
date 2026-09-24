@@ -102,14 +102,14 @@ func main() {
 	previewService := preview.NewPreviewService(rdb)
 
 	// 7. Handlers
-	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub, accessRepo)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo, presenceService, hub, accessRepo, settingsRepo)
 	userHandler := handlers.NewUserHandler(userRepo, storageService, presenceService, accessRepo)
-	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub)
-	mediaHandler := handlers.NewMediaHandler(storageService, previewService, chatRepo, userRepo, cfg.JWTAccessSecret)
-	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb)
+	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, presenceService, storageService, hub, settingsRepo)
+	mediaHandler := handlers.NewMediaHandler(storageService, previewService, chatRepo, userRepo, settingsRepo, cfg.JWTAccessSecret)
+	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb, settingsRepo)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService)
-	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb)
+	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb, hub)
 	storyRepo := database.NewStoryRepository(db)
 	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo)
 
@@ -192,8 +192,12 @@ func main() {
 	authLimiter := middleware.NewRateLimiter(rdb, 15, 1*time.Minute)
 	mediaLimiter := middleware.NewRateLimiter(rdb, 20, 1*time.Minute)
 
+	// Genel ve Açık Sistem Ayarları
+	v1.Get("/public/settings", authHandler.GetPublicSettings)
+
 	// Kimlik Doğrulama Rotaları (Açık)
 	auth := v1.Group("/auth")
+	auth.Get("/settings", authHandler.GetPublicSettings)
 	auth.Post("/register", authLimiter, authHandler.Register)
 	auth.Post("/login", authLimiter, authHandler.Login)
 	auth.Post("/refresh", authHandler.Refresh)

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, Image, FileText, Mic, Loader2, MapPin } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatStore } from "@/store/useChatStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { compressImage, validateVideo } from "@/lib/compression";
 
 interface Props {
@@ -19,6 +20,7 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
   const menuRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaLimits = useSettingsStore((state) => state.settings?.media_limits);
 
   // Dışarı tıklayınca menüyü kapat
   useEffect(() => {
@@ -38,6 +40,12 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, category: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (mediaLimits?.max_file_size_mb && file.size > mediaLimits.max_file_size_mb * 1024 * 1024) {
+      alert(`Dosya boyutu sistem sınırını aşıyor (En fazla ${mediaLimits.max_file_size_mb} MB yüklenebilir).`);
+      e.target.value = "";
+      return;
+    }
 
     setIsOpen(false);
     setIsUploading(true);
@@ -89,9 +97,9 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
       const mediaType = isVideo ? "video" : isAudio ? "voice" : isImage ? "image" : "file";
 
       sendMediaMessage(conversationId, media_url, mediaType, metadata, "");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Medya yüklenemedi:", err);
-      alert("Dosya yüklenirken bir hata oluştu.");
+      alert(err.response?.data?.error || "Dosya yüklenirken bir hata oluştu.");
     } finally {
       setIsUploading(false);
       // Reset input
@@ -140,7 +148,7 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
       <input
         ref={fileInputRef}
         type="file"
-        accept="*/*"
+        accept={mediaLimits?.allowed_extensions?.join(",") || "*/*"}
         className="hidden"
         onChange={(e) => handleFileUpload(e, "file")}
       />

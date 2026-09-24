@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -18,12 +19,29 @@ import (
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
+func isStrongPassword(pass string) bool {
+	if len(pass) < 8 {
+		return false
+	}
+	hasDigit := false
+	hasLetter := false
+	for _, ch := range pass {
+		if ch >= '0' && ch <= '9' {
+			hasDigit = true
+		} else if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
+			hasLetter = true
+		}
+	}
+	return hasDigit && hasLetter
+}
+
 type AuthHandler struct {
 	cfg             config.Config
 	userRepo        *database.UserRepository
 	presenceService *fisiltiredis.PresenceService
 	hub             *fisiltiws.Hub
 	accessRepo      *database.AccessRepository
+	settingsRepo    *database.SettingsRepository
 }
 
 func NewAuthHandler(
@@ -32,6 +50,7 @@ func NewAuthHandler(
 	presenceService *fisiltiredis.PresenceService,
 	hub *fisiltiws.Hub,
 	accessRepo *database.AccessRepository,
+	settingsRepo *database.SettingsRepository,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:             cfg,
@@ -39,6 +58,7 @@ func NewAuthHandler(
 		presenceService: presenceService,
 		hub:             hub,
 		accessRepo:      accessRepo,
+		settingsRepo:    settingsRepo,
 	}
 }
 
@@ -103,6 +123,29 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	req.Username = strings.TrimSpace(req.Username)
 	req.DisplayName = strings.TrimSpace(req.DisplayName)
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+	// 0. Sistem Ayarları Denetimi
+	if h.settingsRepo != nil {
+		siteInfo := h.settingsRepo.GetSiteInfo(c.Context())
+		if !siteInfo.AllowRegistration {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Yeni üye kaydı yönetici tarafından durdurulmuştur.",
+			})
+		}
+		if siteInfo.MaintenanceMode {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Sistem şu anda bakım modundadır.",
+			})
+		}
+		sec := h.settingsRepo.GetSecuritySettings(c.Context())
+		if sec.RequireStrongPasswords {
+			if !isStrongPassword(req.Password) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "Güçlü şifre zorunludur: Şifreniz en az 8 karakter olmalı, en az bir harf ve bir rakam içermelidir.",
+				})
+			}
+		}
+	}
 
 	// Doğrulamalar
 	if !usernameRegex.MatchString(req.Username) {
@@ -214,6 +257,27 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Kullanıcı adı veya şifre hatalı.",
 		})
+	}
+
+	// 1. Hesap Ban Kontrolü
+	if user.IsBanned {
+		reason := user.BanReason
+		if reason == "" {
+			reason = "Hesabınız yönetici tarafından askıya alınmıştır."
+		}
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": fmt.Sprintf("Giriş engellendi: %s", reason),
+		})
+	}
+
+	// 2. Bakım Modu Kontrolü
+	if h.settingsRepo != nil {
+		siteInfo := h.settingsRepo.GetSiteInfo(c.Context())
+		if siteInfo.MaintenanceMode && user.Role != "admin" && user.Role != "moderator" {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Sistem şu anda bakım modundadır. Yalnızca yöneticiler giriş yapabilir.",
+			})
+		}
 	}
 
 	accessToken, err := middleware.GenerateAccessToken(user.ID, user.Username, h.cfg.JWTAccessSecret, h.cfg.JWTAccessExpiryMin)
@@ -332,3 +396,12 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 
 	return c.JSON(user.ToResponse())
 }
+
+// GetPublicSettings returns public system configurations (site name, allow registration, theme, etc.)
+func (h *AuthHandler) GetPublicSettings(c *fiber.Ctx) error {
+	if h.settingsRepo == nil {
+		return c.JSON(fiber.Map{})
+	}
+	return c.JSON(h.settingsRepo.GetPublicSettings(c.Context()))
+}
+

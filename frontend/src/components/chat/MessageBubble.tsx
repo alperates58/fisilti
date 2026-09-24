@@ -24,6 +24,7 @@ import { ReactionPicker, ReactionBadges } from "./ReactionPicker";
 import SocialMediaEmbed, { extractSocialMedia, extractGeneralUrl } from "./SocialMediaEmbed";
 import LinkPreviewCard from "./LinkPreviewCard";
 import { resolveMediaUrl } from "@/lib/api";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface Props {
   message: Message;
@@ -37,6 +38,7 @@ export default function MessageBubble({ message }: Props) {
     editMessage,
     toggleStar,
   } = useChatStore();
+  const chatSettings = useSettingsStore((state) => state.settings?.chat_settings);
 
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -135,8 +137,8 @@ export default function MessageBubble({ message }: Props) {
     try {
       await editMessage(message.id, editText.trim());
       setIsEditing(false);
-    } catch (err) {
-      alert("Mesaj düzenlenemedi.");
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Mesaj düzenlenemedi.");
     }
   };
 
@@ -149,8 +151,8 @@ export default function MessageBubble({ message }: Props) {
 
     try {
       await deleteMessage(message.id, forAll);
-    } catch (err) {
-      alert("Mesaj silinemedi.");
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Mesaj silinemedi.");
     }
   };
 
@@ -447,7 +449,7 @@ export default function MessageBubble({ message }: Props) {
                   </button>
 
                   {/* Düzenle (Sadece benim ve metin mesajlarında) */}
-                  {message.is_mine && message.message_type === "text" && (
+                  {message.is_mine && message.message_type === "text" && chatSettings?.allow_message_edit !== false && (
                     <button
                       onClick={() => {
                         setShowMenu(false);
@@ -472,7 +474,7 @@ export default function MessageBubble({ message }: Props) {
                   </button>
 
                   {/* Herkesten Sil (Sadece benim mesajlarımda) */}
-                  {message.is_mine && (
+                  {message.is_mine && chatSettings?.allow_delete_for_all !== false && (
                     <button
                       onClick={() => handleDelete(true)}
                       className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 text-left transition-colors cursor-pointer"
