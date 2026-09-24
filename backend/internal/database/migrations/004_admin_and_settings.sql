@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- Varsayılan sistem parametrelerini ekleme
 INSERT INTO system_settings (key, value) VALUES
 ('site_info', '{
-    "site_name": "Fısıltı",
+    "site_name": "Aura",
     "site_tagline": "",
     "site_url": "",
     "logo_url": "",

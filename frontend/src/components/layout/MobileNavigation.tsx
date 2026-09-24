@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Users, Star, Settings } from "lucide-react";
+import { MessageSquare, Users, Star, Settings, Sliders } from "lucide-react";
 import { NavTab } from "./SideNavigation";
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   unreadCount?: number;
   starredCount?: number;
   onOpenSettings: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export default function MobileNavigation({
@@ -76,6 +77,17 @@ export default function MobileNavigation({
         <Settings className="w-5 h-5" />
         <span className="text-[10px]">Ayarlar</span>
       </button>
+
+      {/* 5. Parametreler (Aura Yönetim) */}
+      {onOpenAdmin && (
+        <button
+          onClick={onOpenAdmin}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer text-amber-400 hover:text-amber-300"
+        >
+          <Sliders className="w-5 h-5" />
+          <span className="text-[10px]">Parametre</span>
+        </button>
+      )}
     </nav>
   );
 }

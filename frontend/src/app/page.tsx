@@ -495,6 +495,7 @@ export default function HomePage() {
             unreadCount={totalUnreadCount}
             starredCount={starredMessages.length}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenAdmin={() => setIsAdminPanelOpen(true)}
           />
         )}
       </aside>

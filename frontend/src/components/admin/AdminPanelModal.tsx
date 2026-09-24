@@ -51,7 +51,7 @@ type TabType =
   | "stats";
 
 const COLOR_PRESETS = [
-  { name: "Grupo Pembe", color: "#E91E63", hover: "#D81B60" },
+  { name: "Aura Pembe", color: "#E91E63", hover: "#D81B60" },
   { name: "Zümrüt Yeşili", color: "#10B981", hover: "#059669" },
   { name: "Okyanus Mavisi", color: "#0284C7", hover: "#0369A1" },
   { name: "Gece Mavisi", color: "#3B82F6", hover: "#2563EB" },
@@ -272,32 +272,32 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       />
 
-      {/* GRUPO TARZI SOL ÇEKMECE PANELİ (Left Sidebar Drawer) */}
+      {/* AURA SOL ÇEKMECE PANELİ (Left Sidebar Drawer - Tamamen Responsive) */}
       <div className="fixed inset-y-0 left-0 max-w-full flex z-50">
-        <div className="w-screen max-w-2xl sm:max-w-3xl bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200">
+        <div className="w-screen max-w-full md:max-w-3xl lg:max-w-4xl bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200">
           
           {/* Çekmece Üst Başlığı (Header) */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#222631] bg-[#12151C] flex-shrink-0">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-pink-600 to-rose-500 flex items-center justify-center text-white shadow-md shadow-pink-950/40">
-                <ShieldAlert className="w-5 h-5" />
+          <div className="flex items-center justify-between px-3.5 sm:px-5 py-3 sm:py-4 border-b border-[#222631] bg-[#12151C] flex-shrink-0">
+            <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+              <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl bg-gradient-to-tr from-pink-600 to-rose-500 flex items-center justify-center text-white shadow-md shadow-pink-950/40 flex-shrink-0">
+                <ShieldAlert className="w-4 sm:w-5 h-4 sm:h-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white tracking-wide">
-                    Sistem Yönetim & Parametre Kontrolü
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
+                    Sistem Yönetim & Parametreleri
                   </h2>
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-400 border border-pink-500/30">
-                    Grupo Pro
+                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded-full bg-pink-500/20 text-pink-400 border border-pink-500/30 flex-shrink-0">
+                    Aura
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  Aura yapılandırması, temalar, kullanıcı izinleri ve canlı limitler
+                <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                  Yapılandırma, temalar, izinler ve limitler
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-2">
               {saveSuccess && (
                 <span className="hidden sm:flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full animate-in fade-in">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -307,19 +307,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               <button
                 onClick={onClose}
                 title="Paneli Kapat"
-                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* Ana Gövde: 2 Sütunlu İç Navigasyon & Form Alanı */}
-          <div className="flex-1 flex overflow-hidden">
+          {/* Ana Gövde: Mobilde Yatay Tab Bar / Masaüstünde Aura Dikey Menü */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             
-            {/* 1. SÜTUN: Sol Kategori Menüsü (Grupo Sub-Rail) */}
-            <div className="w-48 sm:w-56 bg-[#0F1218] border-r border-[#222631] flex flex-col p-2 space-y-1 flex-shrink-0 overflow-y-auto">
-              <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            {/* 1. SÜTUN: Sol Kategori Menüsü (Mobilde yatay kaydırılabilir, Masaüstünde dikey rail) */}
+            <div className="w-full md:w-56 bg-[#0F1218] border-b md:border-b-0 md:border-r border-[#222631] flex flex-row md:flex-col p-2 gap-1.5 md:gap-0 md:space-y-1 overflow-x-auto md:overflow-y-auto flex-shrink-0 no-scrollbar">
+              <div className="hidden md:block px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Menü Grupları
               </div>
               {NAV_ITEMS.map((item) => {
@@ -329,18 +329,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as TabType)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    className={`flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left whitespace-nowrap ${
                       isActive
                         ? "bg-pink-600/15 text-pink-400 border border-pink-500/30 shadow-xs"
                         : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
+                    <div className="flex items-center gap-2 truncate">
                       <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-pink-400" : "text-slate-400"}`} />
                       <span className="truncate">{item.label}</span>
                     </div>
                     {item.badge && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                      <span className="hidden md:inline-block text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
                         {item.badge}
                       </span>
                     )}
@@ -348,7 +348,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 );
               })}
 
-              <div className="mt-auto pt-4 border-t border-[#222631]/60 px-3">
+              <div className="hidden md:flex mt-auto pt-4 border-t border-[#222631]/60 px-3">
                 <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
                   <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
                   <span>Sunucu: Çevrimiçi</span>
@@ -357,13 +357,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
 
             {/* 2. SÜTUN: Sağ İçerik & Parametre Form Alanı */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-[#0B0D12]">
+            <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-6 bg-[#0B0D12]">
               
               {/* TAB 1: KULLANICI YÖNETİMİ */}
               {activeTab === "users" && (
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2.5 items-center justify-between">
-                    <div className="relative w-full sm:w-72">
+                  <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+                    <div className="relative flex-1">
                       <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                       <input
                         type="text"
@@ -375,11 +375,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2">
                       <select
                         value={roleFilter}
                         onChange={(e) => setRoleFilter(e.target.value)}
-                        className="bg-[#141720] border border-[#252936] rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none"
+                        className="flex-1 sm:flex-initial bg-[#141720] border border-[#252936] rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none"
                       >
                         <option value="all">Tüm Roller</option>
                         <option value="admin">Admin</option>
@@ -389,7 +389,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                       <button
                         onClick={loadUsers}
-                        className="p-2 bg-[#141720] border border-[#252936] rounded-xl hover:bg-[#202534] text-slate-300 transition-colors cursor-pointer"
+                        className="p-2 bg-[#141720] border border-[#252936] rounded-xl hover:bg-[#202534] text-slate-300 transition-colors cursor-pointer flex-shrink-0"
                         title="Yenile"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
@@ -400,7 +400,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div className="border border-[#222631] rounded-2xl overflow-hidden bg-[#10131A]">
                     <div className="divide-y divide-[#1D212B]">
                       {users.map((u) => (
-                        <div key={u.id} className="p-3 sm:p-4 flex items-center justify-between gap-3 hover:bg-[#151922] transition-colors">
+                        <div key={u.id} className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#151922] transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-pink-400 overflow-hidden flex-shrink-0">
                               {u.avatar_url ? (
@@ -411,7 +411,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               )}
                             </div>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-bold text-white truncate">{u.display_name}</span>
                                 {u.is_banned && (
                                   <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold">
@@ -423,11 +423,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-[#1D212B]/60">
                             <select
                               value={u.role || "member"}
                               onChange={(e) => handleUpdateUserRole(u, e.target.value)}
-                              className="bg-[#141720] border border-[#252936] text-[11px] text-slate-200 rounded-lg px-2 py-1 focus:outline-none"
+                              className="bg-[#141720] border border-[#252936] text-[11px] text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
                             >
                               <option value="member">Üye</option>
                               <option value="moderator">Moderatör</option>
@@ -437,7 +437,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <button
                               onClick={() => handleToggleUserBan(u)}
                               title={u.is_banned ? "Yasağı Kaldır" : "Kullanıcıyı Yasakla"}
-                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
                                 u.is_banned
                                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
                                   : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
@@ -449,7 +449,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <button
                               onClick={() => handleDeleteUser(u.id, u.username)}
                               title="Kullanıcıyı Kalıcı Sil"
-                              className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/80 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
+                              className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/80 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -466,14 +466,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: TEMA & RENKLER (GRUPO CUSTOMIZER) */}
+              {/* TAB 2: TEMA & RENKLER (AURA CUSTOMIZER) */}
               {activeTab === "theme" && (
                 <div className="space-y-6">
                   {/* Bilgi Kutusu */}
                   <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 to-indigo-500/10 border border-pink-500/20 flex items-start gap-3">
                     <Sparkles className="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-xs font-bold text-white">Grupo Canlı Tema & Renk Yönetimi</h4>
+                      <h4 className="text-xs font-bold text-white">Aura Canlı Tema & Renk Yönetimi</h4>
                       <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
                         Burada seçtiğiniz vurgu renkleri, butonlar, arama ekranı ve mesajlaşma arayüzüne anında uygulanır.
                       </p>
@@ -611,7 +611,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           onChange={(e) => setFontFamily(e.target.value)}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         >
-                          <option value="Inter">Inter (Grupo Varsayılan)</option>
+                          <option value="Inter">Inter (Aura Varsayılan)</option>
                           <option value="Roboto">Roboto</option>
                           <option value="Poppins">Poppins Modern</option>
                           <option value="Outfit">Outfit Minimalist</option>
@@ -733,8 +733,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-[#222631] space-y-3">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div className="min-w-0 pr-2">
                           <span className="text-xs font-semibold text-white block">Yeni Üye Kaydına İzin Ver</span>
                           <span className="text-[11px] text-slate-400">Kapatılırsa yalnız mevcut kullanıcılar giriş yapabilir</span>
                         </div>
@@ -747,12 +747,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               site_info: { ...settings.site_info, allow_registration: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div className="min-w-0 pr-2">
                           <span className="text-xs font-semibold text-rose-400 block">Bakım Modu (Maintenance)</span>
                           <span className="text-[11px] text-slate-400">Yöneticiler hariç tüm kullanıcılara erişim durdurulur</span>
                         </div>
@@ -765,7 +765,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               site_info: { ...settings.site_info, maintenance_mode: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-rose-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-rose-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
                     </div>
@@ -825,8 +825,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                     </div>
 
-                    <label className="flex items-center justify-between cursor-pointer pt-2 border-t border-[#222631]">
-                      <div>
+                    <label className="flex items-center justify-between gap-3 cursor-pointer pt-2 border-t border-[#222631]">
+                      <div className="min-w-0 pr-2">
                         <span className="text-xs font-semibold text-white block">Otomatik Görsel & Video Sıkıştırma</span>
                         <span className="text-[11px] text-slate-400">Yüklenen medyaları FFmpeg ile evrensel optimize formatlara dönüştür</span>
                       </div>
@@ -842,7 +842,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             },
                           })
                         }
-                        className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                        className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                       />
                     </label>
 
@@ -897,8 +897,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-[#222631]">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-semibold text-white">Mesaj Düzenlemeye İzin Ver</span>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span className="text-xs font-semibold text-white min-w-0 pr-2">Mesaj Düzenlemeye İzin Ver</span>
                         <input
                           type="checkbox"
                           checked={settings.chat_settings.allow_message_edit}
@@ -908,12 +908,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               chat_settings: { ...settings.chat_settings, allow_message_edit: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-semibold text-white">Herkesten Silmeye İzin Ver</span>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span className="text-xs font-semibold text-white min-w-0 pr-2">Herkesten Silmeye İzin Ver</span>
                         <input
                           type="checkbox"
                           checked={settings.chat_settings.allow_delete_for_all}
@@ -923,12 +923,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               chat_settings: { ...settings.chat_settings, allow_delete_for_all: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-semibold text-white">Otomatik Link Önizlemeleri</span>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span className="text-xs font-semibold text-white min-w-0 pr-2">Otomatik Link Önizlemeleri</span>
                         <input
                           type="checkbox"
                           checked={settings.chat_settings.enable_link_previews}
@@ -938,7 +938,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               chat_settings: { ...settings.chat_settings, enable_link_previews: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
                     </div>
@@ -961,8 +961,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     <h3 className="text-xs font-bold text-white">LiveKit SFU Sesli & Görüntülü Arama</h3>
 
                     <div className="space-y-3">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div className="min-w-0 pr-2">
                           <span className="text-xs font-semibold text-white block">Sesli Aramalar</span>
                           <span className="text-[11px] text-slate-400">1-e-1 yüksek kaliteli şifreli sesli görüşmeler</span>
                         </div>
@@ -975,12 +975,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               call_settings: { ...settings.call_settings, enable_audio_calls: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div className="min-w-0 pr-2">
                           <span className="text-xs font-semibold text-white block">Görüntülü Aramalar</span>
                           <span className="text-[11px] text-slate-400">LiveKit SFU üzerinden WebRTC HD video akışı</span>
                         </div>
@@ -993,12 +993,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               call_settings: { ...settings.call_settings, enable_video_calls: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <div className="min-w-0 pr-2">
                           <span className="text-xs font-semibold text-white block">Ekran Paylaşımı (Screen Share)</span>
                           <span className="text-[11px] text-slate-400">Görüşme sırasında masaüstü / pencere yayını</span>
                         </div>
@@ -1011,7 +1011,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               call_settings: { ...settings.call_settings, enable_screen_share: e.target.checked },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
                     </div>
@@ -1090,8 +1090,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-[#222631]">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-semibold text-white">Güçlü Şifre Zorunluluğu</span>
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span className="text-xs font-semibold text-white min-w-0 pr-2">Güçlü Şifre Zorunluluğu</span>
                         <input
                           type="checkbox"
                           checked={settings.security_settings.require_strong_passwords}
@@ -1104,7 +1104,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               },
                             })
                           }
-                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer"
+                          className="w-4 h-4 accent-pink-600 rounded cursor-pointer flex-shrink-0"
                         />
                       </label>
 
@@ -1174,27 +1174,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </div>
 
                   <div className="border border-[#222631] rounded-2xl overflow-hidden bg-[#10131A]">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto -mx-1 sm:mx-0">
+                      <table className="w-full text-left text-xs min-w-[500px]">
                         <thead className="bg-[#141720] border-b border-[#222631] text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                           <tr>
-                            <th className="py-2.5 px-3.5">Kullanıcı</th>
-                            <th className="py-2.5 px-3.5">Cihaz & Tarayıcı</th>
-                            <th className="py-2.5 px-3.5">IP Adresi</th>
-                            <th className="py-2.5 px-3.5 text-right">Tarih</th>
+                            <th className="py-2.5 px-3 sm:px-3.5">Kullanıcı</th>
+                            <th className="py-2.5 px-3 sm:px-3.5">Cihaz & Tarayıcı</th>
+                            <th className="py-2.5 px-3 sm:px-3.5">IP Adresi</th>
+                            <th className="py-2.5 px-3 sm:px-3.5 text-right">Tarih</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#1D212B]">
                           {accessLogs.map((log) => (
                             <tr key={log.id} className="hover:bg-[#151922] transition-colors">
-                              <td className="py-2.5 px-3.5 font-semibold text-white">
+                              <td className="py-2.5 px-3 sm:px-3.5 font-semibold text-white">
                                 {log.display_name ? `${log.display_name} (@${log.username})` : `@${log.username}`}
                               </td>
-                              <td className="py-2.5 px-3.5 text-slate-300 truncate max-w-[160px]">
+                              <td className="py-2.5 px-3 sm:px-3.5 text-slate-300 truncate max-w-[140px] sm:max-w-[200px]">
                                 {log.device_info || "Bilinmeyen Cihaz"}
                               </td>
-                              <td className="py-2.5 px-3.5 font-mono text-slate-400">{log.ip_address}</td>
-                              <td className="py-2.5 px-3.5 text-right text-slate-500 whitespace-nowrap">
+                              <td className="py-2.5 px-3 sm:px-3.5 font-mono text-slate-400">{log.ip_address}</td>
+                              <td className="py-2.5 px-3 sm:px-3.5 text-right text-slate-500 whitespace-nowrap">
                                 {new Date(log.created_at).toLocaleString("tr-TR")}
                               </td>
                             </tr>

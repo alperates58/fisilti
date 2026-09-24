@@ -113,8 +113,8 @@ func main() {
 
 	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
-		AppName:      "Fısıltı API v1.0",
-		ServerHeader: "Fisilti-Server",
+		AppName:      "Aura API v1.0",
+		ServerHeader: "Aura-Server",
 		BodyLimit:    50 * 1024 * 1024, // 50MB dosya yükleme sınırı
 	})
 
@@ -136,7 +136,7 @@ func main() {
 	// Kök karşılama rotası
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"app":         "Fısıltı",
+			"app":         "Aura",
 			"version":     "1.0.0",
 			"status":      "running",
 			"environment": cfg.Environment,

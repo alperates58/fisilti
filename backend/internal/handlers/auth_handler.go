@@ -154,7 +154,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		Email:        req.Email,
 		PasswordHash: hash,
 		AvatarURL:    "",
-		Bio:          "Merhaba, ben Fısıltı kullanıyorum!",
+		Bio:          "Merhaba, ben Aura kullanıyorum!",
+		Role:         "admin",
 		OnlineStatus: 0, // WebSocket bağlanana kadar offline
 	}
 

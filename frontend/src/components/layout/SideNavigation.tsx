@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Sliders,
 } from "lucide-react";
 import { User } from "@/store/useAuthStore";
 
@@ -204,20 +205,20 @@ export default function SideNavigation({
             {isExpanded && <span className="text-xs whitespace-nowrap">Profil & Ayarlar</span>}
           </button>
 
-          {/* 5. YÖNETİM PANELİ (Admin Control Center - Grupo) */}
-          {isAdminOrMod && onOpenAdmin && (
+          {/* 5. YÖNETİM & PARAMETRELER (Aura Control Center) */}
+          {onOpenAdmin && (
             <div className="pt-2 border-t border-[#222631] mt-2 space-y-1">
               <button
                 onClick={onOpenAdmin}
-                title="Yönetim Paneli & Site Parametreleri"
-                className="w-full h-11 rounded-xl flex items-center gap-3 px-3 text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all cursor-pointer shadow-sm group"
+                title="Sistem Parametreleri"
+                className="w-full h-11 rounded-xl flex items-center gap-3 px-3 text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition-all cursor-pointer shadow-sm group"
               >
-                <ShieldAlert className="w-5 h-5 flex-shrink-0 text-amber-400 group-hover:scale-110 transition-transform" />
+                <Sliders className="w-5 h-5 flex-shrink-0 text-amber-400 group-hover:scale-110 transition-transform" />
                 {isExpanded && (
                   <div className="flex items-center justify-between flex-1 text-xs whitespace-nowrap overflow-hidden font-semibold">
-                    <span>Yönetim Paneli</span>
-                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300">
-                      Admin
+                    <span>Parametreler</span>
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      Yönetim
                     </span>
                   </div>
                 )}
