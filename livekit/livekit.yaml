@@ -8,10 +8,7 @@ rtc:
 redis:
   address: "redis:6379"
   username: ""
-  password: ""
   db: 0
-keys:
-  API_KEY_FISILTI: "SECRET_KEY_SUPER_SECURE_FISILTI_2026"
 logging:
   level: info
   pion_level: warn
