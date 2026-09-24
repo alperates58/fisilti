@@ -17,7 +17,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - fisilti-network
+      fisilti-network:
+        aliases:
+          - ${POSTGRES_HOST:-fisilti-postgres}
 
   # 2. Redis 7
   redis:
@@ -36,7 +38,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - fisilti-network
+      fisilti-network:
+        aliases:
+          - ${REDIS_HOST:-fisilti-redis}
 
   # 3. MinIO S3 Depolama
   minio:
@@ -51,8 +55,10 @@ services:
         source: ${MINIO_DATA_PATH}
         target: /data
     networks:
-      - fisilti-network
-      - coolify
+      fisilti-network:
+        aliases:
+          - ${MINIO_HOST:-fisilti-minio}
+      coolify:
     labels:
       - "traefik.enable=${TRAEFIK_ENABLE_S3:-true}"
       - "traefik.http.middlewares.fisilti-s3-strip.stripprefix.prefixes=${TRAEFIK_S3_STRIP_PREFIX:-}"
@@ -84,7 +90,7 @@ services:
       - fisilti-network
     entrypoint: >
       sh -c "
-      until (mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
+      until (mc alias set local http://${MINIO_HOST:-fisilti-minio}:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
       mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
       mc mb --ignore-existing local/$${MINIO_BUCKET_VOICE};
       mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
@@ -103,18 +109,21 @@ services:
       context: livekit
       dockerfile: Dockerfile
     restart: always
-    command: --config /etc/livekit.yaml
+    command: --config /etc/livekit.yaml --redis-host ${REDIS_ADDR:-${REDIS_HOST:-fisilti-redis}:6379}
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_HOST: "${REDIS_ADDR:-${REDIS_HOST:-fisilti-redis}:6379}"
     ports:
       - "7881:7881/udp"
       - "7881:7881/tcp"
     depends_on:
       - redis
     networks:
-      - fisilti-network
-      - coolify
+      fisilti-network:
+        aliases:
+          - ${LIVEKIT_HOST:-fisilti-livekit}
+      coolify:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.fisilti-livekit-http.rule=${TRAEFIK_LIVEKIT_RULE:-Host(`livekit.${DOMAIN:-fisilti.app}`)}"
