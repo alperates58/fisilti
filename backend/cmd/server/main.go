@@ -110,6 +110,8 @@ func main() {
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService)
 	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb)
+	storyRepo := database.NewStoryRepository(db)
+	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo)
 
 	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
@@ -233,6 +235,14 @@ func main() {
 	calls.Post("/accept", callHandler.AcceptCall)
 	calls.Post("/reject", callHandler.RejectCall)
 	calls.Post("/end", callHandler.EndCall)
+
+	// 24 Saatlik Hikaye / Durum Rotaları (WhatsApp & Instagram Modu)
+	stories := v1.Group("/stories", middleware.JWTMiddleware(cfg.JWTAccessSecret))
+	stories.Get("/", storyHandler.GetActiveStories)
+	stories.Post("/", storyHandler.CreateStory)
+	stories.Post("/:id/view", storyHandler.MarkStoryViewed)
+	stories.Get("/:id/viewers", storyHandler.GetStoryViewers)
+	stories.Delete("/:id", storyHandler.DeleteStory)
 
 	// Web Push Bildirim Rotaları
 	v1.Get("/notifications/vapid-key", pushHandler.GetVapidKey)

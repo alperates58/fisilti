@@ -12,6 +12,9 @@ import SideNavigation, { NavTab } from "@/components/layout/SideNavigation";
 import MobileNavigation from "@/components/layout/MobileNavigation";
 import SettingsModal from "@/components/chat/SettingsModal";
 import { AdminPanelModal } from "@/components/admin/AdminPanelModal";
+import StoriesBar from "@/components/story/StoriesBar";
+import StoryViewerModal from "@/components/story/StoryViewerModal";
+import StoryCreatorModal from "@/components/story/StoryCreatorModal";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInfoModal from "@/components/chat/MessageInfoModal";
 import ReplyBar from "@/components/chat/ReplyBar";
@@ -43,6 +46,7 @@ import {
   Eraser,
   MoreVertical,
   AlertCircle,
+  Sliders,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -311,13 +315,22 @@ export default function HomePage() {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            title="Çıkış Yap"
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 md:hidden">
+            <button
+              onClick={() => setIsAdminPanelOpen(true)}
+              title="Aura Parametre Yönetimi"
+              className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleLogout}
+              title="Çıkış Yap"
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Canlı Arama Kutusu */}
@@ -339,6 +352,11 @@ export default function HomePage() {
             />
           </div>
         </div>
+
+        {/* 24 Saatlik Hikayeler / Durumlar Barı (WhatsApp & Instagram Modu) */}
+        {!searchQuery.trim() && activeTab === "chats" && (
+          <StoriesBar />
+        )}
 
         {/* Arama Sonuçları Varsa */}
         {searchQuery.trim().length >= 2 ? (
@@ -951,13 +969,18 @@ export default function HomePage() {
             setActiveTab("chats");
           }
         }}
+        onOpenAdmin={() => setIsAdminPanelOpen(true)}
       />
 
-      {/* Yönetim Paneli Modalı (Grupo Admin) */}
+      {/* Yönetim Paneli Modalı (Aura Admin) */}
       <AdminPanelModal
         isOpen={isAdminPanelOpen}
         onClose={() => setIsAdminPanelOpen(false)}
       />
+
+      {/* 24 Saatlik Hikaye / Durum Modalları (WhatsApp & Instagram Tarzı) */}
+      <StoryViewerModal />
+      <StoryCreatorModal />
 
       {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
       <IncomingCallModal />

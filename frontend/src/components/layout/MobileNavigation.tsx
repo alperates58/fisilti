@@ -18,6 +18,7 @@ export default function MobileNavigation({
   unreadCount = 0,
   starredCount = 0,
   onOpenSettings,
+  onOpenAdmin,
 }: Props) {
   return (
     <nav className="md:hidden h-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-grupo-dark-card border-t border-grupo-dark-border flex items-center justify-around px-2 z-20 flex-shrink-0 select-none">

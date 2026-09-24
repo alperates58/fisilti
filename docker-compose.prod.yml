@@ -127,6 +127,7 @@ services:
       coolify:
     labels:
       - 'traefik.enable=true'
+      # 1. Dedicated Subdomain Router (Eğer livekit.domain DNS kaydı varsa)
       - 'traefik.http.routers.fisilti-livekit-http.rule=${TRAEFIK_LIVEKIT_RULE:-Host(`livekit.fisilti.app`)}'
       - 'traefik.http.routers.fisilti-livekit-http.entrypoints=http'
       - 'traefik.http.routers.fisilti-livekit-http.middlewares=fisilti-redirect-https,crowdsec@file'
@@ -135,6 +136,20 @@ services:
       - 'traefik.http.routers.fisilti-livekit.tls=true'
       - 'traefik.http.routers.fisilti-livekit.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.fisilti-livekit.middlewares=crowdsec@file'
+      - 'traefik.http.routers.fisilti-livekit.service=fisilti-livekit'
+
+      # 2. Same-Domain Path Router (Tek domain kurulumları için /rtc ve /livekit WebRTC sinyalleşmesi)
+      - 'traefik.http.middlewares.fisilti-livekit-strip.stripprefix.prefixes=/livekit'
+      - 'traefik.http.routers.fisilti-livekit-path-http.rule=${TRAEFIK_LIVEKIT_PATH_RULE:-(Host(`${DOMAIN:-fisilti.app}`) && (PathPrefix(`/rtc`) || PathPrefix(`/livekit`)))}'
+      - 'traefik.http.routers.fisilti-livekit-path-http.entrypoints=http'
+      - 'traefik.http.routers.fisilti-livekit-path-http.middlewares=fisilti-redirect-https,crowdsec@file'
+      - 'traefik.http.routers.fisilti-livekit-path.rule=${TRAEFIK_LIVEKIT_PATH_RULE:-(Host(`${DOMAIN:-fisilti.app}`) && (PathPrefix(`/rtc`) || PathPrefix(`/livekit`)))}'
+      - 'traefik.http.routers.fisilti-livekit-path.entrypoints=https'
+      - 'traefik.http.routers.fisilti-livekit-path.tls=true'
+      - 'traefik.http.routers.fisilti-livekit-path.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.fisilti-livekit-path.middlewares=fisilti-livekit-strip,crowdsec@file'
+      - 'traefik.http.routers.fisilti-livekit-path.priority=${TRAEFIK_LIVEKIT_PATH_PRIORITY:-150}'
+      - 'traefik.http.routers.fisilti-livekit-path.service=fisilti-livekit'
       - 'traefik.http.services.fisilti-livekit.loadbalancer.server.port=7880'
 
   # 5. Go Backend Servisi

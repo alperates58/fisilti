@@ -124,6 +124,17 @@ func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
 	h.redisClient.Set(c.Context(), inCallKey, callLog.ID.String(), 60*time.Second)
 	h.redisClient.Set(c.Context(), callerInCall, callLog.ID.String(), 60*time.Second)
 
+	// Canlı SFU URL'sini belirle: Tek domain kurulumlarında alt domain DNS yoksa istek hostunu kullan
+	livekitURL := h.livekitService.GetPublicURL()
+	reqHost := c.Hostname()
+	if livekitURL == "" || livekitURL == "http://localhost:7880" || livekitURL == fmt.Sprintf("https://livekit.%s", reqHost) || livekitURL == fmt.Sprintf("http://livekit.%s", reqHost) {
+		proto := "https"
+		if c.Protocol() == "http" && (reqHost == "localhost" || reqHost == "127.0.0.1") {
+			proto = "http"
+		}
+		livekitURL = fmt.Sprintf("%s://%s", proto, reqHost)
+	}
+
 	// 8. WebSocket ile Alıcıya incoming_call Sinyali Bas
 	incomingPayload, _ := fisiltiws.NewWSMessage("incoming_call", fiber.Map{
 		"call_id":         callLog.ID,
@@ -136,7 +147,7 @@ func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
 		"call_type":   req.CallType,
 		"room_name":   roomName,
 		"room_token":  receiverToken,
-		"livekit_url": h.livekitService.GetPublicURL(),
+		"livekit_url": livekitURL,
 	})
 	h.hub.SendToUser(receiverID, incomingPayload)
 
@@ -144,7 +155,7 @@ func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
 		"call_id":     callLog.ID,
 		"room_name":   roomName,
 		"token":       callerToken,
-		"livekit_url": h.livekitService.GetPublicURL(),
+		"livekit_url": livekitURL,
 	})
 }
 
@@ -177,6 +188,8 @@ func (h *CallHandler) AcceptCall(c *fiber.Ctx) error {
 			"call_id": req.CallID,
 		})
 		h.hub.SendToUser(callerID, acceptedPayload)
+		// Alıcıya da sinyal bas (tüm açık oturumlarında zil sussun)
+		h.hub.SendToUser(receiverID, acceptedPayload)
 	}
 
 	return c.JSON(fiber.Map{"status": "accepted"})
@@ -219,6 +232,7 @@ func (h *CallHandler) RejectCall(c *fiber.Ctx) error {
 			"reason":  reason,
 		})
 		h.hub.SendToUser(otherID, rejectedPayload)
+		h.hub.SendToUser(rejecterID, rejectedPayload)
 	}
 
 	return c.JSON(fiber.Map{"status": "rejected"})

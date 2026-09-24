@@ -19,6 +19,7 @@ import {
   Globe,
   Bell,
   Send,
+  Sliders,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -31,9 +32,10 @@ import {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export default function SettingsModal({ isOpen, onClose }: Props) {
+export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
   const router = useRouter();
   const { user, updateProfile, uploadAvatar, updatePrivacy, logout } = useAuthStore();
 
@@ -584,15 +586,29 @@ export default function SettingsModal({ isOpen, onClose }: Props) {
           )}
         </div>
 
-        {/* Alt Bar: Çıkış Butonu */}
-        <div className="p-3 sm:p-4 border-t border-grupo-dark-border bg-slate-900/80 flex items-center justify-between gap-2">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
-          >
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            <span>Hesaptan Çıkış Yap</span>
-          </button>
+        {/* Alt Bar: Parametreler & Çıkış Butonu */}
+        <div className="p-3 sm:p-4 border-t border-grupo-dark-border bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              <span>Çıkış Yap</span>
+            </button>
+            {onOpenAdmin && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenAdmin();
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Sliders className="w-4 h-4 flex-shrink-0" />
+                <span>Aura Parametreleri</span>
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"

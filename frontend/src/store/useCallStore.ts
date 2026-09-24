@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { soundEffects } from "@/lib/sounds";
 import { useSocketStore } from "./useSocketStore";
 
 export type CallState = "idle" | "outgoing" | "incoming" | "connected" | "ended";
@@ -29,24 +30,44 @@ interface CallStoreState {
   resetCall: () => void;
 
   onIncomingCall: (payload: any) => void;
-  onCallAnswered: (payload: any) => void;
+  onCallAnswered: (payload?: any) => void;
   onCallRejected: (payload: any) => void;
-  onCallEnded: (payload: any) => void;
+  onCallEnded: (payload?: any) => void;
 }
 
-const getLivekitUrl = () => {
-  if (process.env.NEXT_PUBLIC_LIVEKIT_URL) return process.env.NEXT_PUBLIC_LIVEKIT_URL;
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host === "localhost" || host === "127.0.0.1") {
-      return "http://localhost:7880";
-    }
-    const proto = window.location.protocol;
-    const base = host.replace(/^chat\./, "");
-    return `${proto}//livekit.${base}`;
+export function resolveLivekitUrl(serverUrl?: string): string {
+  if (typeof window === "undefined") {
+    return serverUrl || process.env.NEXT_PUBLIC_LIVEKIT_URL || "http://localhost:7880";
   }
-  return "http://localhost:7880";
-};
+
+  const currentHost = window.location.hostname;
+  const currentOrigin = window.location.origin;
+
+  // Yerel geliştirme ortamı
+  if (currentHost === "localhost" || currentHost === "127.0.0.1") {
+    return serverUrl && !serverUrl.includes("livekit.") ? serverUrl : "http://localhost:7880";
+  }
+
+  const candidate = serverUrl || process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  if (!candidate) {
+    return currentOrigin;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    // Prod ortamda sunucu localhost döndüyse mevcut origin'e çevir
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      return currentOrigin;
+    }
+    // DNS kaydı bulunmayan varsayılan livekit.<domain> şablonu geldiyse mevcut origin'e düş (Traefik /rtc yönlendirmesiyle çalışır)
+    if (parsed.hostname === `livekit.${currentHost}`) {
+      return currentOrigin;
+    }
+    return candidate;
+  } catch {
+    return currentOrigin;
+  }
+}
 
 export const useCallStore = create<CallStoreState>((set, get) => ({
   callState: "idle",
@@ -55,7 +76,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   conversationId: null,
   roomName: null,
   token: null,
-  livekitUrl: getLivekitUrl(),
+  livekitUrl: resolveLivekitUrl(),
   caller: null,
   duration: 0,
 
@@ -78,16 +99,17 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
         callId: call_id,
         roomName: room_name,
         token: token,
-        livekitUrl: livekit_url || "http://localhost:7880",
+        livekitUrl: resolveLivekitUrl(livekit_url),
       });
     } catch (err: any) {
       const reason = err.response?.data?.error || "Arama başlatılamadı.";
       alert(reason);
-      set({ callState: "idle" });
+      get().resetCall();
     }
   },
 
   acceptCall: async () => {
+    soundEffects.stopRingtone();
     const { callId, conversationId } = get();
     if (!callId || !conversationId) return;
 
@@ -105,6 +127,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   rejectCall: async (reason = "rejected") => {
+    soundEffects.stopRingtone();
     const { callId, conversationId } = get();
     if (callId && conversationId) {
       try {
@@ -121,6 +144,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   endCall: async () => {
+    soundEffects.stopRingtone();
     const { callId, conversationId, duration } = get();
     if (callId && conversationId) {
       try {
@@ -137,6 +161,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   resetCall: () => {
+    soundEffects.stopRingtone();
     set({
       callState: "idle",
       callId: null,
@@ -157,16 +182,18 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       callType: payload.call_type || "audio",
       roomName: payload.room_name,
       token: payload.room_token,
-      livekitUrl: payload.livekit_url || "http://localhost:7880",
+      livekitUrl: resolveLivekitUrl(payload.livekit_url),
       duration: 0,
     });
   },
 
   onCallAnswered: () => {
+    soundEffects.stopRingtone();
     set({ callState: "connected" });
   },
 
   onCallRejected: (payload: any) => {
+    soundEffects.stopRingtone();
     const reasonText =
       payload.reason === "busy" ? "Kullanıcı şu anda meşgul." : "Arama reddedildi.";
     alert(reasonText);
@@ -174,6 +201,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   onCallEnded: () => {
+    soundEffects.stopRingtone();
     get().resetCall();
   },
 }));

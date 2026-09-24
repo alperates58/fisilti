@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { compressAvatar } from "@/lib/compression";
 
 export interface User {
   id: string;
@@ -95,8 +96,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   uploadAvatar: async (file: File) => {
+    const compressed = await compressAvatar(file);
     const formData = new FormData();
-    formData.append("avatar", file);
+    formData.append("avatar", compressed);
     const res = await api.post<{ avatar_url: string }>("/users/avatar", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });

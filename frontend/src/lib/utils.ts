@@ -79,3 +79,20 @@ export function formatMessageTime(dateStr: string): string {
   if (isNaN(d.getTime())) return "";
   return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
+
+/**
+ * Hikaye zamanı formatlayıcı (Örn: "15 dk önce", "2 saat önce")
+ */
+export function formatStoryTime(dateStr: string): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 60) return "az önce";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} dk önce`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} saat önce`;
+  return `${Math.floor(diffHour / 24)} gün önce`;
+}

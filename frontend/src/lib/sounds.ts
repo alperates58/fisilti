@@ -74,6 +74,8 @@ class SoundEffects {
     }
   }
 
+  private activeOscillators: OscillatorNode[] = [];
+
   // 3. Gelen Arama Zili (Ritmik melodi)
   startRingtone() {
     this.stopRingtone();
@@ -99,6 +101,14 @@ class SoundEffects {
 
           osc.start(ctx.currentTime + idx * 0.15);
           osc.stop(ctx.currentTime + idx * 0.15 + 0.2);
+
+          this.activeOscillators.push(osc);
+          osc.onended = () => {
+            const index = this.activeOscillators.indexOf(osc);
+            if (index > -1) {
+              this.activeOscillators.splice(index, 1);
+            }
+          };
         });
       } catch (e) {
         console.warn("Zil çalınamadı:", e);
@@ -114,6 +124,13 @@ class SoundEffects {
       clearInterval(this.ringtoneInterval);
       this.ringtoneInterval = null;
     }
+    this.activeOscillators.forEach((osc) => {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    });
+    this.activeOscillators = [];
   }
 }
 

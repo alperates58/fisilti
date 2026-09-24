@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useCallStore } from "@/store/useCallStore";
+import { useCallStore, resolveLivekitUrl } from "@/store/useCallStore";
+import { soundEffects } from "@/lib/sounds";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
   useTracks,
   VideoTrack,
+  isTrackReference,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import {
@@ -29,8 +31,14 @@ export default function ActiveCallModal() {
   const [isVideoMuted, setIsVideoMuted] = useState(callType === "audio");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Arama ekranı açıldığında zili kesin olarak durdur
+  useEffect(() => {
+    soundEffects.stopRingtone();
+  }, []);
+
   useEffect(() => {
     if (callState === "connected") {
+      soundEffects.stopRingtone();
       timerRef.current = setInterval(() => {
         setCallDuration((prev) => {
           const next = prev + 1;
@@ -58,6 +66,13 @@ export default function ActiveCallModal() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  const handleEndCall = async () => {
+    soundEffects.stopRingtone();
+    await endCall();
+  };
+
+  const activeLivekitUrl = resolveLivekitUrl(livekitUrl);
+
   // Aranıyor Ekranı (Outgoing Call)
   if (callState === "outgoing") {
     return (
@@ -76,7 +91,7 @@ export default function ActiveCallModal() {
           </p>
 
           <button
-            onClick={endCall}
+            onClick={handleEndCall}
             className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 transition-transform hover:scale-110 cursor-pointer"
             title="Aramayı İptal Et"
           >
@@ -105,13 +120,23 @@ export default function ActiveCallModal() {
 
       {/* Merkez Video / Ses Alanı */}
       <div className="flex-1 w-full max-w-3xl flex items-center justify-center my-4 relative">
-        {token && livekitUrl ? (
+        {token && activeLivekitUrl ? (
           <LiveKitRoom
-            serverUrl={livekitUrl}
+            serverUrl={activeLivekitUrl}
             token={token}
             connect={true}
             video={callType === "video" && !isVideoMuted}
             audio={!isMicMuted}
+            onError={(err) => {
+              console.error("[LiveKit Error]", err);
+            }}
+            onConnected={() => {
+              console.log("[LiveKit Connected] Görüşme odasına bağlanıldı.");
+              soundEffects.stopRingtone();
+            }}
+            onDisconnected={() => {
+              console.log("[LiveKit Disconnected] Oda bağlantısı koptu.");
+            }}
             className="w-full h-full flex items-center justify-center"
           >
             <RoomAudioRenderer />
@@ -157,7 +182,7 @@ export default function ActiveCallModal() {
 
         {/* Aramayı Bitir Butonu */}
         <button
-          onClick={endCall}
+          onClick={handleEndCall}
           title="Görüşmeyi Sonlandır"
           className="w-14 h-12 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 transition-all hover:scale-105 cursor-pointer ml-2"
         >
@@ -180,26 +205,52 @@ function CallParticipantView({
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
-  if (callType === "video" && tracks.length > 0) {
+  if (callType === "video") {
+    if (tracks.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center p-8 gap-3">
+          <div className="w-24 h-24 rounded-full bg-slate-800 border-2 border-pink-500/50 flex items-center justify-center shadow-xl animate-pulse">
+            <VideoIcon className="w-10 h-10 text-pink-400" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Görüntü Başlatılıyor...</h3>
+          <p className="text-xs text-slate-400">Kamera ve medya akışı bağlanıyor</p>
+        </div>
+      );
+    }
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full h-full max-h-[70vh]">
-        {tracks.map((track) => (
-          <div
-            key={track.participant.identity}
-            className="relative rounded-2xl overflow-hidden bg-slate-900 border border-grupo-dark-border flex items-center justify-center"
-          >
-            {track.publication?.track ? (
-              <VideoTrack trackRef={track} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center font-bold text-2xl text-pink-400">
-                {track.participant.name?.charAt(0).toUpperCase() || "U"}
+        {tracks.map((track) => {
+          const isLocal = track.participant.isLocal;
+          const trackKey = `${track.participant.identity}_${track.source}`;
+          const hasVideo = isTrackReference(track) && track.publication?.track;
+
+          return (
+            <div
+              key={trackKey}
+              className="relative rounded-2xl overflow-hidden bg-slate-900 border border-grupo-dark-border flex items-center justify-center"
+            >
+              {hasVideo ? (
+                <VideoTrack
+                  trackRef={track}
+                  className={`w-full h-full object-cover ${isLocal ? "scale-x-[-1]" : ""}`}
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center font-bold text-2xl text-pink-400">
+                  {track.participant.name?.charAt(0).toUpperCase() || "U"}
+                </div>
+              )}
+              <div className="absolute bottom-3 left-3 px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md text-xs text-white font-medium flex items-center gap-1.5">
+                {isLocal && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                <span>
+                  {isLocal
+                    ? "Sen"
+                    : track.participant.name || track.participant.identity}
+                </span>
               </div>
-            )}
-            <div className="absolute bottom-3 left-3 px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md text-xs text-white font-medium">
-              {track.participant.name || track.participant.identity}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }

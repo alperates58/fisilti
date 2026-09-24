@@ -1,12 +1,31 @@
 "use client";
 
+import { useEffect } from "react";
 import { useCallStore } from "@/store/useCallStore";
+import { soundEffects } from "@/lib/sounds";
 import { Phone, PhoneOff, Video } from "lucide-react";
 
 export default function IncomingCallModal() {
   const { callState, callType, caller, acceptCall, rejectCall } = useCallStore();
 
+  useEffect(() => {
+    // Modal kapandığında veya durum değiştiğinde zili anında sustur
+    return () => {
+      soundEffects.stopRingtone();
+    };
+  }, []);
+
   if (callState !== "incoming" || !caller) return null;
+
+  const handleAccept = async () => {
+    soundEffects.stopRingtone();
+    await acceptCall();
+  };
+
+  const handleReject = async () => {
+    soundEffects.stopRingtone();
+    await rejectCall("rejected");
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in select-none">
@@ -54,7 +73,7 @@ export default function IncomingCallModal() {
         <div className="flex items-center gap-8">
           {/* Reddet Butonu */}
           <button
-            onClick={() => rejectCall("rejected")}
+            onClick={handleReject}
             title="Reddet"
             className="flex flex-col items-center gap-2 group cursor-pointer"
           >
@@ -68,7 +87,7 @@ export default function IncomingCallModal() {
 
           {/* Kabul Et Butonu */}
           <button
-            onClick={acceptCall}
+            onClick={handleAccept}
             title="Kabul Et"
             className="flex flex-col items-center gap-2 group cursor-pointer"
           >

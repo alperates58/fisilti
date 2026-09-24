@@ -265,16 +265,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-[100] overflow-hidden select-none">
       {/* Karartma Katmanı (Backdrop) */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       />
 
       {/* AURA SOL ÇEKMECE PANELİ (Left Sidebar Drawer - Tamamen Responsive) */}
-      <div className="fixed inset-y-0 left-0 max-w-full flex z-50">
-        <div className="w-screen max-w-full md:max-w-3xl lg:max-w-4xl bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200">
+      <div className="fixed inset-y-0 left-0 max-w-full flex z-[100]">
+        <div className="w-screen max-w-full md:max-w-3xl lg:max-w-4xl h-[100dvh] bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200">
           
           {/* Çekmece Üst Başlığı (Header) */}
           <div className="flex items-center justify-between px-3.5 sm:px-5 py-3 sm:py-4 border-b border-[#222631] bg-[#12151C] flex-shrink-0">
