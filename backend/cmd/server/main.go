@@ -247,6 +247,7 @@ func main() {
 	stories.Get("/", storyHandler.GetActiveStories)
 	stories.Get("/youtube-info", storyHandler.GetYouTubeInfo)
 	stories.Post("/", storyHandler.CreateStory)
+	stories.Patch("/:id", storyHandler.UpdateStory)
 	stories.Post("/:id/view", storyHandler.MarkStoryViewed)
 	stories.Get("/:id/viewers", storyHandler.GetStoryViewers)
 	stories.Delete("/:id", storyHandler.DeleteStory)

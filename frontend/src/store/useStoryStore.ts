@@ -64,8 +64,23 @@ interface StoryStoreState {
   openViewer: (group: UserStoriesGroup, initialIndex?: number) => void;
   closeViewer: () => void;
   setViewerStoryIndex: (index: number) => void;
-  openCreator: () => void;
+  editingStory: Story | null;
+  openCreator: (storyToEdit?: Story) => void;
   closeCreator: () => void;
+  updateStory: (
+    storyId: string,
+    storyData: {
+      caption?: string;
+      background_color?: string;
+      music_title?: string;
+      music_artist?: string;
+      music_url?: string;
+      duration_seconds?: number;
+      music_start?: number;
+      music_end?: number;
+      stickers?: any[];
+    }
+  ) => Promise<void>;
 }
 
 export const useStoryStore = create<StoryStoreState>((set, get) => ({
@@ -165,11 +180,23 @@ export const useStoryStore = create<StoryStoreState>((set, get) => ({
     set({ activeViewerStoryIndex: index });
   },
 
-  openCreator: () => {
-    set({ isCreatorOpen: true });
+  editingStory: null,
+
+  openCreator: (storyToEdit?: Story) => {
+    set({ isCreatorOpen: true, editingStory: storyToEdit || null });
   },
 
   closeCreator: () => {
-    set({ isCreatorOpen: false });
+    set({ isCreatorOpen: false, editingStory: null });
+  },
+
+  updateStory: async (storyId, storyData) => {
+    try {
+      await api.patch(`/stories/${storyId}`, storyData);
+      await get().loadStories();
+    } catch (err) {
+      console.error("Hikaye güncellenemedi:", err);
+      throw err;
+    }
   },
 }));

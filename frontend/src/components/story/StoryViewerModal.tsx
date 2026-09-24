@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   Send,
+  Pencil,
 } from "lucide-react";
 import { formatStoryTime } from "@/lib/utils";
 import { api, resolveMediaUrl } from "@/lib/api";
@@ -383,10 +384,21 @@ export default function StoryViewerModal() {
                     onClick={(e) => {
                       e.stopPropagation();
                       closeViewer();
+                      openCreator(currentStory);
+                    }}
+                    title="Hikayeyi Düzenle (Süre, Müzik, Yazı)"
+                    className="p-2 text-white/80 hover:text-amber-400 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeViewer();
                       openCreator();
                     }}
                     title="Yeni Hikaye Ekle"
-                    className="p-2 text-white/80 hover:text-pink-400 rounded-full hover:bg-white/10 transition-colors"
+                    className="p-2 text-white/80 hover:text-pink-400 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -396,7 +408,7 @@ export default function StoryViewerModal() {
                       handleDelete();
                     }}
                     title="Hikayeyi Sil"
-                    className="p-2 text-white/80 hover:text-rose-400 rounded-full hover:bg-white/10 transition-colors"
+                    className="p-2 text-white/80 hover:text-rose-400 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

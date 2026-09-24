@@ -172,3 +172,47 @@ func (h *StoryHandler) GetYouTubeInfo(c *fiber.Ctx) error {
 		"artist": cleanAuthor,
 	})
 }
+
+// UpdateStory - Mevcut hikayeyi günceller (süre, müzik, metin, çıkartmalar)
+func (h *StoryHandler) UpdateStory(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	storyID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz hikaye ID'si."})
+	}
+
+	var req models.CreateStoryRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz veri formatı."})
+	}
+
+	stickersJSON, err := json.Marshal(req.Stickers)
+	if err != nil {
+		stickersJSON = []byte("[]")
+	}
+
+	durSec := req.DurationSeconds
+	if durSec <= 0 {
+		durSec = 10
+	}
+
+	story := &models.Story{
+		ID:              storyID,
+		UserID:          userID,
+		Caption:         req.Caption,
+		BackgroundColor: req.BackgroundColor,
+		MusicTitle:      req.MusicTitle,
+		MusicArtist:     req.MusicArtist,
+		MusicURL:        req.MusicURL,
+		DurationSeconds: durSec,
+		MusicStart:      req.MusicStart,
+		MusicEnd:        req.MusicEnd,
+		Stickers:        stickersJSON,
+	}
+
+	if err := h.storyRepo.UpdateStory(c.Context(), story); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "updated"})
+}

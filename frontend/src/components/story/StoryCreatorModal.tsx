@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { compressImage } from "@/lib/compression";
-import { api } from "@/lib/api";
+import { api, resolveMediaUrl } from "@/lib/api";
 import {
   X,
   Image as ImageIcon,
@@ -15,11 +15,9 @@ import {
   Check,
   Send,
   Loader2,
-  Play,
-  Square,
   Clock,
   Sliders,
-  GripHorizontal,
+  Pencil,
 } from "lucide-react";
 
 export function extractYouTubeVideoId(url: string): string | null {
@@ -114,7 +112,7 @@ const POPULAR_EMOJIS = [
 
 export default function StoryCreatorModal() {
   const { user } = useAuthStore();
-  const { isCreatorOpen, closeCreator, createStory } = useStoryStore();
+  const { isCreatorOpen, closeCreator, createStory, editingStory, updateStory } = useStoryStore();
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
@@ -133,7 +131,6 @@ export default function StoryCreatorModal() {
   const [musicStart, setMusicStart] = useState<number>(0);
   const [musicEnd, setMusicEnd] = useState<number>(10);
   const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [isFetchingMusic, setIsFetchingMusic] = useState(false);
 
   // Müzik Rozeti Konumu (Sürüklenebilir)
@@ -167,7 +164,7 @@ export default function StoryCreatorModal() {
 
   const extractedVideoId = extractYouTubeVideoId(musicUrl);
 
-  // Modal kapandığında state temizle
+  // Modal açıldığında veya editingStory değiştiğinde state doldur / temizle
   useEffect(() => {
     if (!isCreatorOpen) {
       setTextStickers([]);
@@ -183,10 +180,70 @@ export default function StoryCreatorModal() {
       setMusicArtist("");
       setMusicUrl("");
       setMusicBadgePos({ x: 30, y: 15 });
-      setIsPreviewPlaying(false);
       setDragState(null);
+      return;
     }
-  }, [isCreatorOpen]);
+
+    if (editingStory) {
+      // Düzenleme modundayız: mevcut hikaye bilgilerini doldur
+      if (editingStory.media_type === "image" || editingStory.media_type === "video") {
+        setMode("media");
+        setMediaType(editingStory.media_type);
+        setMediaPreview(editingStory.media_url ? resolveMediaUrl(editingStory.media_url) : "");
+      } else {
+        setMode("text");
+        setMediaFile(null);
+        setMediaPreview("");
+      }
+
+      setCaption(editingStory.caption || "");
+      setSelectedGradient(editingStory.background_color || GRADIENT_PRESETS[0]);
+
+      const dur = editingStory.duration_seconds && editingStory.duration_seconds > 0 ? editingStory.duration_seconds : 10;
+      const mStart = editingStory.music_start || 0;
+      const mEnd = editingStory.music_end && editingStory.music_end > mStart ? editingStory.music_end : mStart + dur;
+
+      setDurationSeconds(dur);
+      setMusicStart(mStart);
+      setMusicEnd(mEnd);
+
+      setMusicTitle(editingStory.music_title || "");
+      setMusicArtist(editingStory.music_artist || "");
+      setMusicUrl(editingStory.music_url || "");
+
+      // Çıkartmaları ayrıştır
+      if (Array.isArray(editingStory.stickers)) {
+        const musicBadge = editingStory.stickers.find((s: any) => s.type === "music_badge");
+        if (musicBadge) {
+          setMusicBadgePos({ x: musicBadge.x ?? 30, y: musicBadge.y ?? 15 });
+        }
+
+        const emojis = editingStory.stickers
+          .filter((s: any) => s.type === "emoji" && s.emoji)
+          .map((s: any, idx: number) => ({
+            id: `emoji_edit_${idx}_${Date.now()}`,
+            type: "emoji" as const,
+            emoji: s.emoji,
+            x: s.x ?? 50,
+            y: s.y ?? 50,
+          }));
+        setEmojiStickers(emojis);
+
+        const texts = editingStory.stickers
+          .filter((s: any) => s.type === "text" && s.text)
+          .map((s: any, idx: number) => ({
+            id: `text_edit_${idx}_${Date.now()}`,
+            type: "text" as const,
+            text: s.text,
+            style: s.style || "classic_black",
+            fontSize: s.fontSize || "base",
+            x: s.x ?? 50,
+            y: s.y ?? 50,
+          }));
+        setTextStickers(texts);
+      }
+    }
+  }, [isCreatorOpen, editingStory]);
 
   // YouTube / YouTube Music linki değiştiğinde otomatik şarkı & sanatçı adı çekme
   const handleMusicUrlChange = async (val: string) => {
@@ -196,7 +253,6 @@ export default function StoryCreatorModal() {
       if (!val.trim()) {
         setMusicTitle("");
         setMusicArtist("");
-        setIsPreviewPlaying(false);
       }
       return;
     }
@@ -217,7 +273,6 @@ export default function StoryCreatorModal() {
       }
     } finally {
       setIsFetchingMusic(false);
-      setIsPreviewPlaying(true);
     }
   };
 
@@ -332,27 +387,17 @@ export default function StoryCreatorModal() {
     setEditingStickerId(null);
   };
 
-  // Süre değiştiğinde bitiş saniyesini güncelle
+  // Hikaye Süresi Değiştiğinde Müzik Bitiş Süresi de OTOMATİK OLARAK UZAR!
   const handleDurationChange = (dur: number) => {
     setDurationSeconds(dur);
     setMusicEnd(musicStart + dur);
   };
 
-  // Başlangıç saniyesi değiştiğinde
+  // Müzik Başlangıç Saniyesi Değiştiğinde Bitiş de Süre Kadar İlerler
   const handleStartChange = (startVal: number) => {
     setMusicStart(startVal);
     setMusicEnd(startVal + durationSeconds);
   };
-
-  // Canlı önizleme zamanlayıcısı: süre dolunca otomatik durdur
-  useEffect(() => {
-    if (!isPreviewPlaying) return;
-    const dur = musicEnd > musicStart ? musicEnd - musicStart : durationSeconds;
-    const timer = setTimeout(() => {
-      setIsPreviewPlaying(false);
-    }, dur * 1000);
-    return () => clearTimeout(timer);
-  }, [isPreviewPlaying, musicStart, musicEnd, durationSeconds]);
 
   if (!isCreatorOpen) return null;
 
@@ -379,13 +424,12 @@ export default function StoryCreatorModal() {
     setMode("media");
   };
 
-  // Hikayeyi Gönder
+  // Hikayeyi Gönder veya Güncelle
   const handlePublish = async () => {
     setIsSubmitting(true);
-    setIsPreviewPlaying(false);
     try {
-      let finalMediaUrl = "";
-      let finalMediaType: "image" | "video" | "text" = "text";
+      let finalMediaUrl = mediaPreview;
+      let finalMediaType: "image" | "video" | "text" = mode === "media" ? mediaType : "text";
 
       if (mode === "media" && mediaFile) {
         finalMediaType = mediaType;
@@ -433,7 +477,7 @@ export default function StoryCreatorModal() {
         });
       });
 
-      await createStory({
+      const storyPayload = {
         media_type: finalMediaType,
         media_url: finalMediaUrl,
         caption: caption.trim(),
@@ -449,13 +493,22 @@ export default function StoryCreatorModal() {
         music_start: musicStart,
         music_end: musicEnd,
         stickers,
-      });
+      };
 
-      closeCreator();
-      alert("Hikayeniz 24 saatliğine yayınlandı!");
+      if (editingStory) {
+        // Mevcut hikayeyi güncelle
+        await updateStory(editingStory.id, storyPayload);
+        closeCreator();
+        alert("Hikayeniz başarıyla güncellendi!");
+      } else {
+        // Yeni hikaye oluştur
+        await createStory(storyPayload);
+        closeCreator();
+        alert("Hikayeniz 24 saatliğine yayınlandı!");
+      }
     } catch (err) {
-      console.error("Hikaye paylaşılamadı:", err);
-      alert("Hikaye paylaşılırken bir hata oluştu.");
+      console.error("Hikaye kaydedilemedi:", err);
+      alert("Hikaye kaydedilirken bir hata oluştu.");
     } finally {
       setIsSubmitting(false);
     }
@@ -468,8 +521,17 @@ export default function StoryCreatorModal() {
         {/* 1. ÜST BAR: Başlık ve Kapat */}
         <div className="p-3.5 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent z-20">
           <div className="flex items-center gap-2 text-white font-bold text-sm">
-            <Sparkles className="w-4 h-4 text-pink-500" />
-            <span>Yeni Hikaye Oluştur</span>
+            {editingStory ? (
+              <>
+                <Pencil className="w-4 h-4 text-amber-400" />
+                <span>Hikayeyi Düzenle</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-pink-500" />
+                <span>Yeni Hikaye Oluştur</span>
+              </>
+            )}
           </div>
 
           {/* Sağ kontroller: Süre rozeti ve Kapat */}
@@ -480,12 +542,9 @@ export default function StoryCreatorModal() {
             </div>
 
             <button
-              onClick={() => {
-                setIsPreviewPlaying(false);
-                closeCreator();
-              }}
+              onClick={() => closeCreator()}
               disabled={isSubmitting}
-              className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -563,7 +622,6 @@ export default function StoryCreatorModal() {
                   setMusicTitle("");
                   setMusicArtist("");
                   setMusicUrl("");
-                  setIsPreviewPlaying(false);
                 }}
                 title="Şarkıyı Kaldır"
                 className="p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
@@ -636,26 +694,6 @@ export default function StoryCreatorModal() {
               </button>
             </div>
           ))}
-
-          {/* GİZLİ YOUTUBE ÖNİZLEME OYNATICI (CANLI DİNLEME) */}
-          {isPreviewPlaying && extractedVideoId && (
-            <iframe
-              key={`${extractedVideoId}-${musicStart}-${musicEnd}`}
-              src={`https://www.youtube.com/embed/${extractedVideoId}?autoplay=1&start=${musicStart}&end=${musicEnd}&enablejsapi=1&controls=0&playsinline=1&mute=0`}
-              allow="autoplay *; encrypted-media *; fullscreen *"
-              style={{
-                position: "absolute",
-                bottom: 0,
-                right: 0,
-                width: "1px",
-                height: "1px",
-                opacity: 0.01,
-                pointerEvents: "none",
-                zIndex: 0,
-              }}
-              title="YouTube Preview"
-            />
-          )}
 
           {/* METİN EKLEME EDİTÖRÜ MODALI */}
           {isTextEditorOpen && (
@@ -792,9 +830,9 @@ export default function StoryCreatorModal() {
         {/* 3. ARAÇ ÇUBUĞU (Medya, Metin, Müzik, Çıkartma, Renk) */}
         <div className="p-3 bg-slate-900/95 border-t border-slate-800 flex flex-col gap-2.5 z-20">
           
-          {/* Müzik Seçim Paneli (YouTube Music & Canlı Aralık Kırpıcı) */}
+          {/* Müzik Seçim Paneli (YouTube Music & Canlı Önizleme) */}
           {isMusicPickerOpen && (
-            <div className="bg-slate-950 p-3 rounded-2xl border border-rose-500/40 shadow-xl flex flex-col gap-3 animate-in fade-in max-h-72 overflow-y-auto no-scrollbar">
+            <div className="bg-slate-950 p-3 rounded-2xl border border-rose-500/40 shadow-xl flex flex-col gap-3 animate-in fade-in max-h-80 overflow-y-auto no-scrollbar">
               <div className="flex items-center justify-between text-xs text-white font-semibold border-b border-slate-800 pb-2">
                 <span className="flex items-center gap-1.5 text-rose-400 font-bold">
                   <Music className="w-4 h-4 text-rose-500" />
@@ -815,7 +853,7 @@ export default function StoryCreatorModal() {
                   {isFetchingMusic && (
                     <span className="flex items-center gap-1 text-rose-400 text-[10px]">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Şarkı bulunuyor...</span>
+                      <span>Şarkı bilgisi alınıyor...</span>
                     </span>
                   )}
                 </label>
@@ -834,7 +872,6 @@ export default function StoryCreatorModal() {
                         setMusicUrl("");
                         setMusicTitle("");
                         setMusicArtist("");
-                        setIsPreviewPlaying(false);
                       }}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                     >
@@ -844,7 +881,23 @@ export default function StoryCreatorModal() {
                 </div>
               </div>
 
-              {/* Tespit Edilen Şarkı Kartı */}
+              {/* YouTube Canlı Önizleme Oynatıcısı (Telefonda ve Masaüstünde Sorunsuz Ses) */}
+              {extractedVideoId && (
+                <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-black mt-1">
+                  <iframe
+                    key={`preview-${extractedVideoId}-${musicStart}`}
+                    src={`https://www.youtube.com/embed/${extractedVideoId}?enablejsapi=1&start=${musicStart}&playsinline=1&controls=1&modestbranding=1&rel=0&origin=${
+                      typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : ""
+                    }`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full"
+                    title="YouTube Preview Player"
+                  />
+                </div>
+              )}
+
+              {/* Tespit Edilen Şarkı Bilgisi */}
               {(musicTitle || extractedVideoId) && (
                 <div className="bg-slate-900 border border-rose-500/30 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -861,29 +914,9 @@ export default function StoryCreatorModal() {
                     </div>
                   </div>
 
-                  {extractedVideoId && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0 transition-all ${
-                        isPreviewPlaying
-                          ? "bg-rose-600 text-white animate-pulse"
-                          : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                      }`}
-                    >
-                      {isPreviewPlaying ? (
-                        <>
-                          <Square className="w-3 h-3 fill-white" />
-                          <span>Durdur</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3 h-3 fill-white" />
-                          <span>Dinle</span>
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-shrink-0">
+                    {formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)}
+                  </span>
                 </div>
               )}
 
@@ -954,7 +987,6 @@ export default function StoryCreatorModal() {
                         setMusicTitle(m.title);
                         setMusicArtist(m.artist);
                         setMusicUrl(m.url);
-                        setIsPreviewPlaying(true);
                       }}
                       className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/20 hover:border-rose-500/40 border border-slate-700 text-[10px] text-slate-300 hover:text-white transition-all text-left"
                     >
@@ -981,7 +1013,7 @@ export default function StoryCreatorModal() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className={`p-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                  mode === "media" && mediaFile
+                  mode === "media" && (mediaFile || mediaPreview)
                     ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
@@ -1085,22 +1117,31 @@ export default function StoryCreatorModal() {
             />
           )}
 
-          {/* 4. PAYLAŞ BUTONU */}
+          {/* 4. PAYLAŞ VEYA GÜNCELLE BUTONU */}
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSubmitting || (mode === "media" && !mediaFile && !caption && textStickers.length === 0 && emojiStickers.length === 0)}
+            disabled={isSubmitting || (mode === "media" && !mediaFile && !mediaPreview && !caption && textStickers.length === 0 && emojiStickers.length === 0)}
             className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:opacity-95 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Hikaye Yayınlanıyor...</span>
+                <span>{editingStory ? "Değişiklikler Kaydediliyor..." : "Hikaye Yayınlanıyor..."}</span>
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" />
-                <span>Hikayede Paylaş ({durationSeconds} sn)</span>
+                {editingStory ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Değişiklikleri Kaydet ({durationSeconds} sn)</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Hikayede Paylaş ({durationSeconds} sn)</span>
+                  </>
+                )}
               </>
             )}
           </button>

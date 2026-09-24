@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -229,4 +230,53 @@ func (r *StoryRepository) GetStoryViewers(ctx context.Context, storyID uuid.UUID
 		viewers = []models.UserStoryAuthor{}
 	}
 	return viewers, nil
+}
+
+// UpdateStory - Mevcut hikayeyi günceller (süre, müzik aralığı, metin, çıkartmalar)
+func (r *StoryRepository) UpdateStory(ctx context.Context, story *models.Story) error {
+	query := `
+		UPDATE stories
+		SET caption = $1,
+		    background_color = $2,
+		    music_title = $3,
+		    music_artist = $4,
+		    music_url = $5,
+		    duration_seconds = $6,
+		    music_start = $7,
+		    music_end = $8,
+		    stickers = $9
+		WHERE id = $10 AND user_id = $11
+	`
+	if len(story.Stickers) == 0 {
+		story.Stickers = json.RawMessage("[]")
+	}
+	if story.DurationSeconds <= 0 {
+		story.DurationSeconds = 10
+	}
+
+	res, err := r.db.ExecContext(
+		ctx,
+		query,
+		story.Caption,
+		story.BackgroundColor,
+		story.MusicTitle,
+		story.MusicArtist,
+		story.MusicURL,
+		story.DurationSeconds,
+		story.MusicStart,
+		story.MusicEnd,
+		story.Stickers,
+		story.ID,
+		story.UserID,
+	)
+	if err != nil {
+		return fmt.Errorf("hikaye guncellenemedi: %w", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil || rows == 0 {
+		return errors.New("hikaye bulunamadi veya duzenleme yetkisi yok")
+	}
+
+	return nil
 }
