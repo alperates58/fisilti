@@ -15,6 +15,7 @@ export interface Message {
     sender_id: string;
     content: string;
     message_type: string;
+    is_mine?: boolean;
   };
   message_type: string; // text, voice, image, video, file, call_log
   content: string;

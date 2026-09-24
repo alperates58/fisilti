@@ -31,6 +31,7 @@ import SocialMediaEmbed, { extractSocialMedia, extractGeneralUrl } from "./Socia
 import LinkPreviewCard from "./LinkPreviewCard";
 import { resolveMediaUrl } from "@/lib/api";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface Props {
   message: Message;
@@ -56,6 +57,7 @@ export default function MessageBubble({
     messages,
     activeConversationId,
   } = useChatStore();
+  const { user } = useAuthStore();
   const chatSettings = useSettingsStore((state) => state.settings?.chat_settings);
 
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
@@ -344,7 +346,11 @@ export default function MessageBubble({
               <div className="flex items-center justify-between gap-2 mb-0.5">
                 <span className="font-bold text-[11px] text-pink-400">
                   {targetRepliedMessage
-                    ? targetRepliedMessage.is_mine || targetRepliedMessage.sender_id === message.sender_id
+                    ? Boolean(
+                        (targetRepliedMessage as any).is_mine ||
+                        (user?.id && targetRepliedMessage.sender_id === user.id) ||
+                        (message.is_mine && targetRepliedMessage.sender_id === message.sender_id)
+                      )
                       ? "Sen"
                       : otherUserName || "Karşı Taraf"
                     : "Alıntılanan Mesaj"}
