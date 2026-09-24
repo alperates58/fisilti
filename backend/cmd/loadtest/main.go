@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,13 +18,17 @@ import (
 
 var (
 	targetURL   = flag.String("url", "ws://backend:8080/ws", "WebSocket sunucu adresi")
-	jwtSecret   = flag.String("secret", "fisilti_jwt_access_secret_super_key_32bytes_long", "JWT access secret")
+	jwtSecret   = flag.String("secret", "", "JWT access secret (zorunlu)")
 	concurrency = flag.Int("c", 100, "Eşzamanlı bağlantı sayısı")
 	duration    = flag.Duration("d", 10*time.Second, "Test süresi")
 )
 
 func main() {
 	flag.Parse()
+
+	if strings.TrimSpace(*jwtSecret) == "" {
+		log.Fatal("❌ [Hata] -secret parametresi zorunludur. Lutfen gecerli bir JWT access secret belirtin. (Ornek: -secret <JWT_ACCESS_SECRET>)")
+	}
 
 	fmt.Println("==================================================")
 	fmt.Printf("🚀 Fısıltı Yüksek Eşzamanlılık & Yük Testi\n")

@@ -57,11 +57,26 @@ func LoadConfig() Config {
 
 	livekitURL := getEnv("LIVEKIT_URL", "http://livekit:7880")
 	livekitPublicURL := getEnv("LIVEKIT_PUBLIC_URL", "http://localhost:7880")
-	livekitAPIKey := getEnv("LIVEKIT_API_KEY", "API_KEY_FISILTI")
-	livekitAPISecret := getEnv("LIVEKIT_API_SECRET", "SECRET_KEY_SUPER_SECURE_FISILTI_2026")
 
-	jwtAccessSecret := getEnv("JWT_ACCESS_SECRET", "fisilti_jwt_access_secret_super_key_32bytes_long")
-	jwtRefreshSecret := getEnv("JWT_REFRESH_SECRET", "fisilti_jwt_refresh_secret_super_key_32bytes_long")
+	livekitAPIKey := strings.TrimSpace(os.Getenv("LIVEKIT_API_KEY"))
+	if livekitAPIKey == "" {
+		log.Fatal("❌ [Config Error] LIVEKIT_API_KEY environment variable zorunludur ve tanimlanmamis. Lutfen gecerli bir LiveKit API anahtari saglayin.")
+	}
+
+	livekitAPISecret := strings.TrimSpace(os.Getenv("LIVEKIT_API_SECRET"))
+	if livekitAPISecret == "" {
+		log.Fatal("❌ [Config Error] LIVEKIT_API_SECRET environment variable zorunludur ve tanimlanmamis. Lutfen gecerli bir LiveKit API gizli anahtari (secret) saglayin.")
+	}
+
+	jwtAccessSecret := strings.TrimSpace(os.Getenv("JWT_ACCESS_SECRET"))
+	if jwtAccessSecret == "" {
+		log.Fatal("❌ [Config Error] JWT_ACCESS_SECRET environment variable zorunludur ve tanimlanmamis. Lutfen gecerli bir JWT erisim gizli anahtari (secret) saglayin.")
+	}
+
+	jwtRefreshSecret := strings.TrimSpace(os.Getenv("JWT_REFRESH_SECRET"))
+	if jwtRefreshSecret == "" {
+		log.Fatal("❌ [Config Error] JWT_REFRESH_SECRET environment variable zorunludur ve tanimlanmamis. Lutfen gecerli bir JWT yenileme gizli anahtari (secret) saglayin.")
+	}
 	jwtAccessExpiryMin, _ := strconv.Atoi(getEnv("JWT_ACCESS_EXPIRY_MINUTES", "15"))
 	jwtRefreshExpiryDays, _ := strconv.Atoi(getEnv("JWT_REFRESH_EXPIRY_DAYS", "30"))
 
