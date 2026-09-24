@@ -145,9 +145,16 @@ services:
     env_file:
       - .env
     environment:
+      PORT: "${BACKEND_PORT:-8080}"
       APP_BASE_PATH: "${APP_BASE_PATH:-}"
       COOKIE_PATH: "${COOKIE_PATH:-${APP_BASE_PATH:-/}}"
       CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${BACKEND_PORT:-8080}/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     depends_on:
       - postgres
       - redis
@@ -167,7 +174,7 @@ services:
       - 'traefik.http.routers.fisilti-backend.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.fisilti-backend.middlewares=${TRAEFIK_BACKEND_MIDDLEWARES:-crowdsec@file}'
       - 'traefik.http.routers.fisilti-backend.priority=${TRAEFIK_BACKEND_PRIORITY:-100}'
-      - 'traefik.http.services.fisilti-backend.loadbalancer.server.port=8080'
+      - 'traefik.http.services.fisilti-backend.loadbalancer.server.port=${BACKEND_PORT:-8080}'
 
   # 6. Next.js Frontend
   frontend:
@@ -181,6 +188,7 @@ services:
         NEXT_PUBLIC_LIVEKIT_URL: "${NEXT_PUBLIC_LIVEKIT_URL:-}"
     restart: always
     environment:
+      PORT: "${FRONTEND_PORT:-3000}"
       NEXT_PUBLIC_BASE_PATH: "${NEXT_PUBLIC_BASE_PATH:-}"
       NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-}"
       NEXT_PUBLIC_WS_URL: "${NEXT_PUBLIC_WS_URL:-}"
@@ -203,7 +211,7 @@ services:
       - 'traefik.http.routers.fisilti-frontend.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.fisilti-frontend.middlewares=crowdsec@file'
       - 'traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}'
-      - 'traefik.http.services.fisilti-frontend.loadbalancer.server.port=3000'
+      - 'traefik.http.services.fisilti-frontend.loadbalancer.server.port=${FRONTEND_PORT:-3000}'
 
 networks:
   fisilti-network:

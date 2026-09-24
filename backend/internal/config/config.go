@@ -35,7 +35,7 @@ type Config struct {
 }
 
 func LoadConfig() Config {
-	port := getEnv("PORT", "8080")
+	port := getEnv("BACKEND_PORT", getEnv("PORT", "8080"))
 	env := getEnv("ENVIRONMENT", "development")
 	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if dbURL == "" {
