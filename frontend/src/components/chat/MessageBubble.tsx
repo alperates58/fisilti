@@ -214,7 +214,12 @@ export default function MessageBubble({ message }: Props) {
 
           {/* 1. Sesli Mesaj (Voice Note) */}
           {message.message_type === "voice" && resolvedMediaUrl && !message.is_deleted_for_all && (
-            <AudioWaveform audioUrl={resolvedMediaUrl} isMine={message.is_mine} />
+            <AudioWaveform
+              audioUrl={resolvedMediaUrl}
+              isMine={message.is_mine}
+              initialDuration={typeof message.media_metadata?.duration === "number" ? message.media_metadata.duration : undefined}
+              peaks={Array.isArray(message.media_metadata?.waveform) ? (message.media_metadata.waveform as number[]) : undefined}
+            />
           )}
 
           {/* 2. Fotoğraf (Image) */}
@@ -224,6 +229,8 @@ export default function MessageBubble({ message }: Props) {
               <img
                 src={resolvedMediaUrl}
                 alt="Fotoğraf"
+                loading="lazy"
+                decoding="async"
                 className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
                 onClick={() => setPreviewImage(resolvedMediaUrl || null)}
               />
@@ -238,11 +245,19 @@ export default function MessageBubble({ message }: Props) {
                 playsInline
                 preload="metadata"
                 className="max-h-72 w-full rounded-2xl object-contain bg-black"
-                src={resolvedMediaUrl}
+                src={(() => {
+                  const isIOS =
+                    typeof navigator !== "undefined" &&
+                    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+                  if (isIOS && resolvedMediaUrl.includes(".webm") && !resolvedMediaUrl.includes("format=")) {
+                    return resolvedMediaUrl.includes("?")
+                      ? `${resolvedMediaUrl}&format=mp4`
+                      : `${resolvedMediaUrl}?format=mp4`;
+                  }
+                  return resolvedMediaUrl;
+                })()}
               >
-                <source src={resolvedMediaUrl} type="video/mp4" />
-                <source src={resolvedMediaUrl} type="video/webm" />
-                <source src={resolvedMediaUrl} type="video/quicktime" />
                 Tarayıcınız bu videoyu oynatmayı desteklemiyor.
               </video>
             </div>

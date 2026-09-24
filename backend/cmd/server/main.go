@@ -19,6 +19,7 @@ import (
 	"fisilti/internal/push"
 	fisiltiredis "fisilti/internal/redis"
 	"fisilti/internal/storage"
+	"fisilti/internal/transcoder"
 	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -30,6 +31,7 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 	log.Printf("🚀 Fısıltı Backend başlatılıyor... Ortam: %s, Port: %s", cfg.Environment, cfg.Port)
+	transcoder.LogStatus()
 
 	// 1. PostgreSQL 16 Bağlantısı ve Migration
 	db, err := database.ConnectPostgres(cfg.DatabaseURL)

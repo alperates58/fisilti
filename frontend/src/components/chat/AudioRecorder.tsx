@@ -50,22 +50,30 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      let chosenMimeType = "audio/webm";
+      let chosenMimeType = "";
       let chosenExt = "webm";
 
+      const isIOS =
+        typeof navigator !== "undefined" &&
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
       if (typeof MediaRecorder !== "undefined") {
-        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        if (isIOS && MediaRecorder.isTypeSupported("audio/mp4")) {
+          chosenMimeType = "audio/mp4";
+          chosenExt = "mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
           chosenMimeType = "audio/webm;codecs=opus";
           chosenExt = "webm";
         } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
           chosenMimeType = "audio/mp4";
           chosenExt = "mp4";
-        } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
-          chosenMimeType = "audio/ogg;codecs=opus";
-          chosenExt = "ogg";
         } else if (MediaRecorder.isTypeSupported("audio/webm")) {
           chosenMimeType = "audio/webm";
           chosenExt = "webm";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+          chosenMimeType = "audio/ogg;codecs=opus";
+          chosenExt = "ogg";
         }
       }
 

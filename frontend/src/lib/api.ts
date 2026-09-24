@@ -5,35 +5,50 @@ export const getApiBaseUrl = () => {
     const host = window.location.hostname;
     const isLocalhost = host === "localhost" || host === "127.0.0.1";
 
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      let raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
-      if (!isLocalhost && (raw.includes("localhost") || raw.includes("127.0.0.1"))) {
-        raw = raw.replace(/localhost|127\.0\.0\.1/, host);
+    if (isLocalhost) {
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        let raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
+        if (raw.endsWith("/api/v1")) return raw;
+        if (raw.endsWith("/api")) return `${raw}/v1`;
+        return `${raw}/api/v1`;
       }
+      return "http://localhost:8080/api/v1";
+    }
+
+    // Üretim ortamında: Eğer açıkça harici API URL'i belirtildiyse (localhost içermeyen):
+    if (
+      process.env.NEXT_PUBLIC_API_URL &&
+      !process.env.NEXT_PUBLIC_API_URL.includes("localhost") &&
+      !process.env.NEXT_PUBLIC_API_URL.includes("127.0.0.1")
+    ) {
+      let raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
       if (raw.endsWith("/api/v1")) return raw;
       if (raw.endsWith("/api")) return `${raw}/v1`;
       return `${raw}/api/v1`;
     }
 
-    if (isLocalhost) {
-      return "http://localhost:8080/api/v1";
+    // Subpath tespiti (Örn: /b)
+    let basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    if (!basePath) {
+      const match = window.location.pathname.match(/^(\/[a-zA-Z0-9_-]+)/);
+      if (match && !["/login", "/register", "/chat", "/settings", "/api"].includes(match[1])) {
+        basePath = match[1];
+      }
     }
-    const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-    const basePath = rawBasePath.startsWith("/")
-      ? rawBasePath.replace(/\/+$/, "")
-      : rawBasePath
-      ? "/" + rawBasePath.replace(/\/+$/, "")
-      : "";
-    if (basePath) {
-      return `${window.location.origin}${basePath}/api/v1`;
+    basePath = basePath.replace(/\/+$/, "");
+    if (basePath && !basePath.startsWith("/")) {
+      basePath = "/" + basePath;
     }
-    const proto = window.location.protocol;
-    const base = host.replace(/^chat\./, "");
-    return `${proto}//api.${base}/api/v1`;
+
+    return `${window.location.origin}${basePath}/api/v1`;
   }
 
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    const raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
+  if (
+    process.env.NEXT_PUBLIC_API_URL &&
+    !process.env.NEXT_PUBLIC_API_URL.includes("localhost") &&
+    !process.env.NEXT_PUBLIC_API_URL.includes("127.0.0.1")
+  ) {
+    let raw = process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
     if (raw.endsWith("/api/v1")) return raw;
     if (raw.endsWith("/api")) return `${raw}/v1`;
     return `${raw}/api/v1`;
@@ -47,32 +62,31 @@ export const resolveMediaUrl = (url?: string): string => {
     return url;
   }
 
-  const apiBase = getApiBaseUrl();
+  const apiBase = getApiBaseUrl().replace(/\/+$/, "");
 
-  if (url.startsWith("/api/v1/")) {
-    try {
-      const parsedApi = new URL(
-        apiBase,
-        typeof window !== "undefined" ? window.location.origin : "http://localhost:8080"
-      );
-      return `${parsedApi.origin}${url}`;
-    } catch {
-      return url;
-    }
+  // Eğer url zaten /api/v1/media/file/ içeriyorsa (eski host veya tam path):
+  const mediaIdx = url.indexOf("/api/v1/media/file/");
+  if (mediaIdx !== -1) {
+    const subPath = url.substring(mediaIdx + "/api/v1".length);
+    return `${apiBase}${subPath}`;
   }
 
-  const minioMatch = url.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|minio):9000\/(.+)$/);
+  // Eğer url /api/v1/ ile başlıyorsa:
+  if (url.startsWith("/api/v1/")) {
+    const subPath = url.substring("/api/v1".length);
+    return `${apiBase}${subPath}`;
+  }
+
+  // MinIO internal url: http://localhost:9000/... veya http://minio:9000/... veya IP
+  const minioMatch = url.match(/^https?:\/\/(?:[a-zA-Z0-9_.-]+):9000\/(.+)$/);
   if (minioMatch) {
     const objectPath = minioMatch[1];
-    try {
-      const parsedApi = new URL(
-        apiBase,
-        typeof window !== "undefined" ? window.location.origin : "http://localhost:8080"
-      );
-      return `${parsedApi.origin}/api/v1/media/file/${objectPath}`;
-    } catch {
-      return `/api/v1/media/file/${objectPath}`;
-    }
+    return `${apiBase}/media/file/${objectPath}`;
+  }
+
+  // Eğer sadece /media/... şeklinde göreceli path ise:
+  if (url.startsWith("/media/")) {
+    return `${apiBase}${url}`;
   }
 
   return url;

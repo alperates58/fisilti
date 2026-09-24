@@ -3,11 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"fisilti/internal/preview"
 	"fisilti/internal/storage"
+	"fisilti/internal/transcoder"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
@@ -99,6 +102,49 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Geçersiz medya yolu")
 	}
 
+	ua := strings.ToLower(c.Get("User-Agent"))
+	isIOS := strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad") || strings.Contains(ua, "ipod") || strings.Contains(ua, "crios") || (strings.Contains(ua, "safari") && !strings.Contains(ua, "chrome"))
+
+	// 1. iOS veya ?format=mp3 için WebM ses dosyalarını on-the-fly MP3'e dönüştür
+	if bucket == "audio-messages" && strings.HasSuffix(objectName, ".webm") && (isIOS || c.Query("format") == "mp3") && transcoder.IsAvailable() {
+		mp3ObjectName := objectName + ".mp3"
+		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp3ObjectName); statErr == nil {
+			objectName = mp3ObjectName
+		} else {
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_%d.webm", os.Getpid()))
+			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
+				if convertedPath, _, err := transcoder.ConvertAudioToMP3(tmpIn); err == nil {
+					_, _ = h.storage.FPutObject(c.Context(), bucket, mp3ObjectName, convertedPath, minio.PutObjectOptions{
+						ContentType: "audio/mpeg",
+					})
+					_ = os.Remove(convertedPath)
+					objectName = mp3ObjectName
+				}
+				_ = os.Remove(tmpIn)
+			}
+		}
+	}
+
+	// 2. iOS veya ?format=mp4 için WebM videolarını on-the-fly MP4'e dönüştür
+	if bucket == "media" && strings.HasSuffix(objectName, ".webm") && (isIOS || c.Query("format") == "mp4") && transcoder.IsAvailable() {
+		mp4ObjectName := objectName + ".mp4"
+		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp4ObjectName); statErr == nil {
+			objectName = mp4ObjectName
+		} else {
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%d.webm", os.Getpid()))
+			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
+				if convertedPath, err := transcoder.ConvertVideoToUniversalMP4(tmpIn); err == nil {
+					_, _ = h.storage.FPutObject(c.Context(), bucket, mp4ObjectName, convertedPath, minio.PutObjectOptions{
+						ContentType: "video/mp4",
+					})
+					_ = os.Remove(convertedPath)
+					objectName = mp4ObjectName
+				}
+				_ = os.Remove(tmpIn)
+			}
+		}
+	}
+
 	rangeHeader := c.Get("Range")
 	var opts minio.GetObjectOptions
 
@@ -130,6 +176,38 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 	}
 
 	contentType := info.ContentType
+	ext := strings.ToLower(filepath.Ext(objectName))
+	switch ext {
+	case ".mp3":
+		contentType = "audio/mpeg"
+	case ".m4a", ".mp4":
+		if bucket == "audio-messages" {
+			contentType = "audio/mp4"
+		} else {
+			contentType = "video/mp4"
+		}
+	case ".aac":
+		contentType = "audio/aac"
+	case ".wav":
+		contentType = "audio/wav"
+	case ".ogg":
+		contentType = "audio/ogg"
+	case ".webm":
+		if bucket == "audio-messages" {
+			contentType = "audio/webm"
+		} else {
+			contentType = "video/webm"
+		}
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".webp":
+		contentType = "image/webp"
+	case ".gif":
+		contentType = "image/gif"
+	}
+
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}

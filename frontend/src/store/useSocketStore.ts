@@ -39,24 +39,28 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       const host = window.location.hostname;
       const isLocalhost = host === "localhost" || host === "127.0.0.1";
 
-      if (wsUrl && !isLocalhost && (wsUrl.includes("localhost") || wsUrl.includes("127.0.0.1"))) {
-        wsUrl = wsUrl.replace(/localhost|127\.0\.0\.1/, host);
-      } else if (!wsUrl) {
-        const port = window.location.port ? `:${window.location.port}` : "";
-        const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-        const basePath = rawBasePath.startsWith("/")
-          ? rawBasePath.replace(/\/+$/, "")
-          : rawBasePath
-          ? "/" + rawBasePath.replace(/\/+$/, "")
-          : "";
-
-        if (isLocalhost) {
-          wsUrl = "ws://localhost:8080/ws";
-        } else if (basePath) {
-          wsUrl = `${proto}//${host}${port}${basePath}/ws`;
+      if (isLocalhost) {
+        if (!wsUrl) wsUrl = "ws://localhost:8080/ws";
+      } else {
+        // Üretim ortamında: Eğer açıkça harici WS URL'i verilmediyse (localhost içermeyen):
+        if (wsUrl && !wsUrl.includes("localhost") && !wsUrl.includes("127.0.0.1")) {
+          // Var olan geçerli wsUrl'i kullan
         } else {
-          const base = host.replace(/^chat\./, "");
-          wsUrl = `${proto}//api.${base}/ws`;
+          // Subpath tespiti (Örn: /b)
+          let basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+          if (!basePath) {
+            const match = window.location.pathname.match(/^(\/[a-zA-Z0-9_-]+)/);
+            if (match && !["/login", "/register", "/chat", "/settings", "/api"].includes(match[1])) {
+              basePath = match[1];
+            }
+          }
+          basePath = basePath.replace(/\/+$/, "");
+          if (basePath && !basePath.startsWith("/")) {
+            basePath = "/" + basePath;
+          }
+
+          const port = window.location.port ? `:${window.location.port}` : "";
+          wsUrl = `${proto}//${host}${port}${basePath}/ws`;
         }
       }
     }

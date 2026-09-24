@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"fisilti/internal/transcoder"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -86,40 +89,88 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 	var targetBucket string
 	var contentType string
 
+	// Gelen dosyayı geçici bir dosyaya yaz (FFmpeg dönüştürme ve boyut kontrolü için)
+	tmpIn, err := os.CreateTemp("", "fisilti_upload_*"+ext)
+	if err != nil {
+		return nil, fmt.Errorf("geçici dosya oluşturulamadı: %w", err)
+	}
+	defer os.Remove(tmpIn.Name())
+
+	if _, err := io.Copy(tmpIn, file); err != nil {
+		_ = tmpIn.Close()
+		return nil, fmt.Errorf("geçici dosyaya yazılamadı: %w", err)
+	}
+	_ = tmpIn.Close()
+
+	uploadFilePath := tmpIn.Name()
+	var uploadDuration float64 = 0
+
 	switch mediaCategory {
 	case "voice":
 		targetBucket = s.voiceBucket
-		contentType = "audio/webm"
-		if ext == ".mp3" {
-			contentType = "audio/mpeg"
-		} else if ext == ".ogg" {
-			contentType = "audio/ogg"
-		} else if ext == ".wav" {
-			contentType = "audio/wav"
-		} else if ext == "" {
-			ext = ".webm"
+		// iOS ve Android dahil her cihazda sorunsuz oynatmak için MP3'e çevir:
+		if transcoder.IsAvailable() && ext != ".mp3" {
+			if convertedPath, dur, err := transcoder.ConvertAudioToMP3(uploadFilePath); err == nil {
+				defer os.Remove(convertedPath)
+				uploadFilePath = convertedPath
+				ext = ".mp3"
+				contentType = "audio/mpeg"
+				fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + ".mp3"
+				uploadDuration = dur
+			} else {
+				contentType = detectAudioContentType(ext)
+			}
+		} else {
+			contentType = detectAudioContentType(ext)
 		}
 
 	case "image":
 		targetBucket = s.mediaBucket
-		if ext == ".png" {
-			contentType = "image/png"
-		} else if ext == ".webp" {
-			contentType = "image/webp"
-		} else if ext == ".gif" {
-			contentType = "image/gif"
+		if (ext == ".heic" || ext == ".heif") && transcoder.IsAvailable() {
+			if convertedPath, err := transcoder.ConvertImageToJPEG(uploadFilePath); err == nil {
+				defer os.Remove(convertedPath)
+				uploadFilePath = convertedPath
+				ext = ".jpg"
+				contentType = "image/jpeg"
+				fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + ".jpg"
+			} else {
+				contentType = "image/jpeg"
+			}
 		} else {
-			contentType = "image/jpeg"
+			if ext == ".png" {
+				contentType = "image/png"
+			} else if ext == ".webp" {
+				contentType = "image/webp"
+			} else if ext == ".gif" {
+				contentType = "image/gif"
+			} else {
+				contentType = "image/jpeg"
+			}
 		}
 
 	case "video":
 		targetBucket = s.mediaBucket
-		if ext == ".webm" {
-			contentType = "video/webm"
-		} else if ext == ".mov" || ext == ".m4v" {
-			contentType = "video/mp4"
+		// iOS ve Android evrensel H.264 Baseline + AAC MP4 (+faststart) formatına çevir:
+		if transcoder.IsAvailable() {
+			if convertedPath, err := transcoder.ConvertVideoToUniversalMP4(uploadFilePath); err == nil {
+				defer os.Remove(convertedPath)
+				uploadFilePath = convertedPath
+				ext = ".mp4"
+				contentType = "video/mp4"
+				fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + ".mp4"
+			} else {
+				if ext == ".webm" {
+					contentType = "video/webm"
+				} else {
+					contentType = "video/mp4"
+				}
+			}
 		} else {
-			contentType = "video/mp4"
+			if ext == ".webm" {
+				contentType = "video/webm"
+			} else {
+				contentType = "video/mp4"
+			}
 		}
 
 	default: // "file" / belge
@@ -130,9 +181,21 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		}
 	}
 
+	// Yüklenecek dosyanın son boyutunu al
+	info, err := os.Stat(uploadFilePath)
+	if err == nil {
+		fileSize = info.Size()
+	}
+
+	uploadF, err := os.Open(uploadFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("yüklenecek dosya açılamadı: %w", err)
+	}
+	defer uploadF.Close()
+
 	objectName := fmt.Sprintf("%s_%d%s", userID.String(), time.Now().UnixNano(), ext)
 
-	_, err := s.client.PutObject(ctx, targetBucket, objectName, file, fileSize, minio.PutObjectOptions{
+	_, err = s.client.PutObject(ctx, targetBucket, objectName, uploadF, fileSize, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {
@@ -150,11 +213,31 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 		"mime_type": contentType,
 		"ext":       ext,
 	}
+	if uploadDuration > 0 {
+		metadata["duration"] = uploadDuration
+	}
 
 	return &MediaUploadResult{
 		MediaURL: mediaURL,
 		Metadata: metadata,
 	}, nil
+}
+
+func detectAudioContentType(ext string) string {
+	switch ext {
+	case ".mp3":
+		return "audio/mpeg"
+	case ".m4a", ".mp4":
+		return "audio/mp4"
+	case ".aac":
+		return "audio/aac"
+	case ".ogg":
+		return "audio/ogg"
+	case ".wav":
+		return "audio/wav"
+	default:
+		return "audio/webm"
+	}
 }
 
 func (s *StorageService) GetObject(ctx context.Context, bucket, objectName string, opts minio.GetObjectOptions) (*minio.Object, minio.ObjectInfo, error) {
@@ -167,6 +250,18 @@ func (s *StorageService) GetObject(ctx context.Context, bucket, objectName strin
 		return nil, minio.ObjectInfo{}, err
 	}
 	return obj, stat, nil
+}
+
+func (s *StorageService) StatObject(ctx context.Context, bucket, objectName string) (minio.ObjectInfo, error) {
+	return s.client.StatObject(ctx, bucket, objectName, minio.StatObjectOptions{})
+}
+
+func (s *StorageService) FGetObject(ctx context.Context, bucket, objectName, filePath string, opts minio.GetObjectOptions) error {
+	return s.client.FGetObject(ctx, bucket, objectName, filePath, opts)
+}
+
+func (s *StorageService) FPutObject(ctx context.Context, bucket, objectName, filePath string, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
+	return s.client.FPutObject(ctx, bucket, objectName, filePath, opts)
 }
 
 func (s *StorageService) DeleteMedia(ctx context.Context, mediaURL string) error {
