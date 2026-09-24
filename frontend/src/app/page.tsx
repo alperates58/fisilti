@@ -48,6 +48,8 @@ import {
   MoreVertical,
   AlertCircle,
   Sliders,
+  Play,
+  Download,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -79,6 +81,11 @@ export default function HomePage() {
   const [isDeletingActive, setIsDeletingActive] = useState(false);
   const [confirmCallType, setConfirmCallType] = useState<"audio" | "video" | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<{
+    url: string;
+    type: "image" | "video";
+    name?: string;
+  } | null>(null);
 
   const [inputMessage, setInputMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -784,18 +791,89 @@ export default function HomePage() {
               </div>
 
               <div>
-                <span className="text-slate-400 font-semibold block mb-2">Paylaşılan Medya</span>
-                <div className="grid grid-cols-3 gap-2">
-                  {activeMessages
-                    .filter((m) => m.media_url && m.message_type === "image")
-                    .slice(0, 6)
-                    .map((m) => (
-                      <div key={m.id} className="aspect-square rounded-lg overflow-hidden bg-slate-800">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={resolveMediaUrl(m.media_url)} alt="medya" className="w-full h-full object-cover" />
-                      </div>
-                    ))}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-400 font-semibold">Paylaşılan Medya</span>
+                  {(() => {
+                    const count = activeMessages.filter(
+                      (m) =>
+                        m.media_url &&
+                        !m.is_deleted_for_all &&
+                        (m.message_type === "image" ||
+                          m.message_type === "video" ||
+                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url))
+                    ).length;
+                    return count > 0 ? (
+                      <span className="text-[10px] text-slate-500 font-medium">{count} medya</span>
+                    ) : null;
+                  })()}
                 </div>
+
+                {(() => {
+                  const mediaList = activeMessages.filter(
+                    (m) =>
+                      m.media_url &&
+                      !m.is_deleted_for_all &&
+                      (m.message_type === "image" ||
+                        m.message_type === "video" ||
+                        /\.(mp4|mov|webm|m4v|mkv|avi|3gp|png|jpg|jpeg|webp|gif)($|\?)/i.test(m.media_url))
+                  );
+
+                  if (mediaList.length === 0) {
+                    return (
+                      <p className="text-slate-500 italic text-[11px] py-2">
+                        Henüz paylaşılan fotoğraf veya video bulunmuyor.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-3 gap-2">
+                      {mediaList.slice(0, 9).map((m) => {
+                        const isVid =
+                          m.message_type === "video" ||
+                          /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(m.media_url);
+                        const finalUrl = resolveMediaUrl(m.media_url);
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() =>
+                              setPreviewMedia({
+                                url: finalUrl,
+                                type: isVid ? "video" : "image",
+                                name: m.media_metadata?.file_name,
+                              })
+                            }
+                            className="aspect-square rounded-xl overflow-hidden bg-slate-800 relative cursor-pointer group hover:scale-[1.03] hover:ring-2 hover:ring-pink-500/60 transition-all duration-150 shadow-sm"
+                            title="Büyütmek için tıkla"
+                          >
+                            {isVid ? (
+                              <div className="w-full h-full relative bg-black flex items-center justify-center">
+                                <video
+                                  src={finalUrl}
+                                  className="w-full h-full object-cover pointer-events-none opacity-80"
+                                  preload="metadata"
+                                />
+                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/10 transition-colors">
+                                  <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                                    <Play className="w-3 h-3 fill-white ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={finalUrl}
+                                alt="medya"
+                                className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                                loading="lazy"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Sohbet Temizleme ve Silme Butonları */}
@@ -991,6 +1069,58 @@ export default function HomePage() {
       {/* Canlı Sesli & Görüntülü Arama Modalları (LiveKit WebRTC) */}
       <IncomingCallModal />
       <ActiveCallModal />
+
+      {/* PAYLAŞILAN MEDYA BÜYÜTME / OYNATMA MODALI (LIGHTBOX) */}
+      {previewMedia && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none"
+          onClick={() => setPreviewMedia(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Üst Kapatma ve İndirme Butonu */}
+            <div className="absolute -top-12 right-0 flex items-center gap-2">
+              <a
+                href={previewMedia.url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-full bg-slate-800/90 hover:bg-slate-700 text-white transition-colors cursor-pointer shadow-lg"
+                title="İndir"
+              >
+                <Download className="w-5 h-5" />
+              </a>
+              <button
+                onClick={() => setPreviewMedia(null)}
+                className="p-2 rounded-full bg-slate-800/90 hover:bg-slate-700 text-white transition-colors cursor-pointer shadow-lg"
+                title="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* İçerik */}
+            {previewMedia.type === "video" ? (
+              <video
+                src={previewMedia.url}
+                controls
+                autoPlay
+                playsInline
+                className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl bg-black object-contain"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewMedia.url}
+                alt={previewMedia.name || "Büyük Görsel"}
+                className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
