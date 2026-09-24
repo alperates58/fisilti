@@ -35,11 +35,21 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     let wsUrl = process.env.NEXT_PUBLIC_WS_URL;
     if (!wsUrl && typeof window !== "undefined") {
       const isHttps = window.location.protocol === "https:";
+      const proto = isHttps ? "wss:" : "ws:";
       const host = window.location.hostname;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const basePath = rawBasePath.startsWith("/")
+        ? rawBasePath.replace(/\/+$/, "")
+        : rawBasePath
+        ? "/" + rawBasePath.replace(/\/+$/, "")
+        : "";
+
       if (host === "localhost" || host === "127.0.0.1") {
         wsUrl = "ws://localhost:8080/ws";
+      } else if (basePath) {
+        wsUrl = `${proto}//${host}${port}${basePath}/ws`;
       } else {
-        const proto = isHttps ? "wss:" : "ws:";
         const base = host.replace(/^chat\./, "");
         wsUrl = `${proto}//api.${base}/ws`;
       }

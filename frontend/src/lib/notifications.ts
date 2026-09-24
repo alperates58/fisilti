@@ -41,15 +41,24 @@ class NotificationManager {
     return false;
   }
 
-  notify(title: string, body: string, icon = "/icon-192.png") {
+  notify(title: string, body: string, icon?: string) {
     if (typeof window === "undefined" || !("Notification" in window)) return;
+
+    const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    const basePath = rawBasePath.startsWith("/")
+      ? rawBasePath.replace(/\/+$/, "")
+      : rawBasePath
+      ? "/" + rawBasePath.replace(/\/+$/, "")
+      : "";
+    const defaultIcon = basePath ? `${basePath}/favicon.ico` : "/favicon.ico";
+    const notifIcon = icon || defaultIcon;
 
     if (Notification.permission === "granted" && document.hidden) {
       try {
         new Notification(title, {
           body,
-          icon,
-          badge: icon,
+          icon: notifIcon,
+          badge: notifIcon,
         });
       } catch (e) {
         console.warn("Bildirim gösterilemedi:", e);

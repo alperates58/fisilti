@@ -2,13 +2,20 @@ import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import ServiceWorkerRegister from "@/components/layout/ServiceWorkerRegister";
 
+const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const basePath = rawBasePath.startsWith("/")
+  ? rawBasePath.replace(/\/+$/, "")
+  : rawBasePath
+  ? "/" + rawBasePath.replace(/\/+$/, "")
+  : "";
+
 export const metadata: Metadata = {
   title: "Fısıltı",
   description: "Gerçek zamanlı sohbet platformu.",
-  manifest: "/manifest.json",
+  manifest: basePath ? `${basePath}/manifest.webmanifest` : "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: basePath ? `${basePath}/favicon.ico` : "/favicon.ico",
+    apple: basePath ? `${basePath}/favicon.ico` : "/favicon.ico",
   },
 };
 
@@ -28,7 +35,6 @@ export default function RootLayout({
   return (
     <html lang="tr" className="dark">
       <head>
-        <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

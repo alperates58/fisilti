@@ -677,10 +677,6 @@ export default function HomePage() {
             <p className="text-sm text-slate-400 max-w-sm mb-6">
               Sol taraftan bir sohbet seçin veya &quot;Kişiler&quot; menüsünden birini bularak mesajlaşmaya başlayın.
             </p>
-            <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium">
-              <ShieldCheck className="w-4 h-4" />
-              <span>WhatsApp Tipi 3 Aşamalı Durum Takibi Devrede</span>
-            </div>
           </div>
         )}
 

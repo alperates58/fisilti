@@ -94,7 +94,7 @@ export default function ActiveCallModal() {
       <div className="w-full max-w-2xl flex items-center justify-between px-4 py-2 rounded-2xl bg-grupo-dark-card/60 border border-grupo-dark-border backdrop-blur-md z-20">
         <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Canlı Görüşme (LiveKit SFU)</span>
+          <span>Canlı Görüşme</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-slate-300 font-mono font-medium">

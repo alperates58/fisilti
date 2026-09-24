@@ -71,7 +71,7 @@ func (s *PreviewService) GetLinkPreview(ctx context.Context, rawURL string) (*Li
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; FisiltiBot/1.0; +https://fisilti.app)")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; FisiltiBot/1.0)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := s.client.Do(req)

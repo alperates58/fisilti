@@ -44,6 +44,10 @@ func NewAuthHandler(
 
 func (h *AuthHandler) setAuthCookies(c *fiber.Ctx, accessToken, refreshToken string) {
 	isSecure := h.cfg.Environment == "production"
+	cookiePath := h.cfg.AppBasePath
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
 
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
@@ -52,7 +56,7 @@ func (h *AuthHandler) setAuthCookies(c *fiber.Ctx, accessToken, refreshToken str
 		HTTPOnly: true,
 		Secure:   isSecure,
 		SameSite: "Lax",
-		Path:     "/",
+		Path:     cookiePath,
 	})
 
 	c.Cookie(&fiber.Cookie{
@@ -62,24 +66,29 @@ func (h *AuthHandler) setAuthCookies(c *fiber.Ctx, accessToken, refreshToken str
 		HTTPOnly: true,
 		Secure:   isSecure,
 		SameSite: "Lax",
-		Path:     "/",
+		Path:     cookiePath,
 	})
 }
 
 func (h *AuthHandler) clearAuthCookies(c *fiber.Ctx) {
+	cookiePath := h.cfg.AppBasePath
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour),
 		HTTPOnly: true,
-		Path:     "/",
+		Path:     cookiePath,
 	})
 	c.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour),
 		HTTPOnly: true,
-		Path:     "/",
+		Path:     cookiePath,
 	})
 }
 

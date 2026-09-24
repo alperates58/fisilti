@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -28,6 +29,8 @@ type Config struct {
 	JWTRefreshSecret     string
 	JWTAccessExpiryMin   int
 	JWTRefreshExpiryDays int
+	AppBasePath          string
+	CORSAllowedOrigins   string
 }
 
 func LoadConfig() Config {
@@ -58,6 +61,17 @@ func LoadConfig() Config {
 	jwtAccessExpiryMin, _ := strconv.Atoi(getEnv("JWT_ACCESS_EXPIRY_MINUTES", "15"))
 	jwtRefreshExpiryDays, _ := strconv.Atoi(getEnv("JWT_REFRESH_EXPIRY_DAYS", "30"))
 
+	rawBasePath := getEnv("APP_BASE_PATH", getEnv("COOKIE_PATH", "/"))
+	appBasePath := "/"
+	if rawBasePath != "" && rawBasePath != "/" {
+		if !strings.HasPrefix(rawBasePath, "/") {
+			rawBasePath = "/" + rawBasePath
+		}
+		appBasePath = strings.TrimSuffix(rawBasePath, "/")
+	}
+
+	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000, http://localhost:3002, http://127.0.0.1:3000, http://127.0.0.1:3002")
+
 	return Config{
 		Environment:          env,
 		Port:                 port,
@@ -81,6 +95,8 @@ func LoadConfig() Config {
 		JWTRefreshSecret:     jwtRefreshSecret,
 		JWTAccessExpiryMin:   jwtAccessExpiryMin,
 		JWTRefreshExpiryDays: jwtRefreshExpiryDays,
+		AppBasePath:          appBasePath,
+		CORSAllowedOrigins:   corsOrigins,
 	}
 }
 

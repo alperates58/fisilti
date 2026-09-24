@@ -46,18 +46,57 @@ services:
       - fisilti-network
       - coolify
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.fisilti-s3.rule=Host(`s3.${DOMAIN:-fisilti.app}`)"
+      - "traefik.enable=${TRAEFIK_ENABLE_S3:-true}"
+      - "traefik.http.middlewares.fisilti-s3-strip.stripprefix.prefixes=${TRAEFIK_S3_STRIP_PREFIX:-/b/s3}"
+      - "traefik.http.routers.fisilti-s3-http.rule=${TRAEFIK_S3_RULE:-Host(`s3.${DOMAIN:-fisilti.app}`)}"
+      - "traefik.http.routers.fisilti-s3-http.entrypoints=http"
+      - "traefik.http.routers.fisilti-s3-http.middlewares=fisilti-redirect-https,crowdsec@file"
+      - "traefik.http.routers.fisilti-s3.rule=${TRAEFIK_S3_RULE:-Host(`s3.${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-s3.entrypoints=https"
       - "traefik.http.routers.fisilti-s3.tls=true"
       - "traefik.http.routers.fisilti-s3.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fisilti-s3.middlewares=${TRAEFIK_S3_MIDDLEWARES:-crowdsec@file}"
+      - "traefik.http.routers.fisilti-s3.priority=${TRAEFIK_S3_PRIORITY:-120}"
       - "traefik.http.services.fisilti-s3.loadbalancer.server.port=9000"
+
+  # MinIO Başlangıç Bucket Oluşturucu (Tek seferlik)
+  minio-init:
+    image: quay.io/minio/mc:latest
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_AVATARS: ${MINIO_BUCKET_AVATARS:-avatars}
+      MINIO_BUCKET_VOICE: ${MINIO_BUCKET_VOICE:-audio-messages}
+      MINIO_BUCKET_MEDIA: ${MINIO_BUCKET_MEDIA:-media}
+      MINIO_BUCKET_FILES: ${MINIO_BUCKET_FILES:-files}
+    depends_on:
+      - minio
+    networks:
+      - fisilti-network
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_VOICE};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET_FILES};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_VOICE};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_MEDIA};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET_FILES};
+      echo 'MinIO bucketlari hazirlandi.';
+      exit 0;
+      "
 
   # 4. LiveKit WebRTC SFU
   livekit:
     image: livekit/livekit-server:latest
     restart: always
     command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}"
+      LIVEKIT_REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
     ports:
       - "7881:7881/udp"
       - "7881:7881/tcp"
@@ -70,10 +109,14 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.fisilti-livekit.rule=Host(`livekit.${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.routers.fisilti-livekit-http.rule=${TRAEFIK_LIVEKIT_RULE:-Host(`livekit.${DOMAIN:-fisilti.app}`)}"
+      - "traefik.http.routers.fisilti-livekit-http.entrypoints=http"
+      - "traefik.http.routers.fisilti-livekit-http.middlewares=fisilti-redirect-https,crowdsec@file"
+      - "traefik.http.routers.fisilti-livekit.rule=${TRAEFIK_LIVEKIT_RULE:-Host(`livekit.${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-livekit.entrypoints=https"
       - "traefik.http.routers.fisilti-livekit.tls=true"
       - "traefik.http.routers.fisilti-livekit.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fisilti-livekit.middlewares=crowdsec@file"
       - "traefik.http.services.fisilti-livekit.loadbalancer.server.port=7880"
 
   # 5. Go Backend Servisi
@@ -84,6 +127,10 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      APP_BASE_PATH: "${APP_BASE_PATH:-}"
+      COOKIE_PATH: "${COOKIE_PATH:-${APP_BASE_PATH:-/}}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
     depends_on:
       - postgres
       - redis
@@ -93,26 +140,34 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.fisilti-backend.rule=Host(`api.${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.middlewares.fisilti-backend-strip.stripprefix.prefixes=${TRAEFIK_BACKEND_STRIP_PREFIX:-/b}"
+      - "traefik.http.routers.fisilti-backend-http.rule=${TRAEFIK_BACKEND_RULE:-Host(`api.${DOMAIN:-fisilti.app}`)}"
+      - "traefik.http.routers.fisilti-backend-http.entrypoints=http"
+      - "traefik.http.routers.fisilti-backend-http.middlewares=fisilti-redirect-https,crowdsec@file"
+      - "traefik.http.routers.fisilti-backend.rule=${TRAEFIK_BACKEND_RULE:-Host(`api.${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-backend.entrypoints=https"
       - "traefik.http.routers.fisilti-backend.tls=true"
       - "traefik.http.routers.fisilti-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fisilti-backend.middlewares=${TRAEFIK_BACKEND_MIDDLEWARES:-crowdsec@file}"
+      - "traefik.http.routers.fisilti-backend.priority=${TRAEFIK_BACKEND_PRIORITY:-100}"
       - "traefik.http.services.fisilti-backend.loadbalancer.server.port=8080"
 
-  # 6. Next.js 15 Frontend
+  # 6. Next.js Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: "https://api.${DOMAIN:-fisilti.app}"
-        NEXT_PUBLIC_WS_URL: "wss://api.${DOMAIN:-fisilti.app}/ws"
-        NEXT_PUBLIC_LIVEKIT_URL: "https://livekit.${DOMAIN:-fisilti.app}"
+        NEXT_PUBLIC_BASE_PATH: "${NEXT_PUBLIC_BASE_PATH:-}"
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-}"
+        NEXT_PUBLIC_WS_URL: "${NEXT_PUBLIC_WS_URL:-}"
+        NEXT_PUBLIC_LIVEKIT_URL: "${NEXT_PUBLIC_LIVEKIT_URL:-}"
     restart: always
     environment:
-      NEXT_PUBLIC_API_URL: "https://api.${DOMAIN:-fisilti.app}"
-      NEXT_PUBLIC_WS_URL: "wss://api.${DOMAIN:-fisilti.app}/ws"
-      NEXT_PUBLIC_LIVEKIT_URL: "https://livekit.${DOMAIN:-fisilti.app}"
+      NEXT_PUBLIC_BASE_PATH: "${NEXT_PUBLIC_BASE_PATH:-}"
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-}"
+      NEXT_PUBLIC_WS_URL: "${NEXT_PUBLIC_WS_URL:-}"
+      NEXT_PUBLIC_LIVEKIT_URL: "${NEXT_PUBLIC_LIVEKIT_URL:-}"
     depends_on:
       - backend
     networks:
@@ -120,10 +175,17 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.fisilti-frontend.rule=Host(`${DOMAIN:-fisilti.app}`)"
+      - "traefik.http.middlewares.fisilti-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.fisilti-redirect-https.redirectscheme.permanent=true"
+      - "traefik.http.routers.fisilti-frontend-http.rule=${TRAEFIK_FRONTEND_RULE:-Host(`${DOMAIN:-fisilti.app}`)}"
+      - "traefik.http.routers.fisilti-frontend-http.entrypoints=http"
+      - "traefik.http.routers.fisilti-frontend-http.middlewares=fisilti-redirect-https,crowdsec@file"
+      - "traefik.http.routers.fisilti-frontend.rule=${TRAEFIK_FRONTEND_RULE:-Host(`${DOMAIN:-fisilti.app}`)}"
       - "traefik.http.routers.fisilti-frontend.entrypoints=https"
       - "traefik.http.routers.fisilti-frontend.tls=true"
       - "traefik.http.routers.fisilti-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fisilti-frontend.middlewares=crowdsec@file"
+      - "traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}"
       - "traefik.http.services.fisilti-frontend.loadbalancer.server.port=3000"
 
 volumes:
