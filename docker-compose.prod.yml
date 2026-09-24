@@ -209,7 +209,7 @@ services:
       - 'traefik.http.routers.fisilti-frontend.entrypoints=https'
       - 'traefik.http.routers.fisilti-frontend.tls=true'
       - 'traefik.http.routers.fisilti-frontend.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.fisilti-frontend.middlewares=crowdsec@file'
+      - 'traefik.http.routers.fisilti-frontend.middlewares=${TRAEFIK_FRONTEND_MIDDLEWARES:-crowdsec@file}'
       - 'traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}'
       - 'traefik.http.services.fisilti-frontend.loadbalancer.server.port=${FRONTEND_PORT:-3000}'
 
