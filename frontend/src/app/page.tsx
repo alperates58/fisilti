@@ -38,6 +38,7 @@ import {
   ArrowLeft,
   Mic,
   Star,
+  StarOff,
   Users,
   Info,
   X,
@@ -71,6 +72,9 @@ export default function HomePage() {
     sendMessage,
     sendTyping,
     startNewConversation,
+    starredMessages,
+    loadStarredMessages,
+    toggleStar,
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
@@ -130,8 +134,9 @@ export default function HomePage() {
     if (isAuthenticated) {
       connect();
       loadConversations();
+      loadStarredMessages();
     }
-  }, [isAuthenticated, connect, loadConversations]);
+  }, [isAuthenticated, connect, loadConversations, loadStarredMessages]);
 
   // 3. Mesaj listesi otomatik en alta kaydırma
   useEffect(() => {
@@ -240,10 +245,36 @@ export default function HomePage() {
     );
   }, [activeMessages, chatSearchQuery]);
 
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+
+  const handleJumpToMessage = async (conversationId: string, messageId: string) => {
+    if (activeConversationId !== conversationId) {
+      await selectConversation(conversationId);
+    }
+    setShowContactDrawer(false);
+    setHighlightedMessageId(messageId);
+    setTimeout(() => {
+      const el = document.getElementById(`msg-${messageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 200);
+  };
+
+  useEffect(() => {
+    if (highlightedMessageId) {
+      const timer = setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedMessageId]);
+
   const activeMatchedMessageId =
-    searchFilteredMessages.length > 0
+    highlightedMessageId ||
+    (searchFilteredMessages.length > 0
       ? searchFilteredMessages[currentMatchIndex]?.id
-      : null;
+      : null);
 
   useEffect(() => {
     if (activeMatchedMessageId) {
@@ -269,10 +300,19 @@ export default function HomePage() {
   // Toplam okunmamış mesaj sayısı
   const totalUnreadCount = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
 
-  // Yıldızlı mesajlar listesi
-  const starredMessages = Object.values(messages)
-    .flat()
-    .filter((m) => m.is_starred);
+  // Yıldızlı mesajlar listesi (DB ve hafızadaki yıldızlılar birleşimi)
+  const combinedStarredMessages = useMemo(() => {
+    const memoryStarred = Object.values(messages).flat().filter((m) => m.is_starred);
+    const map = new Map<string, any>();
+    (starredMessages || []).forEach((m) => map.set(m.id, m));
+    memoryStarred.forEach((m) => {
+      if (m.is_starred) map.set(m.id, m);
+      else map.delete(m.id);
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [messages, starredMessages]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -331,7 +371,7 @@ export default function HomePage() {
           if (tab === "settings") setIsSettingsOpen(true);
         }}
         unreadCount={totalUnreadCount}
-        starredCount={starredMessages.length}
+        starredCount={combinedStarredMessages.length}
         isConnected={isConnected}
         user={user}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -501,38 +541,60 @@ export default function HomePage() {
           </div>
         ) : activeTab === "starred" ? (
           /* TAB 3: Yıldızlı Mesajlar Listesi */
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
             <div className="px-3 py-1.5 text-[11px] font-bold uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
-              <Star className="w-3 h-3 fill-amber-400" />
-              <span>Yıldızlı Mesajlar ({starredMessages.length})</span>
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              <span>Yıldızlı Mesajlar ({combinedStarredMessages.length})</span>
             </div>
-            {starredMessages.length === 0 ? (
+            {combinedStarredMessages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
                 <Star className="w-10 h-10 mb-2 opacity-30 text-amber-400" />
-                <p className="text-xs">Yıldızlı mesajınız bulunmuyor.</p>
+                <p className="text-xs font-medium">Yıldızlı mesajınız bulunmuyor.</p>
                 <p className="text-[11px] text-slate-600 mt-1">
                   Önemli mesajların menüsünden &quot;Yıldızla&quot; seçeneğini kullanabilirsiniz.
                 </p>
               </div>
             ) : (
-              starredMessages.map((msg) => (
-                <button
+              combinedStarredMessages.map((msg) => (
+                <div
                   key={msg.id}
-                  onClick={() => selectConversation(msg.conversation_id)}
-                  className="w-full p-3 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:bg-slate-800/60 text-left transition-colors cursor-pointer"
+                  onClick={() => handleJumpToMessage(msg.conversation_id, msg.id)}
+                  className="group relative w-full p-3 rounded-2xl bg-slate-900/70 border border-slate-800 hover:bg-slate-850 hover:border-amber-500/50 text-left transition-all cursor-pointer shadow-xs"
                 >
-                  <div className="text-xs text-amber-400 font-semibold mb-1 flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-400" />
-                    <span>{msg.is_mine ? "Sen" : "Karşı Taraf"}</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span>{msg.is_mine ? "Sen" : "Karşı Taraf"}</span>
+                      {msg.sent_at && (
+                        <span className="text-[10px] text-slate-500 font-normal">
+                          • {new Date(msg.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
+                    </div>
+                    {/* Yıldızı Kaldır Butonu */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStar(msg.id);
+                      }}
+                      title="Yıldızı Kaldır"
+                      className="p-1.5 rounded-xl text-amber-400/80 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    >
+                      <StarOff className="w-4 h-4" />
+                    </button>
                   </div>
-                  <p className="text-sm text-slate-200 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed">
                     {msg.message_type === "voice"
                       ? "🎤 Sesli Mesaj"
                       : msg.message_type === "image"
                       ? "📷 Fotoğraf"
+                      : msg.message_type === "video"
+                      ? "🎬 Video"
+                      : msg.message_type === "file"
+                      ? "📄 Belge"
                       : msg.content}
                   </p>
-                </button>
+                </div>
               ))
             )}
           </div>
@@ -572,7 +634,7 @@ export default function HomePage() {
               if (tab === "settings") setIsSettingsOpen(true);
             }}
             unreadCount={totalUnreadCount}
-            starredCount={starredMessages.length}
+            starredCount={combinedStarredMessages.length}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenAdmin={() => setIsAdminPanelOpen(true)}
           />
@@ -841,6 +903,8 @@ export default function HomePage() {
                       message={m}
                       searchQuery={chatSearchQuery}
                       isHighlightedMatch={m.id === activeMatchedMessageId}
+                      onJumpToMessage={(targetId) => handleJumpToMessage(activeConv.id, targetId)}
+                      otherUserName={activeConv.other_user.display_name}
                     />
                   </div>
                 ))

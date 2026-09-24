@@ -292,6 +292,15 @@ func (h *ChatHandler) ToggleReaction(c *fiber.Ctx) error {
 	})
 }
 
+func (h *ChatHandler) GetStarredMessages(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	list, err := h.chatRepo.GetStarredMessages(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Yıldızlı mesajlar alınamadı."})
+	}
+	return c.JSON(list)
+}
+
 func (h *ChatHandler) ToggleStar(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 	msgID, err := uuid.Parse(c.Params("id"))

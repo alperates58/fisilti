@@ -60,8 +60,10 @@ interface ChatState {
   typingMap: Record<string, boolean>; // conversation_id -> isTyping
   selectedMessageInfo: Message | null;
   replyingTo: Message | null;
+  starredMessages: Message[];
 
   loadConversations: () => Promise<void>;
+  loadStarredMessages: () => Promise<void>;
   selectConversation: (convId: string) => Promise<void>;
   deselectConversation: () => void;
   loadMessages: (convId: string) => Promise<void>;
@@ -106,6 +108,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   typingMap: {},
   selectedMessageInfo: null,
   replyingTo: null,
+  starredMessages: [],
+
+  loadStarredMessages: async () => {
+    try {
+      const res = await api.get<Message[]>("/messages/starred");
+      set({ starredMessages: res.data || [] });
+    } catch (err) {
+      console.error("Yıldızlı mesajlar yüklenemedi:", err);
+    }
+  },
 
   loadConversations: async () => {
     try {
@@ -341,12 +353,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const isStarred = res.data.is_starred;
       set((state) => {
         const newMessages = { ...state.messages };
+        let targetMsg: Message | undefined;
+
         for (const cid in newMessages) {
-          newMessages[cid] = newMessages[cid].map((m) =>
-            m.id === messageId ? { ...m, is_starred: isStarred } : m
-          );
+          newMessages[cid] = newMessages[cid].map((m) => {
+            if (m.id === messageId) {
+              const updated = { ...m, is_starred: isStarred };
+              targetMsg = updated;
+              return updated;
+            }
+            return m;
+          });
         }
-        return { messages: newMessages };
+
+        let newStarred = [...state.starredMessages];
+        if (!isStarred) {
+          newStarred = newStarred.filter((m) => m.id !== messageId);
+        } else {
+          if (!targetMsg) {
+            targetMsg = newStarred.find((m) => m.id === messageId);
+          }
+          if (targetMsg && !newStarred.some((m) => m.id === messageId)) {
+            newStarred = [targetMsg, ...newStarred];
+          }
+        }
+
+        return { messages: newMessages, starredMessages: newStarred };
       });
     } catch (err) {
       console.error("Yıldızlama başarısız:", err);

@@ -13,6 +13,7 @@ import {
   FileText,
   Download,
   Star,
+  StarOff,
   MoreVertical,
   X,
   MapPin,
@@ -35,12 +36,16 @@ interface Props {
   message: Message;
   searchQuery?: string;
   isHighlightedMatch?: boolean;
+  onJumpToMessage?: (messageId: string) => void;
+  otherUserName?: string;
 }
 
 export default function MessageBubble({
   message,
   searchQuery,
   isHighlightedMatch,
+  onJumpToMessage,
+  otherUserName,
 }: Props) {
   const {
     setSelectedMessageInfo,
@@ -48,8 +53,64 @@ export default function MessageBubble({
     deleteMessage,
     editMessage,
     toggleStar,
+    messages,
+    activeConversationId,
   } = useChatStore();
   const chatSettings = useSettingsStore((state) => state.settings?.chat_settings);
+
+  const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
+  const targetRepliedMessage =
+    message.reply_to ||
+    (message.reply_to_id
+      ? activeMessages.find((m) => m.id === message.reply_to_id)
+      : null);
+
+  // WhatsApp Mobil Sağa Kaydırarak Yanıtla (Swipe-to-Reply)
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isHorizontalSwipe = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    isHorizontalSwipe.current = false;
+    setIsSwiping(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const deltaX = e.touches[0].clientX - touchStartX.current;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+
+    if (!isHorizontalSwipe.current) {
+      if (Math.abs(deltaY) > 8) return;
+      if (Math.abs(deltaX) > 8) {
+        isHorizontalSwipe.current = true;
+        setIsSwiping(true);
+      }
+    }
+
+    if (isHorizontalSwipe.current) {
+      const offset = Math.min(Math.max(deltaX, 0), 75);
+      setSwipeOffset(offset);
+      if (offset >= 50 && typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (swipeOffset >= 45) {
+      setReplyingTo(message);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(15);
+      }
+    }
+    setSwipeOffset(0);
+    setIsSwiping(false);
+    isHorizontalSwipe.current = false;
+  };
 
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -226,13 +287,34 @@ export default function MessageBubble({
 
       {/* Mesaj Balonu ve Yan Menüsü */}
       <div
-        className={`flex items-end gap-1.5 max-w-[85%] sm:max-w-[70%] md:max-w-[60%] ${
+        className={`relative flex items-end gap-1.5 max-w-[85%] sm:max-w-[70%] md:max-w-[60%] ${
           message.is_mine ? "flex-row-reverse" : "flex-row"
         }`}
       >
+        {/* WhatsApp Tarzı Sağa Kaydırma Yanıt İkonu */}
+        {swipeOffset > 0 && (
+          <div
+            className="absolute left-[-38px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-850 border border-pink-500/60 flex items-center justify-center text-pink-400 shadow-xl pointer-events-none transition-transform z-10"
+            style={{
+              opacity: Math.min(swipeOffset / 40, 1),
+              transform: `translateY(-50%) scale(${Math.min(swipeOffset / 45, 1)})`,
+            }}
+          >
+            <CornerUpLeft className="w-4 h-4" />
+          </div>
+        )}
+
         {/* Balon İçeriği */}
         <div
-          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-all duration-300 ${
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onDoubleClick={() => setReplyingTo(message)}
+          style={{
+            transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined,
+            transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28)",
+          }}
+          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none ${
             isHighlightedMatch
               ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-950 shadow-2xl shadow-amber-400/40 scale-[1.02]"
               : ""
@@ -242,24 +324,45 @@ export default function MessageBubble({
               : "bg-grupo-dark-card border border-grupo-dark-border text-slate-100 rounded-bl-xs"
           } ${message.is_deleted_for_all ? "opacity-60 italic" : ""}`}
         >
-          {/* Alıntılanan Mesaj (Reply Preview) */}
-          {message.reply_to && (
+          {/* WhatsApp Tarzı Alıntılanan Mesaj (Reply Preview) */}
+          {(targetRepliedMessage || message.reply_to_id) && (
             <div
-              className={`mb-2 p-2 rounded-xl text-xs border-l-3 ${
+              onClick={(e) => {
+                e.stopPropagation();
+                const targetId = targetRepliedMessage?.id || message.reply_to_id;
+                if (targetId && onJumpToMessage) {
+                  onJumpToMessage(targetId);
+                }
+              }}
+              className={`mb-2 p-2.5 rounded-xl text-xs border-l-4 cursor-pointer transition-all hover:opacity-95 active:scale-[0.99] select-none ${
                 message.is_mine
-                  ? "bg-black/20 border-white text-white/90"
-                  : "bg-slate-900/60 border-grupo-accent text-slate-300"
+                  ? "bg-black/25 border-l-white text-white/95"
+                  : "bg-slate-900/80 border-l-pink-500 text-slate-200 shadow-inner"
               }`}
+              title="Alıntılanan mesaja git"
             >
-              <div className="font-semibold text-[11px] opacity-90">
-                {message.reply_to.sender_id === message.sender_id ? "Kendisi" : "Yanıtlanan"}
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="font-bold text-[11px] text-pink-400">
+                  {targetRepliedMessage
+                    ? targetRepliedMessage.is_mine || targetRepliedMessage.sender_id === message.sender_id
+                      ? "Sen"
+                      : otherUserName || "Karşı Taraf"
+                    : "Alıntılanan Mesaj"}
+                </span>
+                <CornerUpLeft className="w-3 h-3 opacity-60 flex-shrink-0" />
               </div>
-              <div className="truncate mt-0.5">
-                {message.reply_to.message_type === "voice"
-                  ? "🎤 Sesli Mesaj"
-                  : message.reply_to.message_type === "image"
-                  ? "📷 Fotoğraf"
-                  : message.reply_to.content}
+              <div className="text-[11px] opacity-90 truncate line-clamp-1">
+                {targetRepliedMessage
+                  ? targetRepliedMessage.message_type === "voice"
+                    ? "🎤 Sesli Mesaj"
+                    : targetRepliedMessage.message_type === "image"
+                    ? "📷 Fotoğraf"
+                    : targetRepliedMessage.message_type === "video"
+                    ? "🎬 Video"
+                    : targetRepliedMessage.message_type === "file"
+                    ? "📄 Belge"
+                    : targetRepliedMessage.content
+                  : "Orijinal mesaja git..."}
               </div>
             </div>
           )}
@@ -514,6 +617,18 @@ export default function MessageBubble({
                     message.is_mine ? "right-0" : "left-0"
                   } w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl p-1 z-40 text-xs text-slate-200 animate-in fade-in zoom-in-95`}
                 >
+                  {/* Yanıtla (WhatsApp Style) */}
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setReplyingTo(message);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer text-slate-200"
+                  >
+                    <CornerUpLeft className="w-3.5 h-3.5 text-pink-400" />
+                    <span>Yanıtla</span>
+                  </button>
+
                   {/* Mesaj Bilgisi (Sadece benim mesajlarımda) */}
                   {message.is_mine && (
                     <button
@@ -528,7 +643,7 @@ export default function MessageBubble({
                     </button>
                   )}
 
-                  {/* Yıldızla */}
+                  {/* Yıldızla / Yıldızı Kaldır */}
                   <button
                     onClick={() => {
                       setShowMenu(false);
@@ -536,8 +651,17 @@ export default function MessageBubble({
                     }}
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
                   >
-                    <Star className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{message.is_starred ? "Yıldızı Kaldır" : "Yıldızla"}</span>
+                    {message.is_starred ? (
+                      <>
+                        <StarOff className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Yıldızı Kaldır</span>
+                      </>
+                    ) : (
+                      <>
+                        <Star className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Yıldızla</span>
+                      </>
+                    )}
                   </button>
 
                   {/* Düzenle (Sadece benim ve metin mesajlarında) */}
