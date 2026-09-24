@@ -205,12 +205,22 @@ services:
       - 'traefik.http.routers.fisilti-frontend-http.rule=${TRAEFIK_FRONTEND_RULE:-Host(`fisilti.app`)}'
       - 'traefik.http.routers.fisilti-frontend-http.entrypoints=http'
       - 'traefik.http.routers.fisilti-frontend-http.middlewares=fisilti-redirect-https,crowdsec@file'
+      # 1. Catch-all HTTPS Router (Statik assetler, _rsc, fetch/xhr, favicon, manifest için - Basic Auth challenge üretmez)
       - 'traefik.http.routers.fisilti-frontend.rule=${TRAEFIK_FRONTEND_RULE:-Host(`fisilti.app`)}'
       - 'traefik.http.routers.fisilti-frontend.entrypoints=https'
       - 'traefik.http.routers.fisilti-frontend.tls=true'
       - 'traefik.http.routers.fisilti-frontend.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.fisilti-frontend.middlewares=${TRAEFIK_FRONTEND_MIDDLEWARES:-crowdsec@file}'
       - 'traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}'
+      - 'traefik.http.routers.fisilti-frontend.service=fisilti-frontend'
+      # 2. Document/Navigation HTTPS Router (Yalnızca gerçek HTML GET navigation istekleri için - Basic Auth + CrowdSec)
+      - 'traefik.http.routers.fisilti-frontend-doc.rule=${TRAEFIK_FRONTEND_DOCUMENT_RULE:-(${TRAEFIK_FRONTEND_RULE:-Host(`fisilti.app`)}) && Method(`GET`) && HeadersRegexp(`Accept`, `text/html`)}'
+      - 'traefik.http.routers.fisilti-frontend-doc.entrypoints=https'
+      - 'traefik.http.routers.fisilti-frontend-doc.tls=true'
+      - 'traefik.http.routers.fisilti-frontend-doc.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.fisilti-frontend-doc.middlewares=${TRAEFIK_FRONTEND_DOCUMENT_MIDDLEWARES:-${TRAEFIK_FRONTEND_MIDDLEWARES:-crowdsec@file}}'
+      - 'traefik.http.routers.fisilti-frontend-doc.priority=${TRAEFIK_FRONTEND_DOCUMENT_PRIORITY:-60}'
+      - 'traefik.http.routers.fisilti-frontend-doc.service=fisilti-frontend'
       - 'traefik.http.services.fisilti-frontend.loadbalancer.server.port=${FRONTEND_PORT:-3000}'
 
 networks:
