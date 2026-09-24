@@ -223,6 +223,7 @@ func main() {
 	conversations.Post("/", chatHandler.StartConversation)
 	conversations.Get("/", chatHandler.GetConversations)
 	conversations.Get("/:id/messages", chatHandler.GetMessages)
+	conversations.Post("/:id/messages", chatHandler.CreateMessage)
 	conversations.Delete("/:id/clear", chatHandler.ClearHistory)
 	conversations.Delete("/:id", chatHandler.ClearHistory)
 
@@ -244,6 +245,7 @@ func main() {
 	// 24 Saatlik Hikaye / Durum Rotaları (WhatsApp & Instagram Modu)
 	stories := v1.Group("/stories", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	stories.Get("/", storyHandler.GetActiveStories)
+	stories.Get("/youtube-info", storyHandler.GetYouTubeInfo)
 	stories.Post("/", storyHandler.CreateStory)
 	stories.Post("/:id/view", storyHandler.MarkStoryViewed)
 	stories.Get("/:id/viewers", storyHandler.GetStoryViewers)

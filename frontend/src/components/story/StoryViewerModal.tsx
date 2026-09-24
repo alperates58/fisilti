@@ -3,22 +3,25 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useStoryStore, StoryAuthor } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useChatStore } from "@/store/useChatStore";
 import {
   X,
   Plus,
   Trash2,
   Eye,
   Music2,
-  ChevronLeft,
-  ChevronRight,
   Volume2,
   VolumeX,
   Send,
-  Sparkles,
 } from "lucide-react";
 import { formatStoryTime } from "@/lib/utils";
 import { api, resolveMediaUrl } from "@/lib/api";
-import { extractYouTubeVideoId, formatTimeSeconds } from "./StoryCreatorModal";
+import {
+  extractYouTubeVideoId,
+  formatTimeSeconds,
+  getTextStyleClasses,
+  getTextSizeClasses,
+} from "./StoryCreatorModal";
 
 export default function StoryViewerModal() {
   const { user } = useAuthStore();
@@ -57,6 +60,7 @@ export default function StoryViewerModal() {
       : 10)) * 1000;
 
   const ytVideoId = currentStory?.music_url ? extractYouTubeVideoId(currentStory.music_url) : null;
+  const hasMusic = Boolean(currentStory?.music_url || currentStory?.music_title || ytVideoId);
   const startSec = Math.max(0, currentStory?.music_start || 0);
   const storyDur = Math.max(5, currentStory?.duration_seconds || 10);
   const endSec =
@@ -64,26 +68,71 @@ export default function StoryViewerModal() {
       ? currentStory.music_end
       : startSec + storyDur;
 
-  const handleIframeLoad = useCallback(() => {
+  // YouTube API postMessage komut gönderici (dizi argüman formatı)
+  const sendYtCommand = useCallback((func: string, args: any[] = []) => {
     try {
       if (ytIframeRef.current?.contentWindow) {
         ytIframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: "command", func: isMuted ? "mute" : "unMute", args: "" }),
+          JSON.stringify({ event: "command", func, args }),
           "*"
         );
-        ytIframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
-          "*"
-        );
-        if (!isPaused) {
-          ytIframeRef.current.contentWindow.postMessage(
-            JSON.stringify({ event: "command", func: "playVideo", args: "" }),
-            "*"
-          );
-        }
       }
     } catch {}
-  }, [isMuted, isPaused]);
+  }, []);
+
+  // Ses durumunu değiştir (Mute / Unmute)
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const nextMuted = !prev;
+      sendYtCommand(nextMuted ? "mute" : "unMute", []);
+      if (!nextMuted) {
+        sendYtCommand("setVolume", [100]);
+        sendYtCommand("playVideo", []);
+      }
+      return nextMuted;
+    });
+  }, [sendYtCommand]);
+
+  // YouTube Iframe yüklendiğinde ve story açıldığında sesli otomatik başlatma
+  const handleIframeLoad = useCallback(() => {
+    sendYtCommand("setVolume", [100]);
+    sendYtCommand(isMuted ? "mute" : "unMute", []);
+    if (!isPaused) {
+      sendYtCommand("playVideo", []);
+    }
+
+    // Staggered retries: YouTube JS motoru hazır olduğunda hemen yakalasın
+    const retries = [150, 400, 800, 1400];
+    retries.forEach((delay) => {
+      setTimeout(() => {
+        sendYtCommand("setVolume", [100]);
+        sendYtCommand(isMuted ? "mute" : "unMute", []);
+        if (!isPaused) {
+          sendYtCommand("playVideo", []);
+        }
+      }, delay);
+    });
+  }, [isMuted, isPaused, sendYtCommand]);
+
+  // YouTube'un postMessage olaylarını dinle (onReady, stateChange)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (typeof event.data === "string") {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "onReady" || data.info?.playerState === 1 || data.info?.playerState === -1) {
+            sendYtCommand("setVolume", [100]);
+            sendYtCommand(isMuted ? "mute" : "unMute", []);
+            if (!isPaused) {
+              sendYtCommand("playVideo", []);
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [sendYtCommand, isMuted, isPaused]);
 
   // İleri git
   const handleNext = useCallback(() => {
@@ -165,29 +214,17 @@ export default function StoryViewerModal() {
 
   // YouTube Iframe oynatma kontrolü (duraklat / devam et)
   useEffect(() => {
-    if (ytVideoId && ytIframeRef.current) {
-      try {
-        const func = isPaused ? "pauseVideo" : "playVideo";
-        ytIframeRef.current.contentWindow?.postMessage(
-          JSON.stringify({ event: "command", func, args: "" }),
-          "*"
-        );
-      } catch {}
+    if (ytVideoId) {
+      sendYtCommand(isPaused ? "pauseVideo" : "playVideo", []);
     }
-  }, [isPaused, ytVideoId]);
+  }, [isPaused, ytVideoId, sendYtCommand]);
 
   // YouTube Iframe sessize alma kontrolü
   useEffect(() => {
-    if (ytVideoId && ytIframeRef.current) {
-      try {
-        const func = isMuted ? "mute" : "unMute";
-        ytIframeRef.current.contentWindow?.postMessage(
-          JSON.stringify({ event: "command", func, args: "" }),
-          "*"
-        );
-      } catch {}
+    if (ytVideoId) {
+      sendYtCommand(isMuted ? "mute" : "unMute", []);
     }
-  }, [isMuted, ytVideoId]);
+  }, [isMuted, ytVideoId, sendYtCommand]);
 
   if (!activeViewerGroup || !currentStory) return null;
 
@@ -219,12 +256,19 @@ export default function StoryViewerModal() {
       });
       const conversationId = convRes.data.id;
 
-      // 2. Mesaj gönder (hikaye alıntısıyla)
-      const storyContext = `📸 [Hikaye Yanıtı]: ${currentStory.caption || "Hikaye"} \n${replyText}`;
+      // 2. Mesaj metnini hazırla
+      const storyContext = `📸 [Hikaye Yanıtı]: ${currentStory.caption || "Hikaye"}\n${replyText.trim()}`;
+
+      // 3. REST API üzerinden mesaj gönder (POST /conversations/:id/messages)
       await api.post(`/conversations/${conversationId}/messages`, {
         content: storyContext,
         message_type: "text",
       });
+
+      // 4. Sohbet durumunu anında güncelle
+      try {
+        useChatStore.getState().sendMessage(conversationId, storyContext);
+      } catch {}
 
       setReplyText("");
       alert("Yanıtınız mesaj olarak iletildi!");
@@ -237,6 +281,13 @@ export default function StoryViewerModal() {
   };
 
   const resolvedMediaUrl = resolveMediaUrl(currentStory.media_url);
+
+  // Müzik rozetinin kaydedilmiş koordinatları
+  const musicBadgeSticker = Array.isArray(currentStory.stickers)
+    ? currentStory.stickers.find((s: any) => s.type === "music_badge")
+    : null;
+  const badgeX = musicBadgeSticker?.x ?? 30;
+  const badgeY = musicBadgeSticker?.y ?? 15;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center select-none animate-in fade-in duration-200">
@@ -306,17 +357,23 @@ export default function StoryViewerModal() {
               </div>
             </div>
 
-            {/* Sağ Üst Kontroller (Ses, Sil, Kapat) */}
-            <div className="flex items-center gap-1">
-              {(currentStory.music_url || ytVideoId) && (
+            {/* Sağ Üst Kontroller (Ses Aç/Kapat, Sil, Kapat) */}
+            <div className="flex items-center gap-1.5">
+              {/* SES AÇMA / KAPAMA BUTONU (Instagram Tarzı Her Zaman Erişilebilir) */}
+              {(hasMusic || currentStory.media_type === "video") && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsMuted(!isMuted);
+                    toggleMute();
                   }}
-                  className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                  title={isMuted ? "Sesi Aç" : "Sesi Kapat"}
+                  className="p-2 text-white hover:text-pink-400 rounded-full bg-black/40 hover:bg-black/60 border border-white/20 transition-all cursor-pointer"
                 >
-                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  {isMuted ? (
+                    <VolumeX className="w-4 h-4 text-rose-400" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-emerald-400 animate-pulse" />
+                  )}
                 </button>
               )}
 
@@ -402,63 +459,26 @@ export default function StoryViewerModal() {
             </div>
           )}
 
-          {/* STICKERLAR (Avatar, Çıkartmalar ve Metin Yazıları) */}
+          {/* SÜRÜKLENMİŞ ÇIKARTMALAR (Metin Yazıları, Emojiler) */}
           {Array.isArray(currentStory.stickers) &&
             currentStory.stickers.map((st, i) => {
-              if (st.type === "avatar" && st.avatar_url) {
+              if (st.type === "emoji" && st.emoji) {
                 return (
                   <div
-                    key={i}
+                    key={`st-emoji-${i}`}
                     style={{
-                      left: `${st.x || 50}%`,
-                      top: `${st.y || 40}%`,
+                      left: `${st.x ?? 50}%`,
+                      top: `${st.y ?? 50}%`,
                       transform: "translate(-50%, -50%)",
                     }}
-                    className="absolute z-20 w-16 h-16 rounded-full border-2 border-pink-400 shadow-2xl overflow-hidden pointer-events-none animate-bounce"
+                    className="absolute z-20 pointer-events-none select-none text-5xl sm:text-6xl drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)]"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={resolveMediaUrl(st.avatar_url)}
-                      alt="Avatar Sticker"
-                      className="w-full h-full object-cover"
-                    />
+                    {st.emoji}
                   </div>
                 );
               }
 
               if (st.type === "text" && st.text) {
-                const getStyleClass = (style: string) => {
-                  switch (style) {
-                    case "classic_white":
-                      return "bg-white/95 text-slate-900 border border-slate-200 shadow-xl";
-                    case "neon_pink":
-                      return "bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xl shadow-pink-500/40";
-                    case "vibrant_yellow":
-                      return "bg-amber-400 text-slate-950 font-black shadow-xl";
-                    case "emerald":
-                      return "bg-emerald-600 text-white shadow-xl";
-                    case "transparent":
-                      return "bg-transparent text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.9)] font-extrabold";
-                    case "classic_black":
-                    default:
-                      return "bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-sm";
-                  }
-                };
-
-                const getSizeClass = (size: string) => {
-                  switch (size) {
-                    case "sm":
-                      return "text-xs sm:text-sm";
-                    case "lg":
-                      return "text-base sm:text-lg font-bold";
-                    case "xl":
-                      return "text-lg sm:text-xl font-black";
-                    case "base":
-                    default:
-                      return "text-sm sm:text-base font-semibold";
-                  }
-                };
-
                 return (
                   <div
                     key={`st-text-${i}`}
@@ -467,9 +487,9 @@ export default function StoryViewerModal() {
                       top: `${st.y ?? 50}%`,
                       transform: "translate(-50%, -50%)",
                     }}
-                    className={`absolute z-20 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap pointer-events-none select-none transition-all ${getStyleClass(
+                    className={`absolute z-20 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap pointer-events-none select-none transition-all ${getTextStyleClasses(
                       st.style
-                    )} ${getSizeClass(st.fontSize)}`}
+                    )} ${getTextSizeClasses(st.fontSize)}`}
                   >
                     {st.text}
                   </div>
@@ -479,20 +499,28 @@ export default function StoryViewerModal() {
               return null;
             })}
 
-          {/* YOUTUBE MUSIC ROZETİ */}
+          {/* SÜRÜKLENMİŞ YOUTUBE MUSIC ROZETİ */}
           {(currentStory.music_title || ytVideoId) && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setIsMuted(!isMuted);
-                handleIframeLoad();
+                toggleMute();
+              }}
+              style={{
+                left: `${badgeX}%`,
+                top: `${badgeY}%`,
+                transform: "translate(-50%, -50%)",
               }}
               title="Müziği Aç / Kapat"
-              className="absolute top-20 left-4 z-20 flex items-center gap-2 bg-black/75 hover:bg-black/90 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white transition-all cursor-pointer"
+              className="absolute z-20 flex items-center gap-2 bg-black/80 hover:bg-black/95 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white transition-all cursor-pointer group"
             >
-              <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0 animate-pulse">
-                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Music2 className="w-3.5 h-3.5" />}
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0 transition-all ${
+                  isMuted ? "bg-slate-700" : "bg-rose-600 animate-pulse shadow-md"
+                }`}
+              >
+                {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-300" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
               </div>
               <div className="text-left pr-1 min-w-0 max-w-[200px]">
                 <div className="text-[11px] font-bold truncate">
@@ -504,7 +532,7 @@ export default function StoryViewerModal() {
                   <span>
                     {currentStory.music_artist && !currentStory.music_artist.startsWith("http")
                       ? currentStory.music_artist
-                      : "Müzik Parçası"}
+                      : "Müzik"}
                   </span>
                   <span className="w-1 h-1 rounded-full bg-emerald-400" />
                   <span className="text-[8px] text-emerald-400 font-mono">
@@ -520,18 +548,20 @@ export default function StoryViewerModal() {
             <iframe
               ref={ytIframeRef}
               key={`yt-story-${currentStory.id}-${ytVideoId}`}
-              src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&start=${startSec}&end=${endSec}&enablejsapi=1&controls=0&playsinline=1&modestbranding=1&mute=0`}
+              src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&mute=0&start=${startSec}&end=${endSec}&enablejsapi=1&controls=0&playsinline=1&modestbranding=1&origin=${
+                typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : ""
+              }`}
               allow="autoplay *; encrypted-media *; fullscreen *"
               onLoad={handleIframeLoad}
               style={{
-                position: "fixed",
-                left: "-9999px",
-                top: "-9999px",
-                width: "320px",
-                height: "180px",
-                opacity: 0.001,
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+                width: "1px",
+                height: "1px",
+                opacity: 0.01,
                 pointerEvents: "none",
-                zIndex: -1,
+                zIndex: 0,
               }}
               title="YouTube Story Audio"
             />
@@ -550,14 +580,14 @@ export default function StoryViewerModal() {
 
           {/* SOL & SAĞ DOKUNMA/TIKLAMA NAVİGASYONU */}
           <div
-            className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer"
+            className="absolute inset-y-0 left-0 w-1/3 z-10 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               handlePrev();
             }}
           />
           <div
-            className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer"
+            className="absolute inset-y-0 right-0 w-1/3 z-10 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               handleNext();
@@ -616,7 +646,6 @@ export default function StoryViewerModal() {
         {/* İzleyenler alt çekmecesi */}
         {viewersModalOpen && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end">
-            {/* Üst Karartma Katmanı (Tıklayınca Kapanır) */}
             <div
               onClick={(e) => {
                 e.stopPropagation();
@@ -626,12 +655,10 @@ export default function StoryViewerModal() {
               className="absolute inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
             />
 
-            {/* Alttan Açılan Çekmece Kartı */}
             <div
               onClick={(e) => e.stopPropagation()}
               className="relative z-10 w-full bg-slate-900/98 backdrop-blur-xl border-t border-slate-700/80 rounded-t-3xl p-5 flex flex-col max-h-[75%] shadow-2xl animate-in slide-in-from-bottom duration-300"
             >
-              {/* Üst Tutamaç Çubuğu (Drag Handle) */}
               <div
                 onClick={() => {
                   setViewersModalOpen(false);
@@ -640,7 +667,6 @@ export default function StoryViewerModal() {
                 className="w-12 h-1 bg-slate-600 rounded-full mx-auto mb-3.5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
               />
 
-              {/* Başlık ve Kapatma Butonu */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
                 <div className="flex items-center gap-2 text-sm font-bold text-white">
                   <Eye className="w-4 h-4 text-emerald-400" />
@@ -658,7 +684,6 @@ export default function StoryViewerModal() {
                 </button>
               </div>
 
-              {/* Kullanıcı Listesi */}
               <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 py-2 min-h-0">
                 {viewersList.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400">

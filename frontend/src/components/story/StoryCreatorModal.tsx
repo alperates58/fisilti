@@ -4,12 +4,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { compressImage } from "@/lib/compression";
-import { api, resolveMediaUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   X,
-  Camera,
   Image as ImageIcon,
-  Video,
   Type,
   Music,
   Smile,
@@ -21,7 +19,7 @@ import {
   Square,
   Clock,
   Sliders,
-  Volume2,
+  GripHorizontal,
 } from "lucide-react";
 
 export function extractYouTubeVideoId(url: string): string | null {
@@ -44,6 +42,14 @@ export interface StoryTextSticker {
   text: string;
   style: "classic_black" | "classic_white" | "neon_pink" | "vibrant_yellow" | "emerald" | "transparent";
   fontSize: "sm" | "base" | "lg" | "xl";
+  x: number;
+  y: number;
+}
+
+export interface StoryEmojiSticker {
+  id: string;
+  type: "emoji";
+  emoji: string;
   x: number;
   y: number;
 }
@@ -98,9 +104,19 @@ const MUSIC_PRESETS = [
   { title: "As It Was", artist: "Harry Styles", url: "https://music.youtube.com/watch?v=H5v3kku4y6Q" },
 ];
 
+const POPULAR_EMOJIS = [
+  "❤️", "💖", "🔥", "✨", "💯", "🌟",
+  "😂", "😍", "🥰", "😎", "🥳", "🥺",
+  "🤩", "👏", "🤍", "💫", "🎶", "☕",
+  "⚡", "🎉", "👑", "👀", "🙌", "🥂",
+  "🎈", "💐", "🚀", "💪",
+];
+
 export default function StoryCreatorModal() {
   const { user } = useAuthStore();
   const { isCreatorOpen, closeCreator, createStory } = useStoryStore();
+
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const [mode, setMode] = useState<"media" | "text">("media");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -118,18 +134,33 @@ export default function StoryCreatorModal() {
   const [musicEnd, setMusicEnd] = useState<number>(10);
   const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [isFetchingMusic, setIsFetchingMusic] = useState(false);
 
-  // Avatar çıkartması ekleme
-  const [hasAvatarSticker, setHasAvatarSticker] = useState(false);
+  // Müzik Rozeti Konumu (Sürüklenebilir)
+  const [musicBadgePos, setMusicBadgePos] = useState<{ x: number; y: number }>({ x: 30, y: 15 });
 
-  // Metin Katmanı (Instagram Tarzı Yazı Ekleme)
+  // Emoji Çıkartmaları
+  const [emojiStickers, setEmojiStickers] = useState<StoryEmojiSticker[]>([]);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+
+  // Metin Katmanı (Aa)
   const [textStickers, setTextStickers] = useState<StoryTextSticker[]>([]);
   const [isTextEditorOpen, setIsTextEditorOpen] = useState(false);
   const [editingStickerId, setEditingStickerId] = useState<string | null>(null);
   const [currentStickerText, setCurrentStickerText] = useState("");
   const [currentStickerStyle, setCurrentStickerStyle] = useState<StoryTextSticker["style"]>("classic_black");
   const [currentStickerSize, setCurrentStickerSize] = useState<StoryTextSticker["fontSize"]>("base");
-  const [currentStickerY, setCurrentStickerY] = useState<number>(50);
+
+  // Genel Sürükleme Durumu (Pointer Events)
+  const [dragState, setDragState] = useState<{
+    itemType: "music" | "text" | "emoji";
+    id?: string;
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    hasMoved: boolean;
+  } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -140,7 +171,9 @@ export default function StoryCreatorModal() {
   useEffect(() => {
     if (!isCreatorOpen) {
       setTextStickers([]);
+      setEmojiStickers([]);
       setIsTextEditorOpen(false);
+      setIsEmojiPickerOpen(false);
       setEditingStickerId(null);
       setCurrentStickerText("");
       setMediaFile(null);
@@ -149,10 +182,107 @@ export default function StoryCreatorModal() {
       setMusicTitle("");
       setMusicArtist("");
       setMusicUrl("");
-      setHasAvatarSticker(false);
+      setMusicBadgePos({ x: 30, y: 15 });
       setIsPreviewPlaying(false);
+      setDragState(null);
     }
   }, [isCreatorOpen]);
+
+  // YouTube / YouTube Music linki değiştiğinde otomatik şarkı & sanatçı adı çekme
+  const handleMusicUrlChange = async (val: string) => {
+    setMusicUrl(val);
+    const vid = extractYouTubeVideoId(val);
+    if (!vid) {
+      if (!val.trim()) {
+        setMusicTitle("");
+        setMusicArtist("");
+        setIsPreviewPlaying(false);
+      }
+      return;
+    }
+
+    setIsFetchingMusic(true);
+    try {
+      const res = await api.get(`/stories/youtube-info?url=${encodeURIComponent(val)}`);
+      if (res.data?.title) {
+        setMusicTitle(res.data.title);
+      }
+      if (res.data?.artist) {
+        setMusicArtist(res.data.artist);
+      }
+    } catch (err) {
+      console.warn("YouTube bilgisi alınamadı:", err);
+      if (!musicTitle) {
+        setMusicTitle("YouTube Parçası");
+      }
+    } finally {
+      setIsFetchingMusic(false);
+      setIsPreviewPlaying(true);
+    }
+  };
+
+  // Sürüklemeyi Başlat (Mouse ve Dokunmatik Ekran)
+  const handleStartDrag = (
+    e: React.PointerEvent,
+    itemType: "music" | "text" | "emoji",
+    id?: string,
+    currentX?: number,
+    currentY?: number
+  ) => {
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    } catch {}
+
+    setDragState({
+      itemType,
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX ?? (itemType === "music" ? musicBadgePos.x : 50),
+      initialY: currentY ?? (itemType === "music" ? musicBadgePos.y : 50),
+      hasMoved: false,
+    });
+  };
+
+  // Sürükleme Hareketi
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragState || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const deltaX = ((e.clientX - dragState.startX) / rect.width) * 100;
+    const deltaY = ((e.clientY - dragState.startY) / rect.height) * 100;
+
+    if (Math.abs(e.clientX - dragState.startX) > 4 || Math.abs(e.clientY - dragState.startY) > 4) {
+      if (!dragState.hasMoved) {
+        setDragState((prev) => (prev ? { ...prev, hasMoved: true } : null));
+      }
+    }
+
+    const nextX = Math.max(10, Math.min(90, Math.round(dragState.initialX + deltaX)));
+    const nextY = Math.max(8, Math.min(92, Math.round(dragState.initialY + deltaY)));
+
+    if (dragState.itemType === "music") {
+      setMusicBadgePos({ x: nextX, y: nextY });
+    } else if (dragState.itemType === "text" && dragState.id) {
+      setTextStickers((prev) =>
+        prev.map((s) => (s.id === dragState.id ? { ...s, x: nextX, y: nextY } : s))
+      );
+    } else if (dragState.itemType === "emoji" && dragState.id) {
+      setEmojiStickers((prev) =>
+        prev.map((s) => (s.id === dragState.id ? { ...s, x: nextX, y: nextY } : s))
+      );
+    }
+  };
+
+  // Sürükleme Bitişi
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragState) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+      } catch {}
+      setDragState(null);
+    }
+  };
 
   const handleOpenTextEditor = (stickerToEdit?: StoryTextSticker) => {
     if (stickerToEdit) {
@@ -160,13 +290,11 @@ export default function StoryCreatorModal() {
       setCurrentStickerText(stickerToEdit.text);
       setCurrentStickerStyle(stickerToEdit.style);
       setCurrentStickerSize(stickerToEdit.fontSize);
-      setCurrentStickerY(stickerToEdit.y);
     } else {
       setEditingStickerId(null);
       setCurrentStickerText("");
       setCurrentStickerStyle("classic_black");
       setCurrentStickerSize("base");
-      setCurrentStickerY(50);
     }
     setIsTextEditorOpen(true);
   };
@@ -183,7 +311,6 @@ export default function StoryCreatorModal() {
                 text: currentStickerText.trim(),
                 style: currentStickerStyle,
                 fontSize: currentStickerSize,
-                y: currentStickerY,
               }
             : s
         )
@@ -196,7 +323,7 @@ export default function StoryCreatorModal() {
         style: currentStickerStyle,
         fontSize: currentStickerSize,
         x: 50,
-        y: currentStickerY,
+        y: 50,
       };
       setTextStickers((prev) => [...prev, newSticker]);
     }
@@ -209,14 +336,12 @@ export default function StoryCreatorModal() {
   const handleDurationChange = (dur: number) => {
     setDurationSeconds(dur);
     setMusicEnd(musicStart + dur);
-    setIsPreviewPlaying(false);
   };
 
   // Başlangıç saniyesi değiştiğinde
   const handleStartChange = (startVal: number) => {
     setMusicStart(startVal);
     setMusicEnd(startVal + durationSeconds);
-    setIsPreviewPlaying(false);
   };
 
   // Canlı önizleme zamanlayıcısı: süre dolunca otomatik durdur
@@ -247,7 +372,6 @@ export default function StoryCreatorModal() {
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
     } else {
-      // Görseli sıkıştır
       const compressed = await compressImage(file, 1600, 0.85);
       setMediaFile(compressed);
       setMediaPreview(URL.createObjectURL(compressed));
@@ -265,7 +389,6 @@ export default function StoryCreatorModal() {
 
       if (mode === "media" && mediaFile) {
         finalMediaType = mediaType;
-        // Dosyayı MinIO sunucusuna yükle
         const formData = new FormData();
         formData.append("file", mediaFile);
         formData.append("category", mediaType);
@@ -278,14 +401,17 @@ export default function StoryCreatorModal() {
 
       // Çıkartmalar ve metin katmanları listesi
       const stickers: any[] = [];
-      if (hasAvatarSticker && user?.avatar_url) {
+
+      // 1. YouTube Müzik Rozeti konumu
+      if (musicTitle || extractedVideoId) {
         stickers.push({
-          type: "avatar",
-          avatar_url: user.avatar_url,
-          x: 50,
-          y: 40,
+          type: "music_badge",
+          x: musicBadgePos.x,
+          y: musicBadgePos.y,
         });
       }
+
+      // 2. Metin katmanları
       textStickers.forEach((ts) => {
         stickers.push({
           type: "text",
@@ -294,6 +420,16 @@ export default function StoryCreatorModal() {
           fontSize: ts.fontSize,
           x: ts.x,
           y: ts.y,
+        });
+      });
+
+      // 3. Emoji çıkartmaları
+      emojiStickers.forEach((es) => {
+        stickers.push({
+          type: "emoji",
+          emoji: es.emoji,
+          x: es.x,
+          y: es.y,
         });
       });
 
@@ -356,8 +492,14 @@ export default function StoryCreatorModal() {
           </div>
         </div>
 
-        {/* 2. MERKEZ ÖNİZLEME ALANI */}
-        <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden">
+        {/* 2. MERKEZ TUVAL & SÜRÜKLEME ALANI */}
+        <div
+          ref={canvasRef}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative flex-1 w-full flex items-center justify-center overflow-hidden touch-none"
+        >
           {mode === "media" && mediaPreview ? (
             <>
               {mediaType === "image" ? (
@@ -365,7 +507,7 @@ export default function StoryCreatorModal() {
                 <img
                   src={mediaPreview}
                   alt="Önizleme"
-                  className="w-full h-full object-contain pointer-events-none"
+                  className="w-full h-full object-contain pointer-events-none select-none"
                 />
               ) : (
                 <video
@@ -374,14 +516,14 @@ export default function StoryCreatorModal() {
                   loop
                   muted
                   playsInline
-                  className="w-full h-full object-contain pointer-events-none"
+                  className="w-full h-full object-contain pointer-events-none select-none"
                 />
               )}
             </>
           ) : (
             /* Metin Modu veya Medya Seçilmemişse */
             <div
-              className={`w-full h-full bg-gradient-to-br ${selectedGradient} flex flex-col items-center justify-center p-6 text-center`}
+              className={`w-full h-full bg-gradient-to-br ${selectedGradient} flex flex-col items-center justify-center p-6 text-center select-none`}
             >
               <textarea
                 value={caption}
@@ -394,54 +536,72 @@ export default function StoryCreatorModal() {
             </div>
           )}
 
-          {/* AVATAR ÇIKARTMASI ÖNİZLEMESİ */}
-          {hasAvatarSticker && user?.avatar_url && (
-            <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-18 h-18 rounded-full border-3 border-pink-400 shadow-2xl overflow-hidden animate-bounce pointer-events-none z-20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={resolveMediaUrl(user.avatar_url)}
-                alt="Avatar Çıkartması"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-
-          {/* YOUTUBE MUSIC ROZETİ ÖNİZLEMESİ */}
+          {/* SÜRÜKLENEBİLİR YOUTUBE MUSIC ROZETİ */}
           {(musicTitle || extractedVideoId) && (
-            <div className="absolute top-16 left-4 z-20 flex items-center gap-2 bg-black/75 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
-              <div className="w-5 h-5 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0">
-                <Music className="w-3 h-3" />
+            <div
+              style={{
+                left: `${musicBadgePos.x}%`,
+                top: `${musicBadgePos.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+              onPointerDown={(e) => handleStartDrag(e, "music", undefined, musicBadgePos.x, musicBadgePos.y)}
+              className="absolute z-30 flex items-center gap-2.5 bg-black/80 hover:bg-black/95 backdrop-blur-md border border-white/25 rounded-full px-3 py-1.5 shadow-2xl text-white cursor-grab active:cursor-grabbing touch-none select-none group"
+            >
+              <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0 shadow-md">
+                <Music className="w-3.5 h-3.5" />
               </div>
-              <div className="text-left pr-1 max-w-[170px] truncate text-[11px] font-bold">
-                <div>{musicTitle || "YouTube Music"}</div>
-                <div className="text-[9px] text-slate-300 font-normal">
-                  {formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)}
+              <div className="text-left pr-1 max-w-[180px] truncate text-[11px] font-bold">
+                <div className="truncate">{musicTitle || "YouTube Music"}</div>
+                <div className="text-[9px] text-slate-300 font-normal truncate">
+                  {musicArtist || "Müzik"} • {formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)}
                 </div>
               </div>
               <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   setMusicTitle("");
+                  setMusicArtist("");
                   setMusicUrl("");
                   setIsPreviewPlaying(false);
                 }}
-                className="p-0.5 text-white/60 hover:text-white"
+                title="Şarkıyı Kaldır"
+                className="p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
 
-          {/* HIZLI YAZI EKLEME BUTONU (Aa) */}
-          <button
-            type="button"
-            onClick={() => handleOpenTextEditor()}
-            title="Yazı Ekle"
-            className="absolute top-16 right-4 z-20 w-9 h-9 rounded-full bg-black/75 hover:bg-black/90 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xl transition-transform hover:scale-105 active:scale-95 cursor-pointer"
-          >
-            <span className="font-serif font-black text-sm tracking-tighter">Aa</span>
-          </button>
+          {/* SÜRÜKLENEBİLİR EMOJİ ÇIKARTMALARI */}
+          {emojiStickers.map((es) => (
+            <div
+              key={es.id}
+              style={{
+                left: `${es.x}%`,
+                top: `${es.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+              onPointerDown={(e) => handleStartDrag(e, "emoji", es.id, es.x, es.y)}
+              className="absolute z-30 cursor-grab active:cursor-grabbing touch-none select-none group flex items-center justify-center"
+            >
+              <span className="text-5xl sm:text-6xl drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] filter transition-transform group-hover:scale-110">
+                {es.emoji}
+              </span>
+              {/* Silme Butonu */}
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setEmojiStickers((prev) => prev.filter((s) => s.id !== es.id))}
+                title="Çıkartmayı Sil"
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-lg opacity-80 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3 stroke-[3]" />
+              </button>
+            </div>
+          ))}
 
-          {/* EKLENEN METİN YAZILARI ÖNİZLEMESİ */}
+          {/* SÜRÜKLENEBİLİR METİN YAZILARI (Aa) */}
           {textStickers.map((ts) => (
             <div
               key={ts.id}
@@ -450,8 +610,13 @@ export default function StoryCreatorModal() {
                 top: `${ts.y}%`,
                 transform: "translate(-50%, -50%)",
               }}
-              onClick={() => handleOpenTextEditor(ts)}
-              className={`absolute z-30 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap cursor-pointer group hover:ring-2 hover:ring-pink-400 transition-all ${getTextStyleClasses(
+              onPointerDown={(e) => handleStartDrag(e, "text", ts.id, ts.x, ts.y)}
+              onClick={() => {
+                if (!dragState?.hasMoved) {
+                  handleOpenTextEditor(ts);
+                }
+              }}
+              className={`absolute z-30 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap cursor-grab active:cursor-grabbing touch-none select-none group hover:ring-2 hover:ring-pink-400 transition-all ${getTextStyleClasses(
                 ts.style
               )} ${getTextSizeClasses(ts.fontSize)}`}
             >
@@ -459,6 +624,7 @@ export default function StoryCreatorModal() {
               {/* Silme Rozeti */}
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   setTextStickers((prev) => prev.filter((s) => s.id !== ts.id));
@@ -478,14 +644,14 @@ export default function StoryCreatorModal() {
               src={`https://www.youtube.com/embed/${extractedVideoId}?autoplay=1&start=${musicStart}&end=${musicEnd}&enablejsapi=1&controls=0&playsinline=1&mute=0`}
               allow="autoplay *; encrypted-media *; fullscreen *"
               style={{
-                position: "fixed",
-                left: "-9999px",
-                top: "-9999px",
-                width: "320px",
-                height: "180px",
-                opacity: 0.001,
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+                width: "1px",
+                height: "1px",
+                opacity: 0.01,
                 pointerEvents: "none",
-                zIndex: -1,
+                zIndex: 0,
               }}
               title="YouTube Preview"
             />
@@ -494,7 +660,6 @@ export default function StoryCreatorModal() {
           {/* METİN EKLEME EDİTÖRÜ MODALI */}
           {isTextEditorOpen && (
             <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between p-4 animate-in fade-in duration-200">
-              {/* Üst Bar: Vazgeç, Konum ve Bitti */}
               <div className="flex items-center justify-between">
                 <button
                   type="button"
@@ -507,35 +672,7 @@ export default function StoryCreatorModal() {
                   Vazgeç
                 </button>
 
-                <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl p-0.5 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStickerY(25)}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
-                      currentStickerY === 25 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Üst
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStickerY(50)}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
-                      currentStickerY === 50 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Orta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStickerY(75)}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
-                      currentStickerY === 75 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    Alt
-                  </button>
-                </div>
+                <span className="text-xs font-bold text-white">Yazı Düzenle</span>
 
                 <button
                   type="button"
@@ -564,7 +701,6 @@ export default function StoryCreatorModal() {
 
               {/* Alt Kontroller: Boyut ve Stil Presetleri */}
               <div className="flex flex-col gap-3 pb-2">
-                {/* Boyut Seçimi */}
                 <div className="flex items-center justify-center gap-1.5">
                   <span className="text-[11px] text-slate-400 font-semibold mr-1">Boyut:</span>
                   {(["sm", "base", "lg", "xl"] as const).map((sz) => (
@@ -583,7 +719,6 @@ export default function StoryCreatorModal() {
                   ))}
                 </div>
 
-                {/* Stil Seçimi */}
                 <div className="flex items-center justify-center gap-2 overflow-x-auto py-1">
                   {[
                     { id: "classic_black", label: "Siyah", bg: "bg-black border border-white/40 text-white" },
@@ -608,6 +743,50 @@ export default function StoryCreatorModal() {
               </div>
             </div>
           )}
+
+          {/* INSTAGRAM EMOJİ / ÇIKARTMA SEÇİCİ POPUP */}
+          {isEmojiPickerOpen && (
+            <div className="absolute inset-x-2 bottom-3 z-50 bg-slate-900/98 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-4 shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Smile className="w-4 h-4 text-amber-400" />
+                  <span>Çıkartma & İfade Ekle</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsEmojiPickerOpen(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto no-scrollbar py-1">
+                {POPULAR_EMOJIS.map((em, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setEmojiStickers((prev) => [
+                        ...prev,
+                        {
+                          id: `emoji_${Date.now()}_${idx}`,
+                          type: "emoji",
+                          emoji: em,
+                          x: 50,
+                          y: 40 + (prev.length % 3) * 10,
+                        },
+                      ]);
+                      setIsEmojiPickerOpen(false);
+                    }}
+                    className="w-10 h-10 rounded-2xl bg-slate-800/80 hover:bg-slate-700 flex items-center justify-center text-2xl transition-transform hover:scale-125 active:scale-95 cursor-pointer"
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. ARAÇ ÇUBUĞU (Medya, Metin, Müzik, Çıkartma, Renk) */}
@@ -619,7 +798,7 @@ export default function StoryCreatorModal() {
               <div className="flex items-center justify-between text-xs text-white font-semibold border-b border-slate-800 pb-2">
                 <span className="flex items-center gap-1.5 text-rose-400 font-bold">
                   <Music className="w-4 h-4 text-rose-500" />
-                  YouTube Music Şarkı & Aralık Ayarı
+                  YouTube Music Şarkı Ekle
                 </span>
                 <button
                   onClick={() => setIsMusicPickerOpen(false)}
@@ -629,43 +808,84 @@ export default function StoryCreatorModal() {
                 </button>
               </div>
 
-              {/* URL Girişi */}
+              {/* URL Girişi ve Otomatik Bilgi Çekme */}
               <div>
-                <label className="text-[10px] text-slate-400 font-semibold mb-1 block">
-                  YouTube Music veya YouTube Şarkı Linki:
+                <label className="text-[10px] text-slate-400 font-semibold mb-1 flex items-center justify-between">
+                  <span>YouTube Music veya YouTube Şarkı Linki:</span>
+                  {isFetchingMusic && (
+                    <span className="flex items-center gap-1 text-rose-400 text-[10px]">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Şarkı bulunuyor...</span>
+                    </span>
+                  )}
                 </label>
-                <input
-                  type="text"
-                  value={musicUrl}
-                  onChange={(e) => {
-                    setMusicUrl(e.target.value);
-                    const vid = extractYouTubeVideoId(e.target.value);
-                    if (vid && !musicTitle) {
-                      setMusicTitle("YouTube Parçası");
-                    }
-                  }}
-                  placeholder="https://music.youtube.com/watch?v=..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={musicUrl}
+                    onChange={(e) => handleMusicUrlChange(e.target.value)}
+                    placeholder="https://music.youtube.com/watch?v=..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono pr-8"
+                  />
+                  {musicUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMusicUrl("");
+                        setMusicTitle("");
+                        setMusicArtist("");
+                        setIsPreviewPlaying(false);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Şarkı Başlığı ve Sanatçı (İsteğe Bağlı) */}
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={musicTitle}
-                  onChange={(e) => setMusicTitle(e.target.value)}
-                  placeholder="Şarkı Adı (örn: Blinding Lights)"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
-                />
-                <input
-                  type="text"
-                  value={musicArtist}
-                  onChange={(e) => setMusicArtist(e.target.value)}
-                  placeholder="Sanatçı (örn: The Weeknd)"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
-                />
-              </div>
+              {/* Tespit Edilen Şarkı Kartı */}
+              {(musicTitle || extractedVideoId) && (
+                <div className="bg-slate-900 border border-rose-500/30 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center text-white flex-shrink-0">
+                      <Music className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white truncate">
+                        {musicTitle || "YouTube Parçası"}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {musicArtist || "YouTube"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {extractedVideoId && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 flex-shrink-0 transition-all ${
+                        isPreviewPlaying
+                          ? "bg-rose-600 text-white animate-pulse"
+                          : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      }`}
+                    >
+                      {isPreviewPlaying ? (
+                        <>
+                          <Square className="w-3 h-3 fill-white" />
+                          <span>Durdur</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 fill-white" />
+                          <span>Dinle</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Hikaye Oynatma Süresi Seçici */}
               <div>
@@ -720,35 +940,10 @@ export default function StoryCreatorModal() {
                 </div>
               </div>
 
-              {/* Canlı Dinle / Önizleme Butonu */}
-              {extractedVideoId && (
-                <button
-                  type="button"
-                  onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
-                  className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    isPreviewPlaying
-                      ? "bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-600/30"
-                      : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20"
-                  }`}
-                >
-                  {isPreviewPlaying ? (
-                    <>
-                      <Square className="w-3.5 h-3.5 fill-white" />
-                      <span>Önizlemeyi Durdur ({formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)})</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>▶ Canlı Dinle ({formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)})</span>
-                    </>
-                  )}
-                </button>
-              )}
-
               {/* Hazır Popüler Parçalar */}
               <div>
                 <span className="text-[10px] text-slate-400 font-semibold block mb-1">
-                  Veya Hazır Popüler Şarkılardan Seç:
+                  Veya Popüler Şarkılardan Seç:
                 </span>
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                   {MUSIC_PRESETS.map((m, idx) => (
@@ -759,7 +954,7 @@ export default function StoryCreatorModal() {
                         setMusicTitle(m.title);
                         setMusicArtist(m.artist);
                         setMusicUrl(m.url);
-                        setIsPreviewPlaying(false);
+                        setIsPreviewPlaying(true);
                       }}
                       className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/20 hover:border-rose-500/40 border border-slate-700 text-[10px] text-slate-300 hover:text-white transition-all text-left"
                     >
@@ -844,13 +1039,13 @@ export default function StoryCreatorModal() {
                 <Music className="w-4 h-4" />
               </button>
 
-              {/* Avatar Çıkartması Ekle */}
+              {/* Çıkartma & Emoji Ekle (Instagram Modu) */}
               <button
                 type="button"
-                onClick={() => setHasAvatarSticker(!hasAvatarSticker)}
-                title="Avatarını Çıkartma Olarak Ekle"
+                onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+                title="Kalp & Gülücük Çıkartması Ekle"
                 className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-                  hasAvatarSticker
+                  emojiStickers.length > 0
                     ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
@@ -894,7 +1089,7 @@ export default function StoryCreatorModal() {
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSubmitting || (mode === "media" && !mediaFile && !caption && textStickers.length === 0)}
+            disabled={isSubmitting || (mode === "media" && !mediaFile && !caption && textStickers.length === 0 && emojiStickers.length === 0)}
             className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:opacity-95 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             {isSubmitting ? (

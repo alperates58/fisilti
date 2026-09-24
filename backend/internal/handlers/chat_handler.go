@@ -316,5 +316,83 @@ func (h *ChatHandler) ToggleStar(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"is_starred": starred})
 }
 
+// CreateMessage - REST API üzerinden mesaj gönderir (örn: hikaye yanıtı veya harici istemciler)
+func (h *ChatHandler) CreateMessage(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	convID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz konuşma ID."})
+	}
+
+	var req struct {
+		Content     string     `json:"content"`
+		MessageType string     `json:"message_type"`
+		MediaURL    string     `json:"media_url"`
+		ReplyToID   *uuid.UUID `json:"reply_to_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı."})
+	}
+
+	if strings.TrimSpace(req.Content) == "" && req.MediaURL == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Mesaj içeriği boş olamaz."})
+	}
+
+	conv, err := h.chatRepo.GetConversationByID(c.Context(), convID)
+	if err != nil || conv == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Konuşma bulunamadı."})
+	}
+
+	var recipientID uuid.UUID
+	if conv.UserOneID == userID {
+		recipientID = conv.UserTwoID
+	} else if conv.UserTwoID == userID {
+		recipientID = conv.UserOneID
+	} else {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu sohbete mesaj gönderme yetkiniz yok."})
+	}
+
+	msgType := req.MessageType
+	if msgType == "" {
+		msgType = "text"
+	}
+
+	msgModel := &models.Message{
+		ConversationID: convID,
+		SenderID:       userID,
+		RecipientID:    recipientID,
+		ReplyToID:      req.ReplyToID,
+		MessageType:    msgType,
+		Content:        strings.TrimSpace(req.Content),
+		MediaURL:       req.MediaURL,
+		MediaMetadata:  []byte("{}"),
+	}
+
+	if err := h.chatRepo.SaveMessage(c.Context(), msgModel); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Mesaj kaydedilemedi."})
+	}
+
+	// Alıcı online ise WebSocket ile ilet
+	if h.hub != nil {
+		recipientOnline := h.hub.IsUserConnected(recipientID)
+		if recipientOnline {
+			newMsgForRecipient := msgModel.ToResponse(recipientID)
+			newMsgPayload, _ := fisiltiws.NewWSMessage("new_message", newMsgForRecipient)
+			h.hub.SendToUser(recipientID, newMsgPayload)
+
+			deliveredIDs, deliveredAt, _ := h.chatRepo.MarkMessagesAsDelivered(c.Context(), recipientID, []uuid.UUID{msgModel.ID})
+			if len(deliveredIDs) > 0 {
+				deliveredPayload, _ := fisiltiws.NewWSMessage("message_delivered", fisiltiws.MessageDeliveredPayload{
+					MessageIDs:  deliveredIDs,
+					DeliveredAt: deliveredAt,
+				})
+				h.hub.SendToUser(userID, deliveredPayload)
+			}
+		}
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(msgModel.ToResponse(userID))
+}
+
 // Unused warning prevention
 var _ = json.Marshal

@@ -1,6 +1,13 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	"fisilti/internal/database"
 	"fisilti/internal/models"
 	"github.com/gofiber/fiber/v2"
@@ -129,4 +136,39 @@ func (h *StoryHandler) DeleteStory(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"status": "deleted"})
+}
+
+// GetYouTubeInfo - YouTube / YouTube Music linkinden şarkı ve sanatçı adını çeker
+func (h *StoryHandler) GetYouTubeInfo(c *fiber.Ctx) error {
+	videoURL := c.Query("url")
+	if videoURL == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "url parametresi gerekli"})
+	}
+
+	oembedURL := fmt.Sprintf("https://www.youtube.com/oembed?url=%s&format=json", url.QueryEscape(videoURL))
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(oembedURL)
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "YouTube bilgisi alınamadı"})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Video bulunamadı"})
+	}
+
+	var data struct {
+		Title      string `json:"title"`
+		AuthorName string `json:"author_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Yanıt ayrıştırılamadı"})
+	}
+
+	cleanAuthor := strings.TrimSuffix(data.AuthorName, " - Topic")
+
+	return c.JSON(fiber.Map{
+		"title":  data.Title,
+		"artist": cleanAuthor,
+	})
 }
