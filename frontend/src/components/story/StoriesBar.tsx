@@ -57,16 +57,16 @@ export default function StoriesBar() {
               </div>
             </button>
 
-            {/* '+' Ekleme Rozeti */}
+            {/* Yeni hikaye ekleme butonu */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 openCreator();
               }}
               title="Yeni Hikaye Paylaş"
-              className="absolute bottom-0 right-0 w-4.5 h-4.5 rounded-full bg-pink-500 hover:bg-pink-400 text-white flex items-center justify-center shadow-md border-2 border-grupo-dark-card transition-transform hover:scale-110 cursor-pointer"
+              className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-pink-600 hover:bg-pink-500 text-white flex items-center justify-center shadow-lg border-2 border-slate-950 transition-all hover:scale-115 active:scale-95 cursor-pointer z-10"
             >
-              <Plus className="w-3 h-3 stroke-[3]" />
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
             </button>
           </div>
 

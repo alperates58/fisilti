@@ -27,7 +27,7 @@ import {
 export function extractYouTubeVideoId(url: string): string | null {
   if (!url) return null;
   const match = url.match(
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/|music\.youtube\.com\/(?:watch\?v=|.*[?&]v=))([a-zA-Z0-9_-]{11})/i
   );
   return match ? match[1] : null;
 }
@@ -36,6 +36,48 @@ export function formatTimeSeconds(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+export interface StoryTextSticker {
+  id: string;
+  type: "text";
+  text: string;
+  style: "classic_black" | "classic_white" | "neon_pink" | "vibrant_yellow" | "emerald" | "transparent";
+  fontSize: "sm" | "base" | "lg" | "xl";
+  x: number;
+  y: number;
+}
+
+export function getTextStyleClasses(style: StoryTextSticker["style"]): string {
+  switch (style) {
+    case "classic_white":
+      return "bg-white/95 text-slate-900 border border-slate-200 shadow-xl";
+    case "neon_pink":
+      return "bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xl shadow-pink-500/40";
+    case "vibrant_yellow":
+      return "bg-amber-400 text-slate-950 font-black shadow-xl";
+    case "emerald":
+      return "bg-emerald-600 text-white shadow-xl";
+    case "transparent":
+      return "bg-transparent text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.9)] font-extrabold";
+    case "classic_black":
+    default:
+      return "bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-sm";
+  }
+}
+
+export function getTextSizeClasses(size: StoryTextSticker["fontSize"]): string {
+  switch (size) {
+    case "sm":
+      return "text-xs sm:text-sm";
+    case "lg":
+      return "text-base sm:text-lg font-bold";
+    case "xl":
+      return "text-lg sm:text-xl font-black";
+    case "base":
+    default:
+      return "text-sm sm:text-base font-semibold";
+  }
 }
 
 const GRADIENT_PRESETS = [
@@ -80,10 +122,88 @@ export default function StoryCreatorModal() {
   // Avatar çıkartması ekleme
   const [hasAvatarSticker, setHasAvatarSticker] = useState(false);
 
+  // Metin Katmanı (Instagram Tarzı Yazı Ekleme)
+  const [textStickers, setTextStickers] = useState<StoryTextSticker[]>([]);
+  const [isTextEditorOpen, setIsTextEditorOpen] = useState(false);
+  const [editingStickerId, setEditingStickerId] = useState<string | null>(null);
+  const [currentStickerText, setCurrentStickerText] = useState("");
+  const [currentStickerStyle, setCurrentStickerStyle] = useState<StoryTextSticker["style"]>("classic_black");
+  const [currentStickerSize, setCurrentStickerSize] = useState<StoryTextSticker["fontSize"]>("base");
+  const [currentStickerY, setCurrentStickerY] = useState<number>(50);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const extractedVideoId = extractYouTubeVideoId(musicUrl);
+
+  // Modal kapandığında state temizle
+  useEffect(() => {
+    if (!isCreatorOpen) {
+      setTextStickers([]);
+      setIsTextEditorOpen(false);
+      setEditingStickerId(null);
+      setCurrentStickerText("");
+      setMediaFile(null);
+      setMediaPreview("");
+      setCaption("");
+      setMusicTitle("");
+      setMusicArtist("");
+      setMusicUrl("");
+      setHasAvatarSticker(false);
+      setIsPreviewPlaying(false);
+    }
+  }, [isCreatorOpen]);
+
+  const handleOpenTextEditor = (stickerToEdit?: StoryTextSticker) => {
+    if (stickerToEdit) {
+      setEditingStickerId(stickerToEdit.id);
+      setCurrentStickerText(stickerToEdit.text);
+      setCurrentStickerStyle(stickerToEdit.style);
+      setCurrentStickerSize(stickerToEdit.fontSize);
+      setCurrentStickerY(stickerToEdit.y);
+    } else {
+      setEditingStickerId(null);
+      setCurrentStickerText("");
+      setCurrentStickerStyle("classic_black");
+      setCurrentStickerSize("base");
+      setCurrentStickerY(50);
+    }
+    setIsTextEditorOpen(true);
+  };
+
+  const handleSaveTextSticker = () => {
+    if (!currentStickerText.trim()) return;
+
+    if (editingStickerId) {
+      setTextStickers((prev) =>
+        prev.map((s) =>
+          s.id === editingStickerId
+            ? {
+                ...s,
+                text: currentStickerText.trim(),
+                style: currentStickerStyle,
+                fontSize: currentStickerSize,
+                y: currentStickerY,
+              }
+            : s
+        )
+      );
+    } else {
+      const newSticker: StoryTextSticker = {
+        id: `text_${Date.now()}`,
+        type: "text",
+        text: currentStickerText.trim(),
+        style: currentStickerStyle,
+        fontSize: currentStickerSize,
+        x: 50,
+        y: currentStickerY,
+      };
+      setTextStickers((prev) => [...prev, newSticker]);
+    }
+
+    setIsTextEditorOpen(false);
+    setEditingStickerId(null);
+  };
 
   // Süre değiştiğinde bitiş saniyesini güncelle
   const handleDurationChange = (dur: number) => {
@@ -156,7 +276,7 @@ export default function StoryCreatorModal() {
         finalMediaUrl = uploadRes.data.media_url;
       }
 
-      // Çıkartmalar listesi
+      // Çıkartmalar ve metin katmanları listesi
       const stickers: any[] = [];
       if (hasAvatarSticker && user?.avatar_url) {
         stickers.push({
@@ -166,6 +286,16 @@ export default function StoryCreatorModal() {
           y: 40,
         });
       }
+      textStickers.forEach((ts) => {
+        stickers.push({
+          type: "text",
+          text: ts.text,
+          style: ts.style,
+          fontSize: ts.fontSize,
+          x: ts.x,
+          y: ts.y,
+        });
+      });
 
       await createStory({
         media_type: finalMediaType,
@@ -301,15 +431,182 @@ export default function StoryCreatorModal() {
             </div>
           )}
 
+          {/* HIZLI YAZI EKLEME BUTONU (Aa) */}
+          <button
+            type="button"
+            onClick={() => handleOpenTextEditor()}
+            title="Yazı Ekle"
+            className="absolute top-16 right-4 z-20 w-9 h-9 rounded-full bg-black/75 hover:bg-black/90 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xl transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <span className="font-serif font-black text-sm tracking-tighter">Aa</span>
+          </button>
+
+          {/* EKLENEN METİN YAZILARI ÖNİZLEMESİ */}
+          {textStickers.map((ts) => (
+            <div
+              key={ts.id}
+              style={{
+                left: `${ts.x}%`,
+                top: `${ts.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+              onClick={() => handleOpenTextEditor(ts)}
+              className={`absolute z-30 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap cursor-pointer group hover:ring-2 hover:ring-pink-400 transition-all ${getTextStyleClasses(
+                ts.style
+              )} ${getTextSizeClasses(ts.fontSize)}`}
+            >
+              <span>{ts.text}</span>
+              {/* Silme Rozeti */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTextStickers((prev) => prev.filter((s) => s.id !== ts.id));
+                }}
+                title="Yazıyı Sil"
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-md opacity-80 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3 stroke-[3]" />
+              </button>
+            </div>
+          ))}
+
           {/* GİZLİ YOUTUBE ÖNİZLEME OYNATICI (CANLI DİNLEME) */}
           {isPreviewPlaying && extractedVideoId && (
             <iframe
               key={`${extractedVideoId}-${musicStart}-${musicEnd}`}
-              src={`https://www.youtube.com/embed/${extractedVideoId}?autoplay=1&start=${musicStart}&end=${musicEnd}&enablejsapi=1&controls=0&playsinline=1`}
-              allow="autoplay; encrypted-media"
-              className="w-0 h-0 opacity-0 pointer-events-none absolute"
+              src={`https://www.youtube.com/embed/${extractedVideoId}?autoplay=1&start=${musicStart}&end=${musicEnd}&enablejsapi=1&controls=0&playsinline=1&mute=0`}
+              allow="autoplay *; encrypted-media *; fullscreen *"
+              style={{
+                position: "fixed",
+                left: "-9999px",
+                top: "-9999px",
+                width: "320px",
+                height: "180px",
+                opacity: 0.001,
+                pointerEvents: "none",
+                zIndex: -1,
+              }}
               title="YouTube Preview"
             />
+          )}
+
+          {/* METİN EKLEME EDİTÖRÜ MODALI */}
+          {isTextEditorOpen && (
+            <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between p-4 animate-in fade-in duration-200">
+              {/* Üst Bar: Vazgeç, Konum ve Bitti */}
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTextEditorOpen(false);
+                    setEditingStickerId(null);
+                  }}
+                  className="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/10"
+                >
+                  Vazgeç
+                </button>
+
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl p-0.5 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStickerY(25)}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      currentStickerY === 25 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Üst
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStickerY(50)}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      currentStickerY === 50 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Orta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStickerY(75)}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      currentStickerY === 75 ? "bg-pink-600 text-white font-bold" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Alt
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveTextSticker}
+                  disabled={!currentStickerText.trim()}
+                  className="text-xs font-bold text-white px-4 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-pink-600/30"
+                >
+                  Bitti
+                </button>
+              </div>
+
+              {/* Merkez Metin Girişi */}
+              <div className="flex-1 flex items-center justify-center p-4">
+                <textarea
+                  autoFocus
+                  value={currentStickerText}
+                  onChange={(e) => setCurrentStickerText(e.target.value)}
+                  placeholder="Yazınızı yazın..."
+                  rows={3}
+                  maxLength={120}
+                  className={`w-full max-w-[85%] text-center px-4 py-3 rounded-2xl resize-none border-none outline-none transition-all ${getTextStyleClasses(
+                    currentStickerStyle
+                  )} ${getTextSizeClasses(currentStickerSize)}`}
+                />
+              </div>
+
+              {/* Alt Kontroller: Boyut ve Stil Presetleri */}
+              <div className="flex flex-col gap-3 pb-2">
+                {/* Boyut Seçimi */}
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-semibold mr-1">Boyut:</span>
+                  {(["sm", "base", "lg", "xl"] as const).map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setCurrentStickerSize(sz)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        currentStickerSize === sz
+                          ? "bg-white text-slate-900 shadow-md scale-105"
+                          : "bg-slate-800 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {sz === "sm" ? "Küçük" : sz === "base" ? "Normal" : sz === "lg" ? "Büyük" : "X-Büyük"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Stil Seçimi */}
+                <div className="flex items-center justify-center gap-2 overflow-x-auto py-1">
+                  {[
+                    { id: "classic_black", label: "Siyah", bg: "bg-black border border-white/40 text-white" },
+                    { id: "classic_white", label: "Beyaz", bg: "bg-white text-black" },
+                    { id: "neon_pink", label: "Pembe", bg: "bg-gradient-to-r from-pink-600 to-rose-600 text-white" },
+                    { id: "vibrant_yellow", label: "Sarı", bg: "bg-amber-400 text-black font-black" },
+                    { id: "emerald", label: "Yeşil", bg: "bg-emerald-600 text-white" },
+                    { id: "transparent", label: "Şeffaf", bg: "border border-white/60 text-white" },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setCurrentStickerStyle(st.id as any)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${st.bg} ${
+                        currentStickerStyle === st.id ? "ring-2 ring-pink-500 scale-110 shadow-lg" : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -498,7 +795,22 @@ export default function StoryCreatorModal() {
                 <span>Fotoğraf/Video</span>
               </button>
 
-              {/* Metin Modu */}
+              {/* Yazı Ekle Butonu */}
+              <button
+                type="button"
+                onClick={() => handleOpenTextEditor()}
+                title="Yazı Ekle"
+                className={`p-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                  textStickers.length > 0
+                    ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
+                    : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
+                }`}
+              >
+                <Type className="w-4 h-4" />
+                <span>Yazı Ekle</span>
+              </button>
+
+              {/* Renkli Zemin Modu */}
               <button
                 type="button"
                 onClick={() => {
@@ -512,8 +824,8 @@ export default function StoryCreatorModal() {
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
               >
-                <Type className="w-4 h-4" />
-                <span>Yazı</span>
+                <Sparkles className="w-4 h-4" />
+                <span>Renkli Zemin</span>
               </button>
             </div>
 
@@ -582,7 +894,7 @@ export default function StoryCreatorModal() {
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSubmitting || (mode === "media" && !mediaFile && !caption)}
+            disabled={isSubmitting || (mode === "media" && !mediaFile && !caption && textStickers.length === 0)}
             className="w-full py-3 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:opacity-95 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-pink-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             {isSubmitting ? (

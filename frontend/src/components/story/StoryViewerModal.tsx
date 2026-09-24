@@ -5,6 +5,7 @@ import { useStoryStore, StoryAuthor } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   X,
+  Plus,
   Trash2,
   Eye,
   Music2,
@@ -25,6 +26,7 @@ export default function StoryViewerModal() {
     activeViewerGroup,
     activeViewerStoryIndex,
     closeViewer,
+    openCreator,
     setViewerStoryIndex,
     markStoryViewed,
     deleteStory,
@@ -55,6 +57,33 @@ export default function StoryViewerModal() {
       : 10)) * 1000;
 
   const ytVideoId = currentStory?.music_url ? extractYouTubeVideoId(currentStory.music_url) : null;
+  const startSec = Math.max(0, currentStory?.music_start || 0);
+  const storyDur = Math.max(5, currentStory?.duration_seconds || 10);
+  const endSec =
+    currentStory?.music_end && currentStory.music_end > startSec
+      ? currentStory.music_end
+      : startSec + storyDur;
+
+  const handleIframeLoad = useCallback(() => {
+    try {
+      if (ytIframeRef.current?.contentWindow) {
+        ytIframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: "command", func: isMuted ? "mute" : "unMute", args: "" }),
+          "*"
+        );
+        ytIframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: "command", func: "setVolume", args: [100] }),
+          "*"
+        );
+        if (!isPaused) {
+          ytIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: "command", func: "playVideo", args: "" }),
+            "*"
+          );
+        }
+      }
+    } catch {}
+  }, [isMuted, isPaused]);
 
   // İleri git
   const handleNext = useCallback(() => {
@@ -292,16 +321,29 @@ export default function StoryViewerModal() {
               )}
 
               {isOwnStory && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete();
-                  }}
-                  title="Hikayeyi Sil"
-                  className="p-2 text-white/80 hover:text-rose-400 rounded-full hover:bg-white/10 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeViewer();
+                      openCreator();
+                    }}
+                    title="Yeni Hikaye Ekle"
+                    className="p-2 text-white/80 hover:text-pink-400 rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete();
+                    }}
+                    title="Hikayeyi Sil"
+                    className="p-2 text-white/80 hover:text-rose-400 rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
               )}
 
               <button
@@ -360,7 +402,7 @@ export default function StoryViewerModal() {
             </div>
           )}
 
-          {/* STICKERLAR (Avatar & Çıkartmalar) */}
+          {/* STICKERLAR (Avatar, Çıkartmalar ve Metin Yazıları) */}
           {Array.isArray(currentStory.stickers) &&
             currentStory.stickers.map((st, i) => {
               if (st.type === "avatar" && st.avatar_url) {
@@ -383,14 +425,74 @@ export default function StoryViewerModal() {
                   </div>
                 );
               }
+
+              if (st.type === "text" && st.text) {
+                const getStyleClass = (style: string) => {
+                  switch (style) {
+                    case "classic_white":
+                      return "bg-white/95 text-slate-900 border border-slate-200 shadow-xl";
+                    case "neon_pink":
+                      return "bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xl shadow-pink-500/40";
+                    case "vibrant_yellow":
+                      return "bg-amber-400 text-slate-950 font-black shadow-xl";
+                    case "emerald":
+                      return "bg-emerald-600 text-white shadow-xl";
+                    case "transparent":
+                      return "bg-transparent text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.9)] font-extrabold";
+                    case "classic_black":
+                    default:
+                      return "bg-black/80 text-white border border-white/20 shadow-xl backdrop-blur-sm";
+                  }
+                };
+
+                const getSizeClass = (size: string) => {
+                  switch (size) {
+                    case "sm":
+                      return "text-xs sm:text-sm";
+                    case "lg":
+                      return "text-base sm:text-lg font-bold";
+                    case "xl":
+                      return "text-lg sm:text-xl font-black";
+                    case "base":
+                    default:
+                      return "text-sm sm:text-base font-semibold";
+                  }
+                };
+
+                return (
+                  <div
+                    key={`st-text-${i}`}
+                    style={{
+                      left: `${st.x ?? 50}%`,
+                      top: `${st.y ?? 50}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    className={`absolute z-20 max-w-[85%] text-center px-4 py-2 rounded-2xl break-words whitespace-pre-wrap pointer-events-none select-none transition-all ${getStyleClass(
+                      st.style
+                    )} ${getSizeClass(st.fontSize)}`}
+                  >
+                    {st.text}
+                  </div>
+                );
+              }
+
               return null;
             })}
 
           {/* YOUTUBE MUSIC ROZETİ */}
           {(currentStory.music_title || ytVideoId) && (
-            <div className="absolute top-20 left-4 z-20 flex items-center gap-2 bg-black/75 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMuted(!isMuted);
+                handleIframeLoad();
+              }}
+              title="Müziği Aç / Kapat"
+              className="absolute top-20 left-4 z-20 flex items-center gap-2 bg-black/75 hover:bg-black/90 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white transition-all cursor-pointer"
+            >
               <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0 animate-pulse">
-                <Music2 className="w-3.5 h-3.5" />
+                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Music2 className="w-3.5 h-3.5" />}
               </div>
               <div className="text-left pr-1 min-w-0 max-w-[200px]">
                 <div className="text-[11px] font-bold truncate">
@@ -406,11 +508,11 @@ export default function StoryViewerModal() {
                   </span>
                   <span className="w-1 h-1 rounded-full bg-emerald-400" />
                   <span className="text-[8px] text-emerald-400 font-mono">
-                    {formatTimeSeconds(currentStory.music_start || 0)} - {formatTimeSeconds(currentStory.music_end || ((currentStory.music_start || 0) + (currentStory.duration_seconds || 10)))}
+                    {formatTimeSeconds(startSec)} - {formatTimeSeconds(endSec)}
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           )}
 
           {/* YOUTUBE GÖMÜLÜ SES OYNATICI (CANLI ŞARKI ÇALMA) */}
@@ -418,9 +520,19 @@ export default function StoryViewerModal() {
             <iframe
               ref={ytIframeRef}
               key={`yt-story-${currentStory.id}-${ytVideoId}`}
-              src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&start=${currentStory.music_start || 0}&end=${currentStory.music_end || (currentStory.music_start || 0) + (currentStory.duration_seconds || 10)}&enablejsapi=1&controls=0&playsinline=1&modestbranding=1`}
-              allow="autoplay; encrypted-media"
-              className="w-0 h-0 opacity-0 pointer-events-none absolute"
+              src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&start=${startSec}&end=${endSec}&enablejsapi=1&controls=0&playsinline=1&modestbranding=1&mute=0`}
+              allow="autoplay *; encrypted-media *; fullscreen *"
+              onLoad={handleIframeLoad}
+              style={{
+                position: "fixed",
+                left: "-9999px",
+                top: "-9999px",
+                width: "320px",
+                height: "180px",
+                opacity: 0.001,
+                pointerEvents: "none",
+                zIndex: -1,
+              }}
               title="YouTube Story Audio"
             />
           )}
@@ -501,7 +613,7 @@ export default function StoryViewerModal() {
           )}
         </div>
 
-        {/* İZLEYENLER BOTTOM SHEET (INSTAGRAM / WHATSAPP STYLE - KART İÇİNDE) */}
+        {/* İzleyenler alt çekmecesi */}
         {viewersModalOpen && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end">
             {/* Üst Karartma Katmanı (Tıklayınca Kapanır) */}
