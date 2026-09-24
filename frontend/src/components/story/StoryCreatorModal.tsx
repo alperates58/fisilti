@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { compressImage } from "@/lib/compression";
-import { api } from "@/lib/api";
+import { api, resolveMediaUrl } from "@/lib/api";
 import {
   X,
   Camera,
@@ -17,7 +17,26 @@ import {
   Check,
   Send,
   Loader2,
+  Play,
+  Square,
+  Clock,
+  Sliders,
+  Volume2,
 } from "lucide-react";
+
+export function extractYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}
+
+export function formatTimeSeconds(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
 const GRADIENT_PRESETS = [
   "from-pink-900 via-purple-900 to-slate-950",
@@ -29,12 +48,12 @@ const GRADIENT_PRESETS = [
 ];
 
 const MUSIC_PRESETS = [
-  { title: "Blinding Lights", artist: "The Weeknd" },
-  { title: "Starboy", artist: "The Weeknd ft. Daft Punk" },
-  { title: "Flowers", artist: "Miley Cyrus" },
-  { title: "Aura Chill Beats", artist: "Lofi Beats Collection" },
-  { title: "Nightcall", artist: "Kavinsky" },
-  { title: "As It Was", artist: "Harry Styles" },
+  { title: "Blinding Lights", artist: "The Weeknd", url: "https://music.youtube.com/watch?v=4NRXx6U8ABQ" },
+  { title: "Starboy", artist: "The Weeknd ft. Daft Punk", url: "https://music.youtube.com/watch?v=34Na4j8AVgA" },
+  { title: "Flowers", artist: "Miley Cyrus", url: "https://music.youtube.com/watch?v=G7KNmW9a75Y" },
+  { title: "Aura Chill Beats", artist: "Lofi Beats Collection", url: "https://music.youtube.com/watch?v=jfKfPfyJRdk" },
+  { title: "Nightcall", artist: "Kavinsky", url: "https://music.youtube.com/watch?v=MV_3Dpw-BRY" },
+  { title: "As It Was", artist: "Harry Styles", url: "https://music.youtube.com/watch?v=H5v3kku4y6Q" },
 ];
 
 export default function StoryCreatorModal() {
@@ -48,16 +67,47 @@ export default function StoryCreatorModal() {
   const [caption, setCaption] = useState("");
   const [selectedGradient, setSelectedGradient] = useState(GRADIENT_PRESETS[0]);
 
-  // Müzik seçimi
+  // Müzik seçimi ve zamanlama
   const [musicTitle, setMusicTitle] = useState("");
   const [musicArtist, setMusicArtist] = useState("");
+  const [musicUrl, setMusicUrl] = useState("");
+  const [durationSeconds, setDurationSeconds] = useState<number>(10);
+  const [musicStart, setMusicStart] = useState<number>(0);
+  const [musicEnd, setMusicEnd] = useState<number>(10);
   const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
   // Avatar çıkartması ekleme
   const [hasAvatarSticker, setHasAvatarSticker] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const extractedVideoId = extractYouTubeVideoId(musicUrl);
+
+  // Süre değiştiğinde bitiş saniyesini güncelle
+  const handleDurationChange = (dur: number) => {
+    setDurationSeconds(dur);
+    setMusicEnd(musicStart + dur);
+    setIsPreviewPlaying(false);
+  };
+
+  // Başlangıç saniyesi değiştiğinde
+  const handleStartChange = (startVal: number) => {
+    setMusicStart(startVal);
+    setMusicEnd(startVal + durationSeconds);
+    setIsPreviewPlaying(false);
+  };
+
+  // Canlı önizleme zamanlayıcısı: süre dolunca otomatik durdur
+  useEffect(() => {
+    if (!isPreviewPlaying) return;
+    const dur = musicEnd > musicStart ? musicEnd - musicStart : durationSeconds;
+    const timer = setTimeout(() => {
+      setIsPreviewPlaying(false);
+    }, dur * 1000);
+    return () => clearTimeout(timer);
+  }, [isPreviewPlaying, musicStart, musicEnd, durationSeconds]);
 
   if (!isCreatorOpen) return null;
 
@@ -77,7 +127,7 @@ export default function StoryCreatorModal() {
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
     } else {
-      // Görseli hızlıca sıkıştır
+      // Görseli sıkıştır
       const compressed = await compressImage(file, 1600, 0.85);
       setMediaFile(compressed);
       setMediaPreview(URL.createObjectURL(compressed));
@@ -88,6 +138,7 @@ export default function StoryCreatorModal() {
   // Hikayeyi Gönder
   const handlePublish = async () => {
     setIsSubmitting(true);
+    setIsPreviewPlaying(false);
     try {
       let finalMediaUrl = "";
       let finalMediaType: "image" | "video" | "text" = "text";
@@ -121,8 +172,12 @@ export default function StoryCreatorModal() {
         media_url: finalMediaUrl,
         caption: caption.trim(),
         background_color: selectedGradient,
-        music_title: musicTitle.trim(),
-        music_artist: musicArtist.trim() || "YouTube Music",
+        music_title: musicTitle.trim() || (extractedVideoId ? "YouTube Music Parçası" : ""),
+        music_artist: musicArtist.trim() || (extractedVideoId ? "YouTube Music" : ""),
+        music_url: musicUrl.trim(),
+        duration_seconds: durationSeconds,
+        music_start: musicStart,
+        music_end: musicEnd,
         stickers,
       });
 
@@ -138,22 +193,33 @@ export default function StoryCreatorModal() {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 select-none animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md h-[100dvh] sm:h-[88vh] sm:max-h-[820px] bg-slate-950 sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl border border-slate-800">
+      <div className="relative w-full max-w-md h-[100dvh] sm:h-[90vh] sm:max-h-[850px] bg-slate-950 sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl border border-slate-800">
         
         {/* 1. ÜST BAR: Başlık ve Kapat */}
-        <div className="p-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent z-20">
+        <div className="p-3.5 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent z-20">
           <div className="flex items-center gap-2 text-white font-bold text-sm">
             <Sparkles className="w-4 h-4 text-pink-500" />
             <span>Yeni Hikaye Oluştur</span>
           </div>
 
-          <button
-            onClick={closeCreator}
-            disabled={isSubmitting}
-            className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Sağ kontroller: Süre rozeti ve Kapat */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-700/80 rounded-full px-2.5 py-1 text-[11px] text-pink-400 font-semibold">
+              <Clock className="w-3 h-3 text-pink-500" />
+              <span>{durationSeconds}s</span>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsPreviewPlaying(false);
+                closeCreator();
+              }}
+              disabled={isSubmitting}
+              className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 2. MERKEZ ÖNİZLEME ALANI */}
@@ -199,7 +265,7 @@ export default function StoryCreatorModal() {
             <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-18 h-18 rounded-full border-3 border-pink-400 shadow-2xl overflow-hidden animate-bounce pointer-events-none z-20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={user.avatar_url}
+                src={resolveMediaUrl(user.avatar_url)}
                 alt="Avatar Çıkartması"
                 className="w-full h-full object-cover"
               />
@@ -207,28 +273,205 @@ export default function StoryCreatorModal() {
           )}
 
           {/* YOUTUBE MUSIC ROZETİ ÖNİZLEMESİ */}
-          {musicTitle && (
-            <div className="absolute top-16 left-4 z-20 flex items-center gap-2 bg-black/70 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
-              <div className="w-5 h-5 rounded-full bg-rose-600 flex items-center justify-center text-white">
+          {(musicTitle || extractedVideoId) && (
+            <div className="absolute top-16 left-4 z-20 flex items-center gap-2 bg-black/75 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
+              <div className="w-5 h-5 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0">
                 <Music className="w-3 h-3" />
               </div>
-              <div className="text-left pr-1 max-w-[160px] truncate text-[11px] font-bold">
-                {musicTitle}
+              <div className="text-left pr-1 max-w-[170px] truncate text-[11px] font-bold">
+                <div>{musicTitle || "YouTube Music"}</div>
+                <div className="text-[9px] text-slate-300 font-normal">
+                  {formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)}
+                </div>
               </div>
               <button
-                onClick={() => setMusicTitle("")}
+                onClick={() => {
+                  setMusicTitle("");
+                  setMusicUrl("");
+                  setIsPreviewPlaying(false);
+                }}
                 className="p-0.5 text-white/60 hover:text-white"
               >
                 <X className="w-3 h-3" />
               </button>
             </div>
           )}
+
+          {/* GİZLİ YOUTUBE ÖNİZLEME OYNATICI (CANLI DİNLEME) */}
+          {isPreviewPlaying && extractedVideoId && (
+            <iframe
+              key={`${extractedVideoId}-${musicStart}-${musicEnd}`}
+              src={`https://www.youtube.com/embed/${extractedVideoId}?autoplay=1&start=${musicStart}&end=${musicEnd}&enablejsapi=1&controls=0&playsinline=1`}
+              allow="autoplay; encrypted-media"
+              className="w-0 h-0 opacity-0 pointer-events-none absolute"
+              title="YouTube Preview"
+            />
+          )}
         </div>
 
         {/* 3. ARAÇ ÇUBUĞU (Medya, Metin, Müzik, Çıkartma, Renk) */}
-        <div className="p-3 bg-slate-900/90 border-t border-slate-800 flex flex-col gap-3 z-20">
+        <div className="p-3 bg-slate-900/95 border-t border-slate-800 flex flex-col gap-2.5 z-20">
+          
+          {/* Müzik Seçim Paneli (YouTube Music & Canlı Aralık Kırpıcı) */}
+          {isMusicPickerOpen && (
+            <div className="bg-slate-950 p-3 rounded-2xl border border-rose-500/40 shadow-xl flex flex-col gap-3 animate-in fade-in max-h-72 overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between text-xs text-white font-semibold border-b border-slate-800 pb-2">
+                <span className="flex items-center gap-1.5 text-rose-400 font-bold">
+                  <Music className="w-4 h-4 text-rose-500" />
+                  YouTube Music Şarkı & Aralık Ayarı
+                </span>
+                <button
+                  onClick={() => setIsMusicPickerOpen(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* URL Girişi */}
+              <div>
+                <label className="text-[10px] text-slate-400 font-semibold mb-1 block">
+                  YouTube Music veya YouTube Şarkı Linki:
+                </label>
+                <input
+                  type="text"
+                  value={musicUrl}
+                  onChange={(e) => {
+                    setMusicUrl(e.target.value);
+                    const vid = extractYouTubeVideoId(e.target.value);
+                    if (vid && !musicTitle) {
+                      setMusicTitle("YouTube Parçası");
+                    }
+                  }}
+                  placeholder="https://music.youtube.com/watch?v=..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
+                />
+              </div>
+
+              {/* Şarkı Başlığı ve Sanatçı (İsteğe Bağlı) */}
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={musicTitle}
+                  onChange={(e) => setMusicTitle(e.target.value)}
+                  placeholder="Şarkı Adı (örn: Blinding Lights)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                />
+                <input
+                  type="text"
+                  value={musicArtist}
+                  onChange={(e) => setMusicArtist(e.target.value)}
+                  placeholder="Sanatçı (örn: The Weeknd)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              {/* Hikaye Oynatma Süresi Seçici */}
+              <div>
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300 mb-1">
+                  <span>Hikaye Oynatma Süresi:</span>
+                  <span className="text-pink-400 font-bold">{durationSeconds} saniye</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {[5, 10, 15, 30].map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => handleDurationChange(sec)}
+                      className={`flex-1 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        durationSeconds === sec
+                          ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
+                          : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                      }`}
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Müzik Aralığı ve Slider (Start / End) */}
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300 mb-1.5">
+                  <span className="flex items-center gap-1">
+                    <Sliders className="w-3 h-3 text-rose-400" />
+                    Müzik Başlangıç Saniyesi:
+                  </span>
+                  <span className="text-rose-400 font-mono font-bold">
+                    {formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)}
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={300}
+                  step={1}
+                  value={musicStart}
+                  onChange={(e) => handleStartChange(parseInt(e.target.value) || 0)}
+                  className="w-full accent-rose-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+                />
+
+                <div className="flex items-center justify-between text-[9px] text-slate-400 mt-1">
+                  <span>00:00 (Başı)</span>
+                  <span>02:30</span>
+                  <span>05:00</span>
+                </div>
+              </div>
+
+              {/* Canlı Dinle / Önizleme Butonu */}
+              {extractedVideoId && (
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                  className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isPreviewPlaying
+                      ? "bg-rose-600 text-white animate-pulse shadow-lg shadow-rose-600/30"
+                      : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20"
+                  }`}
+                >
+                  {isPreviewPlaying ? (
+                    <>
+                      <Square className="w-3.5 h-3.5 fill-white" />
+                      <span>Önizlemeyi Durdur ({formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>▶ Canlı Dinle ({formatTimeSeconds(musicStart)} - {formatTimeSeconds(musicEnd)})</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Hazır Popüler Parçalar */}
+              <div>
+                <span className="text-[10px] text-slate-400 font-semibold block mb-1">
+                  Veya Hazır Popüler Şarkılardan Seç:
+                </span>
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {MUSIC_PRESETS.map((m, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setMusicTitle(m.title);
+                        setMusicArtist(m.artist);
+                        setMusicUrl(m.url);
+                        setIsPreviewPlaying(false);
+                      }}
+                      className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/20 hover:border-rose-500/40 border border-slate-700 text-[10px] text-slate-300 hover:text-white transition-all text-left"
+                    >
+                      🎵 {m.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Araç İkonları */}
-          <div className="flex items-center justify-between px-2">
+          <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               {/* Fotoğraf / Video Seç */}
               <input
@@ -271,14 +514,14 @@ export default function StoryCreatorModal() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Müzik Ekle (YouTube Music Tarzı) */}
+              {/* Müzik Ekle (YouTube Music) */}
               <button
                 type="button"
                 onClick={() => setIsMusicPickerOpen(!isMusicPickerOpen)}
-                title="Müzik Ekle"
+                title="YouTube Music Ekle"
                 className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-                  musicTitle
-                    ? "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                  musicTitle || musicUrl
+                    ? "bg-rose-500/20 text-rose-400 border-rose-500/40 ring-1 ring-rose-500/50"
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
               >
@@ -300,50 +543,6 @@ export default function StoryCreatorModal() {
               </button>
             </div>
           </div>
-
-          {/* Müzik Seçim Paneli */}
-          {isMusicPickerOpen && (
-            <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col gap-2 animate-in fade-in">
-              <div className="flex items-center justify-between text-xs text-white font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <Music className="w-3.5 h-3.5 text-rose-500" />
-                  YouTube Music Parçası
-                </span>
-                <button
-                  onClick={() => setIsMusicPickerOpen(false)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <input
-                type="text"
-                value={musicTitle}
-                onChange={(e) => setMusicTitle(e.target.value)}
-                placeholder="Şarkı adı veya YouTube Music parçası yaz..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
-              />
-
-              {/* Hazır Popüler Parçalar */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-                {MUSIC_PRESETS.map((m, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setMusicTitle(m.title);
-                      setMusicArtist(m.artist);
-                      setIsMusicPickerOpen(false);
-                    }}
-                    className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/20 hover:border-rose-500/40 border border-slate-700 text-[10px] text-slate-300 hover:text-white transition-all text-left"
-                  >
-                    🎵 {m.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Metin Modu için Renk Paleti */}
           {mode === "text" && (
@@ -390,7 +589,7 @@ export default function StoryCreatorModal() {
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Hikayede Paylaş (24 Saat)</span>
+                <span>Hikayede Paylaş ({durationSeconds} sn)</span>
               </>
             )}
           </button>

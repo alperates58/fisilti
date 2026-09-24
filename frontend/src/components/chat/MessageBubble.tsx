@@ -17,6 +17,11 @@ import {
   X,
   MapPin,
   ExternalLink,
+  Phone,
+  PhoneMissed,
+  PhoneOff,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import { format } from "date-fns";
 import AudioWaveform from "./AudioWaveform";
@@ -84,6 +89,18 @@ export default function MessageBubble({ message }: Props) {
     !message.is_deleted_for_all && message.content && !socialMediaData
       ? extractGeneralUrl(message.content)
       : null;
+
+  const isCallLog =
+    message.message_type === "call_log" ||
+    Boolean(message.content && (message.content.includes("Arama") || message.content.includes("Görüntülü")));
+
+  const isVideoCall =
+    Boolean(message.content?.includes("Görüntülü") ||
+    message.media_metadata?.call_type === "video");
+
+  const isMissedOrRejected =
+    Boolean(message.content?.includes("Cevapsız") ||
+    message.content?.includes("Reddedilen"));
 
   const renderFormattedContent = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
@@ -340,8 +357,50 @@ export default function MessageBubble({ message }: Props) {
             <LinkPreviewCard url={generalUrl} isMine={message.is_mine} />
           )}
 
-          {/* 5. Metin İçeriği ve Düzenleme Modu */}
-          {isEditing ? (
+          {/* 5. Arama Kaydı Kartı veya Metin İçeriği ve Düzenleme Modu */}
+          {isCallLog ? (
+            <div className="flex items-center gap-3 py-1 my-0.5 min-w-[170px]">
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-md ${
+                  isVideoCall
+                    ? isMissedOrRejected
+                      ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                      : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                    : isMissedOrRejected
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                }`}
+              >
+                {isVideoCall ? (
+                  isMissedOrRejected ? (
+                    <VideoOff className="w-4 h-4 text-rose-400" />
+                  ) : (
+                    <Video className="w-4 h-4 text-purple-300" />
+                  )
+                ) : (
+                  isMissedOrRejected ? (
+                    <PhoneMissed className="w-4 h-4 text-rose-400" />
+                  ) : (
+                    <Phone className="w-4 h-4 text-emerald-400" />
+                  )
+                )}
+              </div>
+
+              <div className="min-w-0 pr-1 flex-1">
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>{isVideoCall ? "Görüntülü Arama" : "Sesli Arama"}</span>
+                  {isMissedOrRejected && (
+                    <span className="text-[10px] text-rose-400 font-semibold">
+                      ({message.content.includes("Reddedilen") ? "Reddedildi" : "Cevapsız"})
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-300 font-medium truncate">
+                  {message.content.replace(/^[📞📹]\s*/, "")}
+                </div>
+              </div>
+            </div>
+          ) : isEditing ? (
             <form onSubmit={handleEditSubmit} className="mt-1 flex items-center gap-1.5">
               <input
                 type="text"

@@ -91,3 +91,21 @@ func (r *CallRepository) GetCallLogs(ctx context.Context, convID uuid.UUID, limi
 	}
 	return logs, nil
 }
+
+func (r *CallRepository) GetCallByID(ctx context.Context, callID uuid.UUID) (*models.CallLog, error) {
+	query := `
+		SELECT id, conversation_id, caller_id, receiver_id, call_type, status, started_at, ended_at, duration_seconds, created_at
+		FROM call_logs
+		WHERE id = $1
+		LIMIT 1
+	`
+	var l models.CallLog
+	err := r.db.QueryRowContext(ctx, query, callID).Scan(
+		&l.ID, &l.ConversationID, &l.CallerID, &l.ReceiverID,
+		&l.CallType, &l.Status, &l.StartedAt, &l.EndedAt, &l.DurationSeconds, &l.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
+}

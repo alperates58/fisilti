@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useStoryStore, UserStoriesGroup } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Plus } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/api";
 
 export default function StoriesBar() {
   const { user } = useAuthStore();
@@ -46,7 +47,7 @@ export default function StoriesBar() {
                 {user?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={user.avatar_url}
+                    src={resolveMediaUrl(user.avatar_url)}
                     alt={user.display_name}
                     className="w-full h-full object-cover"
                   />
@@ -94,7 +95,7 @@ export default function StoriesBar() {
                   {group.user.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={group.user.avatar_url}
+                      src={resolveMediaUrl(group.user.avatar_url)}
                       alt={group.user.display_name}
                       className="w-full h-full object-cover"
                     />

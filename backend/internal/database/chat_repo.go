@@ -607,6 +607,18 @@ func (r *ChatRepository) CanUserAccessMedia(ctx context.Context, userID uuid.UUI
 		return true, nil
 	}
 
+	// 5. Hikayeler (stories) kontrolü: Eğer dosya bir hikayeye aitse giriş yapmış kullanıcılar görebilir
+	var storyExists int
+	storyQuery := `
+		SELECT 1 FROM stories
+		WHERE media_url LIKE '%' || $1 || '%'
+		LIMIT 1
+	`
+	_ = r.db.QueryRowContext(ctx, storyQuery, baseObj).Scan(&storyExists)
+	if storyExists == 1 {
+		return true, nil
+	}
+
 	return false, nil
 }
 

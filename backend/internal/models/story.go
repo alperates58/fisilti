@@ -17,6 +17,9 @@ type Story struct {
 	MusicTitle      string          `json:"music_title"`
 	MusicArtist     string          `json:"music_artist"`
 	MusicURL        string          `json:"music_url"`
+	DurationSeconds int             `json:"duration_seconds"`
+	MusicStart      int             `json:"music_start"`
+	MusicEnd        int             `json:"music_end"`
 	Stickers        json.RawMessage `json:"stickers"`
 	Views           []uuid.UUID     `json:"views"`
 	ViewsCount      int             `json:"views_count"`
@@ -47,5 +50,8 @@ type CreateStoryRequest struct {
 	MusicTitle      string          `json:"music_title"`
 	MusicArtist     string          `json:"music_artist"`
 	MusicURL        string          `json:"music_url"`
+	DurationSeconds int             `json:"duration_seconds"`
+	MusicStart      int             `json:"music_start"`
+	MusicEnd        int             `json:"music_end"`
 	Stickers        json.RawMessage `json:"stickers"`
 }

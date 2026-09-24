@@ -251,6 +251,44 @@ func (h *CallHandler) RejectCall(c *fiber.Ctx) error {
 		})
 		h.hub.SendToUser(otherID, rejectedPayload)
 		h.hub.SendToUser(rejecterID, rejectedPayload)
+
+		// Reddedilen arama kaydı mesajı ekle
+		callLog, _ := h.callRepo.GetCallByID(c.Context(), req.CallID)
+		isCaller := false
+		callType := "audio"
+		senderID := otherID
+		recipientID := rejecterID
+		if callLog != nil {
+			callType = callLog.CallType
+			senderID = callLog.CallerID
+			recipientID = callLog.ReceiverID
+			if rejecterID == callLog.CallerID {
+				isCaller = true
+			}
+		}
+
+		var content string
+		if callType == "video" {
+			if isCaller {
+				content = "📹 Cevapsız Görüntülü Arama"
+			} else {
+				content = "📹 Reddedilen Görüntülü Arama"
+			}
+		} else {
+			if isCaller {
+				content = "📞 Cevapsız Sesli Arama"
+			} else {
+				content = "📞 Reddedilen Sesli Arama"
+			}
+		}
+
+		_ = h.chatRepo.SaveMessage(c.Context(), &models.Message{
+			ConversationID: req.ConversationID,
+			SenderID:       senderID,
+			RecipientID:    recipientID,
+			MessageType:    "call_log",
+			Content:        content,
+		})
 	}
 
 	return c.JSON(fiber.Map{"status": "rejected"})
@@ -289,18 +327,38 @@ func (h *CallHandler) EndCall(c *fiber.Ctx) error {
 		h.hub.SendToUser(otherID, endPayload)
 		h.hub.SendToUser(enderID, endPayload)
 
-		// Sohbet içine arama kaydı mesajı ekle
+		// Sohbet içine arama kaydı mesajı ekle (video vs sesli arama ayrımı)
+		callLog, _ := h.callRepo.GetCallByID(c.Context(), req.CallID)
+		callType := "audio"
+		senderID := enderID
+		recipientID := otherID
+		if callLog != nil {
+			callType = callLog.CallType
+			senderID = callLog.CallerID
+			recipientID = callLog.ReceiverID
+		}
+
 		mins := req.DurationSeconds / 60
 		secs := req.DurationSeconds % 60
-		content := fmt.Sprintf("📞 Sesli Arama (%02d:%02d)", mins, secs)
-		if req.DurationSeconds == 0 {
-			content = "📞 Cevapsız Arama"
+		var content string
+		if callType == "video" {
+			if req.DurationSeconds == 0 {
+				content = "📹 Cevapsız Görüntülü Arama"
+			} else {
+				content = fmt.Sprintf("📹 Görüntülü Arama (%02d:%02d)", mins, secs)
+			}
+		} else {
+			if req.DurationSeconds == 0 {
+				content = "📞 Cevapsız Sesli Arama"
+			} else {
+				content = fmt.Sprintf("📞 Sesli Arama (%02d:%02d)", mins, secs)
+			}
 		}
 
 		_ = h.chatRepo.SaveMessage(c.Context(), &models.Message{
 			ConversationID: req.ConversationID,
-			SenderID:       enderID,
-			RecipientID:    otherID,
+			SenderID:       senderID,
+			RecipientID:    recipientID,
 			MessageType:    "call_log",
 			Content:        content,
 		})

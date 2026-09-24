@@ -47,6 +47,11 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 		req.BackgroundColor = "from-pink-900 to-slate-950"
 	}
 
+	durationSec := req.DurationSeconds
+	if durationSec <= 0 {
+		durationSec = 10
+	}
+
 	story := &models.Story{
 		UserID:          userID,
 		MediaType:       req.MediaType,
@@ -56,6 +61,9 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 		MusicTitle:      req.MusicTitle,
 		MusicArtist:     req.MusicArtist,
 		MusicURL:        req.MusicURL,
+		DurationSeconds: durationSec,
+		MusicStart:      req.MusicStart,
+		MusicEnd:        req.MusicEnd,
 		Stickers:        req.Stickers,
 	}
 

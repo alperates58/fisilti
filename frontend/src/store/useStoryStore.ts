@@ -11,6 +11,9 @@ export interface Story {
   music_title: string;
   music_artist: string;
   music_url: string;
+  duration_seconds?: number;
+  music_start?: number;
+  music_end?: number;
   stickers: any[];
   views: string[];
   views_count: number;
@@ -49,6 +52,9 @@ interface StoryStoreState {
     music_title?: string;
     music_artist?: string;
     music_url?: string;
+    duration_seconds?: number;
+    music_start?: number;
+    music_end?: number;
     stickers?: any[];
   }) => Promise<void>;
   markStoryViewed: (storyId: string) => Promise<void>;

@@ -24,9 +24,10 @@ func (r *StoryRepository) CreateStory(ctx context.Context, story *models.Story) 
 	query := `
 		INSERT INTO stories (
 			user_id, media_type, media_url, caption, background_color,
-			music_title, music_artist, music_url, stickers, expires_at
+			music_title, music_artist, music_url, duration_seconds, music_start, music_end,
+			stickers, expires_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		)
 		RETURNING id, views, created_at
 	`
@@ -35,6 +36,9 @@ func (r *StoryRepository) CreateStory(ctx context.Context, story *models.Story) 
 	}
 	if len(story.Stickers) == 0 {
 		story.Stickers = json.RawMessage("[]")
+	}
+	if story.DurationSeconds <= 0 {
+		story.DurationSeconds = 10
 	}
 
 	var rawViews []string
@@ -49,6 +53,9 @@ func (r *StoryRepository) CreateStory(ctx context.Context, story *models.Story) 
 		story.MusicTitle,
 		story.MusicArtist,
 		story.MusicURL,
+		story.DurationSeconds,
+		story.MusicStart,
+		story.MusicEnd,
 		story.Stickers,
 		story.ExpiresAt,
 	).Scan(&story.ID, pq.Array(&rawViews), &story.CreatedAt)
@@ -65,7 +72,9 @@ func (r *StoryRepository) GetActiveStories(ctx context.Context, currentUserID uu
 	query := `
 		SELECT 
 			s.id, s.user_id, s.media_type, s.media_url, s.caption, s.background_color,
-			s.music_title, s.music_artist, s.music_url, s.stickers, s.views, s.expires_at, s.created_at,
+			s.music_title, s.music_artist, s.music_url,
+			COALESCE(s.duration_seconds, 10), COALESCE(s.music_start, 0), COALESCE(s.music_end, 0),
+			s.stickers, s.views, s.expires_at, s.created_at,
 			u.id, u.username, u.display_name, u.avatar_url
 		FROM stories s
 		JOIN users u ON s.user_id = u.id
@@ -90,7 +99,9 @@ func (r *StoryRepository) GetActiveStories(ctx context.Context, currentUserID uu
 
 		err := rows.Scan(
 			&s.ID, &s.UserID, &s.MediaType, &s.MediaURL, &s.Caption, &s.BackgroundColor,
-			&s.MusicTitle, &s.MusicArtist, &s.MusicURL, &stickersBytes, pq.Array(&rawViews), &s.ExpiresAt, &s.CreatedAt,
+			&s.MusicTitle, &s.MusicArtist, &s.MusicURL,
+			&s.DurationSeconds, &s.MusicStart, &s.MusicEnd,
+			&stickersBytes, pq.Array(&rawViews), &s.ExpiresAt, &s.CreatedAt,
 			&author.ID, &author.Username, &author.DisplayName, &author.AvatarURL,
 		)
 		if err != nil {

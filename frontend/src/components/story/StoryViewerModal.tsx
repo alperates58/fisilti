@@ -16,7 +16,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formatStoryTime } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, resolveMediaUrl } from "@/lib/api";
+import { extractYouTubeVideoId, formatTimeSeconds } from "./StoryCreatorModal";
 
 export default function StoryViewerModal() {
   const { user } = useAuthStore();
@@ -42,12 +43,18 @@ export default function StoryViewerModal() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const currentStory = activeViewerGroup?.stories[activeViewerStoryIndex];
   const isOwnStory = activeViewerGroup?.user.id === user?.id;
 
-  // Hikaye süresi: Video ise video süresi, değilse 6 saniye
-  const storyDuration = 6000;
+  // Hikaye süresi: Özel duration_seconds ayarlanmışsa o süre (ms), değilse 10 saniye
+  const storyDuration =
+    ((currentStory?.duration_seconds && currentStory.duration_seconds > 0
+      ? currentStory.duration_seconds
+      : 10)) * 1000;
+
+  const ytVideoId = currentStory?.music_url ? extractYouTubeVideoId(currentStory.music_url) : null;
 
   // İleri git
   const handleNext = useCallback(() => {
@@ -116,16 +123,42 @@ export default function StoryViewerModal() {
     return () => clearInterval(timer);
   }, [currentStory, isPaused, viewersModalOpen, storyDuration, handleNext]);
 
-  // Müzik çalma kontrolü
+  // Normal HTML5 ses oynatma kontrolü (eğer YouTube değilse)
   useEffect(() => {
-    if (currentStory?.music_url && audioRef.current) {
+    if (!ytVideoId && currentStory?.music_url && audioRef.current) {
       if (isPaused) {
         audioRef.current.pause();
       } else {
         audioRef.current.play().catch(() => {});
       }
     }
-  }, [currentStory, isPaused]);
+  }, [currentStory, isPaused, ytVideoId]);
+
+  // YouTube Iframe oynatma kontrolü (duraklat / devam et)
+  useEffect(() => {
+    if (ytVideoId && ytIframeRef.current) {
+      try {
+        const func = isPaused ? "pauseVideo" : "playVideo";
+        ytIframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func, args: "" }),
+          "*"
+        );
+      } catch {}
+    }
+  }, [isPaused, ytVideoId]);
+
+  // YouTube Iframe sessize alma kontrolü
+  useEffect(() => {
+    if (ytVideoId && ytIframeRef.current) {
+      try {
+        const func = isMuted ? "mute" : "unMute";
+        ytIframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func, args: "" }),
+          "*"
+        );
+      } catch {}
+    }
+  }, [isMuted, ytVideoId]);
 
   if (!activeViewerGroup || !currentStory) return null;
 
@@ -174,6 +207,8 @@ export default function StoryViewerModal() {
     }
   };
 
+  const resolvedMediaUrl = resolveMediaUrl(currentStory.media_url);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center select-none animate-in fade-in duration-200">
       {/* HİKAYE KARTI KAPSAYICISI (9:16 Mobil Oranı) */}
@@ -214,7 +249,7 @@ export default function StoryViewerModal() {
                 {activeViewerGroup.user.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={activeViewerGroup.user.avatar_url}
+                    src={resolveMediaUrl(activeViewerGroup.user.avatar_url)}
                     alt={activeViewerGroup.user.display_name}
                     className="w-full h-full object-cover"
                   />
@@ -234,15 +269,17 @@ export default function StoryViewerModal() {
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-white/70">
-                  {formatStoryTime(currentStory.created_at)}
-                </span>
+                <div className="flex items-center gap-2 text-[10px] text-white/70">
+                  <span>{formatStoryTime(currentStory.created_at)}</span>
+                  <span>•</span>
+                  <span>{Math.round(storyDuration / 1000)}s</span>
+                </div>
               </div>
             </div>
 
             {/* Sağ Üst Kontroller (Ses, Sil, Kapat) */}
             <div className="flex items-center gap-1">
-              {currentStory.music_url && (
+              {(currentStory.music_url || ytVideoId) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -283,20 +320,20 @@ export default function StoryViewerModal() {
         {/* 2. MERKEZ MEDYA ALANI */}
         <div className="relative flex-1 w-full h-full flex items-center justify-center overflow-hidden">
           {/* Görsel Hikaye */}
-          {currentStory.media_type === "image" && (
+          {currentStory.media_type === "image" && resolvedMediaUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={currentStory.media_url}
+              src={resolvedMediaUrl}
               alt="Story"
               className="w-full h-full object-contain pointer-events-none"
             />
           )}
 
           {/* Video Hikaye */}
-          {currentStory.media_type === "video" && (
+          {currentStory.media_type === "video" && resolvedMediaUrl && (
             <video
               ref={videoRef}
-              src={currentStory.media_url}
+              src={resolvedMediaUrl}
               autoPlay
               playsInline
               muted={isMuted}
@@ -305,7 +342,7 @@ export default function StoryViewerModal() {
           )}
 
           {/* Metin veya Ses Hikayesi (Renkli Gradient Arka Plan) */}
-          {(currentStory.media_type === "text" || currentStory.media_type === "audio") && (
+          {(currentStory.media_type === "text" || currentStory.media_type === "audio" || (!resolvedMediaUrl && currentStory.caption)) && (
             <div
               className={`w-full h-full bg-gradient-to-br ${
                 currentStory.background_color || "from-pink-900 to-slate-950"
@@ -339,7 +376,7 @@ export default function StoryViewerModal() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={st.avatar_url}
+                      src={resolveMediaUrl(st.avatar_url)}
                       alt="Avatar Sticker"
                       className="w-full h-full object-cover"
                     />
@@ -350,53 +387,70 @@ export default function StoryViewerModal() {
             })}
 
           {/* YOUTUBE MUSIC ROZETİ */}
-          {currentStory.music_title && (
-            <div className="absolute top-20 left-4 z-20 flex items-center gap-2 bg-black/65 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
+          {(currentStory.music_title || ytVideoId) && (
+            <div className="absolute top-20 left-4 z-20 flex items-center gap-2 bg-black/75 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5 shadow-xl text-white">
               <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center text-white flex-shrink-0 animate-pulse">
                 <Music2 className="w-3.5 h-3.5" />
               </div>
-              <div className="text-left pr-1 min-w-0 max-w-[180px]">
+              <div className="text-left pr-1 min-w-0 max-w-[200px]">
                 <div className="text-[11px] font-bold truncate">
-                  {currentStory.music_title}
+                  {currentStory.music_title || "YouTube Music"}
                 </div>
-                <div className="text-[9px] text-white/70 truncate flex items-center gap-1">
-                  <span>{currentStory.music_artist || "YouTube Music"}</span>
+                <div className="text-[9px] text-white/70 truncate flex items-center gap-1.5">
+                  <span>{currentStory.music_artist || "YouTube"}</span>
                   <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                  <span className="text-[8px] text-emerald-400 font-mono">Çalıyor</span>
+                  <span className="text-[8px] text-emerald-400 font-mono">
+                    {formatTimeSeconds(currentStory.music_start || 0)} - {formatTimeSeconds(currentStory.music_end || ((currentStory.music_start || 0) + (currentStory.duration_seconds || 10)))}
+                  </span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Arka Planda Müzik Varsa Çal */}
-          {currentStory.music_url && (
-            <audio
-              ref={audioRef}
-              src={currentStory.music_url}
-              autoPlay
-              muted={isMuted}
-              loop
+          {/* YOUTUBE GÖMÜLÜ SES OYNATICI (CANLI ŞARKI ÇALMA) */}
+          {ytVideoId && (
+            <iframe
+              ref={ytIframeRef}
+              key={`yt-story-${currentStory.id}-${ytVideoId}`}
+              src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&start=${currentStory.music_start || 0}&end=${currentStory.music_end || (currentStory.music_start || 0) + (currentStory.duration_seconds || 10)}&enablejsapi=1&controls=0&playsinline=1&modestbranding=1`}
+              allow="autoplay; encrypted-media"
+              className="w-0 h-0 opacity-0 pointer-events-none absolute"
+              title="YouTube Story Audio"
             />
           )}
 
-          {/* Sol / Sağ Tıklama Navigasyon Alanları */}
+          {/* STANDART SES DOSYASI OYNATICI (YOUTUBE DEĞİLSE) */}
+          {!ytVideoId && currentStory.music_url && (
+            <audio
+              ref={audioRef}
+              src={resolveMediaUrl(currentStory.music_url)}
+              autoPlay
+              loop
+              muted={isMuted}
+            />
+          )}
+
+          {/* SOL & SAĞ DOKUNMA/TIKLAMA NAVİGASYONU */}
           <div
-            onClick={handlePrev}
-            className="absolute left-0 inset-y-0 w-1/3 z-10 cursor-pointer"
-            title="Önceki"
+            className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePrev();
+            }}
           />
           <div
-            onClick={handleNext}
-            className="absolute right-0 inset-y-0 w-2/3 z-10 cursor-pointer"
-            title="Sonraki"
+            className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNext();
+            }}
           />
         </div>
 
-        {/* 3. ALT ALAN: Başlık / Altyazı & İzleyenler veya Yanıt Kutusu */}
-        <div className="relative z-30 p-3 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-2.5">
-          {/* Başlık / Altyazı (Görsel ve video için) */}
-          {currentStory.media_type !== "text" &&
-            currentStory.media_type !== "audio" &&
+        {/* 3. ALT ALAN: Altyazı, İzleyenler & Yanıt Gönderme */}
+        <div className="relative z-30 p-3.5 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-2">
+          {/* Görsel/Video Hikayesi için Altyazı */}
+          {(currentStory.media_type === "image" || currentStory.media_type === "video") &&
             currentStory.caption && (
               <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-2.5 text-center text-xs text-white drop-shadow-md">
                 {currentStory.caption}
@@ -470,7 +524,7 @@ export default function StoryViewerModal() {
                       {viewer.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={viewer.avatar_url}
+                          src={resolveMediaUrl(viewer.avatar_url)}
                           alt={viewer.display_name}
                           className="w-full h-full object-cover"
                         />
