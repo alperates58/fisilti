@@ -96,3 +96,26 @@ export function formatStoryTime(dateStr: string): string {
   if (diffHour < 24) return `${diffHour} saat önce`;
   return `${Math.floor(diffHour / 24)} gün önce`;
 }
+
+/**
+ * Verilen hex renk koduna göre en uygun kontrast metin rengini hesaplar
+ * (Açık arkaplanlar için koyu metin #0F172A, koyu arkaplanlar için beyaz metin #FFFFFF).
+ * Standart YIQ/WCAG bağıl parlaklık formülünü kullanır.
+ */
+export function getContrastTextColor(hexColor?: string): string {
+  if (!hexColor || typeof hexColor !== "string") return "#FFFFFF";
+  let hex = hexColor.replace("#", "").trim();
+  if (hex.length === 3) {
+    hex = hex.split("").map((c) => c + c).join("");
+  }
+  if (hex.length !== 6) return "#FFFFFF";
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "#FFFFFF";
+
+  // YIQ formülü (insan gözünün duyarlılığına göre algılanan parlaklık)
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 145 ? "#0F172A" : "#FFFFFF";
+}
+

@@ -34,18 +34,24 @@ import {
   sendTestPushNotification,
 } from "@/lib/push_notifications";
 import { soundEffects } from "@/lib/sounds";
+import { applyThemeToDocument } from "@/store/useSettingsStore";
+import { getContrastTextColor } from "@/lib/utils";
 
 const THEME_PRESETS = [
-  { name: "Aura Pembe", color: "#E91E63", bubble: "#BE185D" },
-  { name: "WhatsApp Koyu", color: "#25D366", bubble: "#005C4B" },
-  { name: "Telegram Gece", color: "#2AABEE", bubble: "#2B5278" },
-  { name: "Siber Turkuaz", color: "#06B6D4", bubble: "#0E7490" },
-  { name: "Kraliyet Moru", color: "#8B5CF6", bubble: "#6D28D9" },
-  { name: "Zümrüt Derinlik", color: "#10B981", bubble: "#047857" },
-  { name: "Gün Batımı", color: "#F59E0B", bubble: "#B45309" },
-  { name: "Ateş Kırmızısı", color: "#EF4444", bubble: "#B91C1C" },
-  { name: "Gece Mavisi", color: "#3B82F6", bubble: "#1D4ED8" },
-  { name: "Gece Yarısı Gri", color: "#94A3B8", bubble: "#334155" },
+  { name: "Aura Pembe", color: "#E91E63", bubble: "#BE185D", text: "#FFFFFF" },
+  { name: "WhatsApp Koyu", color: "#25D366", bubble: "#005C4B", text: "#FFFFFF" },
+  { name: "WhatsApp Açık", color: "#25D366", bubble: "#D9FDD3", text: "#111B21" },
+  { name: "Telegram Gece", color: "#2AABEE", bubble: "#2B5278", text: "#FFFFFF" },
+  { name: "Siber Turkuaz", color: "#06B6D4", bubble: "#0E7490", text: "#FFFFFF" },
+  { name: "Kraliyet Moru", color: "#8B5CF6", bubble: "#6D28D9", text: "#FFFFFF" },
+  { name: "Zümrüt Derinlik", color: "#10B981", bubble: "#047857", text: "#FFFFFF" },
+  { name: "Pastel Güneş", color: "#EAB308", bubble: "#FEF08A", text: "#1E293B" },
+  { name: "Gün Batımı", color: "#F59E0B", bubble: "#B45309", text: "#FFFFFF" },
+  { name: "Ateş Kırmızısı", color: "#EF4444", bubble: "#B91C1C", text: "#FFFFFF" },
+  { name: "Gece Mavisi", color: "#3B82F6", bubble: "#1D4ED8", text: "#FFFFFF" },
+  { name: "Buzul Mavisi", color: "#0284C7", bubble: "#E0F2FE", text: "#0369A1" },
+  { name: "Gece Yarısı Gri", color: "#94A3B8", bubble: "#334155", text: "#FFFFFF" },
+  { name: "Saf Beyaz", color: "#64748B", bubble: "#F1F5F9", text: "#0F172A" },
 ];
 
 interface Props {
@@ -96,6 +102,24 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     }
     return "#E91E63";
   });
+
+  const [userOutgoingText, setUserOutgoingText] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("aura_user_theme");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.outgoing_text) return parsed.outgoing_text;
+        } catch (e) {}
+      }
+    }
+    return "auto";
+  });
+
+  const effectiveTextColor =
+    userOutgoingText === "auto"
+      ? getContrastTextColor(userOutgoingBubble)
+      : userOutgoingText;
 
   const [themeSuccess, setThemeSuccess] = useState(false);
 
@@ -211,25 +235,36 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     }
   };
 
-  const handleApplyUserTheme = (accent: string, bubble: string) => {
+  const handleApplyUserTheme = (
+    accent: string,
+    bubble: string,
+    text: string = userOutgoingText
+  ) => {
     setUserAccentColor(accent);
     setUserOutgoingBubble(bubble);
-    if (typeof document !== "undefined") {
-      document.documentElement.style.setProperty("--accent", accent);
-      document.documentElement.style.setProperty("--primary", accent);
-      document.documentElement.style.setProperty("--outgoing-bubble", bubble);
-    }
+    setUserOutgoingText(text);
+    applyThemeToDocument({
+      primary_color: accent,
+      outgoing_bubble: bubble,
+      outgoing_text: text,
+    });
   };
 
   const handleSaveUserTheme = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem(
         "aura_user_theme",
-        JSON.stringify({ primary_color: userAccentColor, outgoing_bubble: userOutgoingBubble })
+        JSON.stringify({
+          primary_color: userAccentColor,
+          outgoing_bubble: userOutgoingBubble,
+          outgoing_text: userOutgoingText,
+        })
       );
-      document.documentElement.style.setProperty("--accent", userAccentColor);
-      document.documentElement.style.setProperty("--primary", userAccentColor);
-      document.documentElement.style.setProperty("--outgoing-bubble", userOutgoingBubble);
+      applyThemeToDocument({
+        primary_color: userAccentColor,
+        outgoing_bubble: userOutgoingBubble,
+        outgoing_text: userOutgoingText,
+      });
     }
     setThemeSuccess(true);
     setTimeout(() => setThemeSuccess(false), 2500);
@@ -579,7 +614,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                   <span>Popüler Renk Temaları</span>
                   <span className="text-[11px] text-slate-400">Tek tıkla uygulayın</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
                   {THEME_PRESETS.map((p) => {
                     const isSelected =
                       userOutgoingBubble.toLowerCase() === p.bubble.toLowerCase() &&
@@ -588,7 +623,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                       <button
                         key={p.name}
                         type="button"
-                        onClick={() => handleApplyUserTheme(p.color, p.bubble)}
+                        onClick={() => handleApplyUserTheme(p.color, p.bubble, p.text || "auto")}
                         className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
                           isSelected
                             ? "border-white bg-slate-800 shadow-lg scale-102"
@@ -599,10 +634,17 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                           <span
                             className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm"
                             style={{ backgroundColor: p.bubble }}
+                            title="Balon Rengi"
                           />
                           <span
                             className="w-2.5 h-2.5 rounded-full border border-white/20"
                             style={{ backgroundColor: p.color }}
+                            title="Vurgu Rengi"
+                          />
+                          <span
+                            className="w-2 h-2 rounded-full border border-white/20 ml-0.5"
+                            style={{ backgroundColor: p.text || "#FFFFFF" }}
+                            title="Yazı Rengi"
                           />
                           {isSelected && <Check className="w-3.5 h-3.5 text-white ml-auto" />}
                         </div>
@@ -617,8 +659,13 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
 
               {/* Özel Renk Seçiciler */}
               <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border space-y-3">
-                <h5 className="text-xs font-bold text-white">Özel Renk Seçimi (Hex / Renk Paleti)</h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-white">Özel Renk Seçimi (Hex / Renk Paleti)</h5>
+                  <span className="text-[10px] text-pink-400 font-medium">Anında Canlı Önizleme</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Giden Balon Rengi */}
                   <div>
                     <label className="text-[11px] font-semibold text-slate-300 block mb-1">
                       Giden Mesaj Balon Rengi
@@ -627,37 +674,83 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                       <input
                         type="text"
                         value={userOutgoingBubble}
-                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value)}
+                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value, userOutgoingText)}
                         className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
                       />
                       <input
                         type="color"
                         value={userOutgoingBubble.startsWith("#") ? userOutgoingBubble : "#BE185D"}
-                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value)}
+                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value, userOutgoingText)}
                         className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                        title="Renk Paletinden Seç"
                       />
                     </div>
                   </div>
 
+                  {/* Giden Mesaj Yazı Rengi */}
                   <div>
                     <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                      Ana Vurgu Rengi (Butonlar & İkonlar)
+                      Giden Mesaj Yazı (Font) Rengi
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={
+                          userOutgoingText === "auto" || userOutgoingText === "#FFFFFF" || userOutgoingText === "#0F172A"
+                            ? userOutgoingText
+                            : "custom"
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== "custom") {
+                            handleApplyUserTheme(userAccentColor, userOutgoingBubble, val);
+                          }
+                        }}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none cursor-pointer"
+                      >
+                        <option value="auto">Otomatik (Akıllı Kontrast)</option>
+                        <option value="#FFFFFF">Beyaz (#FFFFFF)</option>
+                        <option value="#0F172A">Koyu Siyah (#0F172A)</option>
+                        <option value="custom">Özel Renk Seç...</option>
+                      </select>
+                      <input
+                        type="color"
+                        value={effectiveTextColor.startsWith("#") ? effectiveTextColor : "#FFFFFF"}
+                        onChange={(e) => handleApplyUserTheme(userAccentColor, userOutgoingBubble, e.target.value)}
+                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                        title="Özel Yazı Rengi Seç"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Ana Vurgu Rengi */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Ana Vurgu Rengi (Butonlar/İkonlar)
                     </label>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         value={userAccentColor}
-                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble)}
+                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble, userOutgoingText)}
                         className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
                       />
                       <input
                         type="color"
                         value={userAccentColor.startsWith("#") ? userAccentColor : "#E91E63"}
-                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble)}
+                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble, userOutgoingText)}
                         className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                        title="Vurgu Rengi Seç"
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Akıllı Kontrast Bilgi Notu */}
+                <div className="flex items-center gap-2 text-[11px] text-slate-300 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                  <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span>
+                    <strong>Akıllı Yazı Rengi:</strong> Otomatik mod seçiliyken, balon açık renk yapıldığında yazı rengi kendiliğinden <strong>koyu</strong>, koyu renk yapıldığında ise <strong>beyaz</strong> yapılarak her zaman maksimum okunabilirlik sağlanır.
+                  </span>
                 </div>
               </div>
 
@@ -674,11 +767,19 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 </div>
                 <div className="flex justify-end">
                   <div
-                    className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs text-white shadow-md max-w-[85%]"
-                    style={{ backgroundColor: userOutgoingBubble }}
+                    className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs shadow-md max-w-[85%] transition-all duration-200"
+                    style={{
+                      backgroundColor: userOutgoingBubble,
+                      color: effectiveTextColor,
+                    }}
                   >
                     <div>Giden mesajlarım artık tam istediğim renkte!</div>
-                    <div className="text-[10px] text-white/70 text-right mt-0.5">14:31 ✓✓</div>
+                    <div
+                      className="text-[10px] text-right mt-0.5"
+                      style={{ opacity: 0.75 }}
+                    >
+                      14:31 ✓✓
+                    </div>
                   </div>
                 </div>
               </div>

@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin_api";
 import { User } from "@/store/useAuthStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { getContrastTextColor } from "@/lib/utils";
 import {
   ShieldAlert,
   Users,
@@ -116,7 +117,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       document.documentElement.style.setProperty("--primary", accent);
       document.documentElement.style.setProperty("--card", card);
       document.documentElement.style.setProperty("--border", border);
-      if (bubble) document.documentElement.style.setProperty("--outgoing-bubble", bubble);
+      if (bubble) {
+        document.documentElement.style.setProperty("--outgoing-bubble", bubble);
+        const textColor = getContrastTextColor(bubble);
+        document.documentElement.style.setProperty("--outgoing-text", textColor);
+        const muted = textColor === "#FFFFFF" ? "rgba(255, 255, 255, 0.75)" : "rgba(15, 23, 42, 0.7)";
+        document.documentElement.style.setProperty("--outgoing-text-muted", muted);
+      }
       if (incoming) document.documentElement.style.setProperty("--incoming-bubble", incoming);
     }
   };
@@ -700,11 +707,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                       <div className="flex justify-end">
                         <div
-                          className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs text-white shadow-md max-w-[80%]"
-                          style={{ backgroundColor: outgoingBubble }}
+                          className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs shadow-md max-w-[80%] transition-colors duration-200"
+                          style={{
+                            backgroundColor: outgoingBubble,
+                            color: getContrastTextColor(outgoingBubble),
+                          }}
                         >
                           <div>Giden mesaj balon rengim anında güncellendi! Çok iyi görünüyor.</div>
-                          <div className="text-[10px] text-white/70 text-right mt-0.5">14:31 ✓✓</div>
+                          <div
+                            className="text-[10px] text-right mt-0.5"
+                            style={{ opacity: 0.75 }}
+                          >
+                            14:31 ✓✓
+                          </div>
                         </div>
                       </div>
                     </div>

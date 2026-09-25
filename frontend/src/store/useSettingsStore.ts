@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getApiBaseUrl } from "@/lib/api";
+import { getContrastTextColor } from "@/lib/utils";
 import axios from "axios";
 
 export interface PublicSettings {
@@ -19,6 +20,7 @@ export interface PublicSettings {
     main_bg: string;
     border_color: string;
     outgoing_bubble: string;
+    outgoing_text?: string;
     incoming_bubble: string;
     font_family: string;
     border_radius: string;
@@ -90,7 +92,9 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   },
 };
 
-export const applyThemeToDocument = (theme: Partial<PublicSettings["theme_settings"]>) => {
+export const applyThemeToDocument = (
+  theme: Partial<PublicSettings["theme_settings"]> & { outgoing_text?: string }
+) => {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   if (theme.primary_color) {
@@ -105,6 +109,25 @@ export const applyThemeToDocument = (theme: Partial<PublicSettings["theme_settin
   }
   if (theme.outgoing_bubble) {
     root.style.setProperty("--outgoing-bubble", theme.outgoing_bubble);
+    // Metin rengini belirle: "auto" ise veya belirtilmemişse balona göre akıllı kontrast uygula
+    const textColor =
+      theme.outgoing_text && theme.outgoing_text !== "auto"
+        ? theme.outgoing_text
+        : getContrastTextColor(theme.outgoing_bubble);
+
+    root.style.setProperty("--outgoing-text", textColor);
+    const mutedColor =
+      textColor === "#FFFFFF"
+        ? "rgba(255, 255, 255, 0.75)"
+        : "rgba(15, 23, 42, 0.7)";
+    root.style.setProperty("--outgoing-text-muted", mutedColor);
+  } else if (theme.outgoing_text && theme.outgoing_text !== "auto") {
+    root.style.setProperty("--outgoing-text", theme.outgoing_text);
+    const mutedColor =
+      theme.outgoing_text === "#FFFFFF"
+        ? "rgba(255, 255, 255, 0.75)"
+        : "rgba(15, 23, 42, 0.7)";
+    root.style.setProperty("--outgoing-text-muted", mutedColor);
   }
   if (theme.incoming_bubble) {
     root.style.setProperty("--incoming-bubble", theme.incoming_bubble);

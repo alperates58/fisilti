@@ -303,9 +303,9 @@ export default function MessageBubble({
     if (message.tick_status === "read") {
       return <CheckCheck className="w-4 h-4 text-sky-400 inline ml-1" />;
     } else if (message.tick_status === "delivered") {
-      return <CheckCheck className="w-4 h-4 text-slate-400 inline ml-1" />;
+      return <CheckCheck className="w-4 h-4 opacity-75 inline ml-1" />;
     }
-    return <Check className="w-4 h-4 text-slate-400 inline ml-1" />;
+    return <Check className="w-4 h-4 opacity-75 inline ml-1" />;
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -391,6 +391,7 @@ export default function MessageBubble({
               ? "var(--outgoing-bubble, #BE185D)"
               : "var(--incoming-bubble, #1E232B)",
             borderColor: message.is_mine ? "transparent" : "var(--border, #1E293B)",
+            color: message.is_mine ? "var(--outgoing-text, #ffffff)" : undefined,
           }}
           className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none max-w-full min-w-0 overflow-hidden break-words ${
             isHighlightedMatch
@@ -398,7 +399,7 @@ export default function MessageBubble({
               : ""
           } ${
             message.is_mine
-              ? "text-white rounded-br-xs"
+              ? "rounded-br-xs"
               : "border text-slate-100 rounded-bl-xs"
           } ${message.is_deleted_for_all ? "opacity-60 italic" : ""}`}
         >
@@ -414,7 +415,7 @@ export default function MessageBubble({
               }}
               className={`mb-2 rounded-xl overflow-hidden flex w-full max-w-full cursor-pointer transition-all hover:opacity-95 active:scale-[0.99] select-none ${
                 message.is_mine
-                  ? "bg-black/25 text-white/95"
+                  ? "bg-black/15 text-inherit border-l-2 border-current"
                   : "bg-slate-950/70 text-slate-200 border border-white/5"
               }`}
               title="Alıntılanan mesaja git"
@@ -422,7 +423,7 @@ export default function MessageBubble({
               {/* Dikey Düz Şerit (WhatsApp Style) */}
               <div
                 className={`w-1 self-stretch flex-shrink-0 ${
-                  message.is_mine ? "bg-white/90" : "bg-pink-500"
+                  message.is_mine ? "bg-current opacity-80" : "bg-pink-500"
                 }`}
               />
 
@@ -664,7 +665,14 @@ export default function MessageBubble({
           )}
 
           {/* Zaman, Düzenlendi Etiketi, Yıldız ve WhatsApp Tikleri */}
-          <div className="flex items-center justify-end gap-1 mt-1 text-[11px] opacity-80 float-right ml-3 select-none">
+          <div
+            style={{
+              color: message.is_mine ? "var(--outgoing-text-muted, rgba(255,255,255,0.75))" : undefined,
+            }}
+            className={`flex items-center justify-end gap-1 mt-1 text-[11px] float-right ml-3 select-none ${
+              message.is_mine ? "" : "opacity-80"
+            }`}
+          >
             {message.is_starred && <Star className="w-3 h-3 text-amber-300 fill-amber-300" />}
             {message.is_edited && !message.is_deleted_for_all && (
               <span className="text-[9px] opacity-75 mr-0.5">(düzenlendi)</span>

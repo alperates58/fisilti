@@ -9,6 +9,8 @@
   --border: #1E293B;
   --accent: #E91E63;
   --outgoing-bubble: #BE185D;
+  --outgoing-text: #FFFFFF;
+  --outgoing-text-muted: rgba(255, 255, 255, 0.75);
   --incoming-bubble: #1E232B;
 }
 
