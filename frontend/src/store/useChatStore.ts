@@ -178,6 +178,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...state.messages,
           [convId]: [],
         },
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, last_message: undefined } : c
+        ),
       }));
     } catch (err) {
       console.error("Sohbet geçmişi temizlenemedi:", err);
@@ -557,6 +560,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   startNewConversation: async (recipientId: string) => {
     const res = await api.post<Conversation>("/conversations", { recipient_id: recipientId });
     await get().loadConversations();
+    set((state) => {
+      const exists = state.conversations.some((c) => c.id === res.data.id);
+      if (!exists) {
+        return {
+          conversations: [res.data, ...state.conversations],
+        };
+      }
+      return state;
+    });
     await get().selectConversation(res.data.id);
     return res.data.id;
   },
