@@ -197,7 +197,7 @@ export default function HomePage() {
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isFirstLoadRef = useRef<Record<string, boolean>>({});
+  const initialScrolledConvsRef = useRef<Record<string, boolean>>({});
   const prevMessagesCountRef = useRef<Record<string, number>>({});
   const isPrependingOlderRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -216,6 +216,9 @@ export default function HomePage() {
           behavior: "smooth",
         });
       }
+    }
+    if (messagesEndRef.current && behavior === "auto") {
+      messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
     }
   }, []);
 
@@ -280,37 +283,84 @@ export default function HomePage() {
     }
   }, [isAuthenticated, connect, loadConversations, loadStarredMessages]);
 
+  // Konuşma değiştiğinde bayrakları sıfırla
+  useEffect(() => {
+    if (!activeConversationId) return;
+    initialScrolledConvsRef.current[activeConversationId] = false;
+    isPrependingOlderRef.current = false;
+  }, [activeConversationId]);
+
   // 3. Mesaj listesi otomatik en alta kaydırma
   useEffect(() => {
     if (!activeConversationId) return;
+    const currentMsgs = messages[activeConversationId] || [];
 
-    if (!isFirstLoadRef.current[activeConversationId]) {
-      isFirstLoadRef.current[activeConversationId] = true;
-      prevMessagesCountRef.current[activeConversationId] = (messages[activeConversationId] || []).length;
-      scrollToBottom("auto");
-      setTimeout(() => scrollToBottom("auto"), 50);
-      setTimeout(() => scrollToBottom("auto"), 150);
-      return;
+    // Mesajlar henüz yüklenmediyse bekle
+    if (currentMsgs.length === 0) return;
+
+    // A. İlk açılışta veya konuşma değiştirildiğinde: ANINDA ve KESİN en alta sabitle
+    if (!initialScrolledConvsRef.current[activeConversationId]) {
+      const snapToBottom = () => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+        }
+      };
+
+      // İlk açılışta kesinlikle 'auto' (anlık) tabana yerleş, asla animasyonla kaydırma
+      snapToBottom();
+      const r1 = requestAnimationFrame(snapToBottom);
+      const t1 = setTimeout(snapToBottom, 30);
+      const t2 = setTimeout(snapToBottom, 100);
+      const t3 = setTimeout(() => {
+        snapToBottom();
+        // Artık kullanıcı en alta indi, bundan sonra onScroll eski mesajları çekebilir
+        if (activeConversationId) {
+          initialScrolledConvsRef.current[activeConversationId] = true;
+        }
+      }, 250);
+
+      prevMessagesCountRef.current[activeConversationId] = currentMsgs.length;
+
+      return () => {
+        cancelAnimationFrame(r1);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
 
+    // B. Eğer eski mesajlar yukarı eklendiyse (sayfalama / pagination): alta kaydırma!
     if (isPrependingOlderRef.current) {
       isPrependingOlderRef.current = false;
-      prevMessagesCountRef.current[activeConversationId] = (messages[activeConversationId] || []).length;
+      prevMessagesCountRef.current[activeConversationId] = currentMsgs.length;
       return;
     }
 
-    const currentCount = (messages[activeConversationId] || []).length;
-    prevMessagesCountRef.current[activeConversationId] = currentCount;
+    // C. Yeni bir mesaj geldiğinde (aşağıya eklendiğinde)
+    const prevCount = prevMessagesCountRef.current[activeConversationId] || 0;
+    prevMessagesCountRef.current[activeConversationId] = currentMsgs.length;
 
-    const isHidden = typeof document !== "undefined" && document.hidden;
-    if (isHidden) {
-      // Ekran kilitliyken veya arka plandayken anında en alta sabitle
-      scrollToBottom("auto");
-    } else {
-      scrollToBottom("smooth");
-      // Asenkron görsel/avatar veya reflow gecikmelerine karşı kesin emniyet zamanlayıcısı
-      const timer = setTimeout(() => scrollToBottom("auto"), 100);
-      return () => clearTimeout(timer);
+    if (currentMsgs.length > prevCount) {
+      const isHidden = typeof document !== "undefined" && document.hidden;
+      if (isHidden) {
+        scrollToBottom("auto");
+      } else {
+        const el = messagesContainerRef.current;
+        const isNearBottom = el
+          ? el.scrollHeight - el.scrollTop - el.clientHeight < 250
+          : true;
+        const lastMsg = currentMsgs[currentMsgs.length - 1];
+        const isMine = lastMsg?.is_mine;
+
+        if (isNearBottom || isMine) {
+          scrollToBottom("smooth");
+          const timer = setTimeout(() => scrollToBottom("auto"), 100);
+          return () => clearTimeout(timer);
+        }
+      }
     }
   }, [messages, activeConversationId, scrollToBottom]);
 
@@ -1163,11 +1213,18 @@ export default function HomePage() {
               ref={messagesContainerRef}
               onScroll={async (e) => {
                 const el = e.currentTarget;
+                if (!activeConversationId) return;
+
+                // Konuşma henüz ilk kez tabana kaydırılmadıysa ASLA yukarı kaydırma sayfalama tetikleme
+                if (!initialScrolledConvsRef.current[activeConversationId]) {
+                  return;
+                }
+
                 if (
                   el.scrollTop < 60 &&
                   !loadingOlderMessages &&
-                  activeConversationId &&
-                  hasMoreMessages[activeConversationId] !== false
+                  hasMoreMessages[activeConversationId] !== false &&
+                  el.scrollHeight > el.clientHeight
                 ) {
                   const prevScrollHeight = el.scrollHeight;
                   const prevScrollTop = el.scrollTop;
