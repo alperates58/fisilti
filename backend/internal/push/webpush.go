@@ -21,7 +21,7 @@ func NewVAPIDService() *VAPIDService {
 	sub := os.Getenv("VAPID_SUBSCRIBER_EMAIL")
 
 	if sub == "" {
-		sub = "mailto:admin@fisilti.local"
+		sub = "mailto:admin@aura.local"
 	}
 
 	// Eğer VAPID key tanımlı değilse test/varsayılan keypair üret

@@ -36,7 +36,7 @@ func GenerateAccessToken(userID uuid.UUID, username string, secret string, expir
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expiryMin) * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "fisilti",
+			Issuer:    "aura",
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -50,7 +50,7 @@ func GenerateRefreshToken(userID uuid.UUID, secret string, expiryDays int) (stri
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expiryDays) * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "fisilti",
+			Issuer:    "aura",
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
