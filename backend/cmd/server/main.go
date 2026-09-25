@@ -75,6 +75,22 @@ func main() {
 	}
 	log.Printf("✅ [MinIO] S3 depolama servisi bağlandı (%s).", cfg.MinioEndpoint)
 
+	// MinIO Bucketlarının varlığını garanti et
+	go func() {
+		for i := 0; i < 15; i++ {
+			bCtx, bCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := storageService.EnsureBuckets(bCtx); err == nil {
+				log.Println("✅ [MinIO] S3 bucketları doğrulandı ve hazırlandı.")
+				bCancel()
+				break
+			} else {
+				log.Printf("⏳ [MinIO] Bucket hazırlığı bekleniyor (%d/15): %v", i+1, err)
+			}
+			bCancel()
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
 	// 4. Redis Servisleri
 	presenceService := fisiltiredis.NewPresenceService(rdb)
 	typingService := fisiltiredis.NewTypingService(rdb)

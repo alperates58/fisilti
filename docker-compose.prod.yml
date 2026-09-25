@@ -44,7 +44,7 @@ services:
 
   # 3. MinIO S3 Depolama
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: always
     command: server /data --console-address ":9001"
     environment:
@@ -73,36 +73,6 @@ services:
       - 'traefik.http.routers.fisilti-s3.middlewares=fisilti-s3-noauth,${TRAEFIK_S3_MIDDLEWARES:-crowdsec@file}'
       - 'traefik.http.routers.fisilti-s3.priority=${TRAEFIK_S3_PRIORITY:-120}'
       - 'traefik.http.services.fisilti-s3.loadbalancer.server.port=9000'
-
-  # MinIO Başlangıç Bucket Oluşturucu (Tek seferlik)
-  minio-init:
-    image: minio/mc:latest
-    restart: "no"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET_AVATARS: ${MINIO_BUCKET_AVATARS:-avatars}
-      MINIO_BUCKET_VOICE: ${MINIO_BUCKET_VOICE:-audio-messages}
-      MINIO_BUCKET_MEDIA: ${MINIO_BUCKET_MEDIA:-media}
-      MINIO_BUCKET_FILES: ${MINIO_BUCKET_FILES:-files}
-    depends_on:
-      - minio
-    networks:
-      - fisilti-network
-    entrypoint: >
-      sh -c "
-      until (mc alias set local http://${MINIO_HOST:-fisilti-minio}:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}); do echo 'MinIO bekleniyor...' && sleep 2; done;
-      mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
-      mc mb --ignore-existing local/$${MINIO_BUCKET_VOICE};
-      mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
-      mc mb --ignore-existing local/$${MINIO_BUCKET_FILES};
-      mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
-      mc anonymous set none local/$${MINIO_BUCKET_VOICE};
-      mc anonymous set none local/$${MINIO_BUCKET_MEDIA};
-      mc anonymous set none local/$${MINIO_BUCKET_FILES};
-      echo 'MinIO bucketlari hazirlandi.';
-      exit 0;
-      "
 
   # 4. LiveKit WebRTC SFU
   livekit:

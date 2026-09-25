@@ -36,7 +36,7 @@ services:
 
   # 3. MinIO S3 Nesne Depolama Servisi
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: fisilti-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -54,29 +54,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # 4. MinIO Başlangıç Bucket Oluşturucu (Tek seferlik)
-  minio-init:
-    image: minio/mc:latest
-    container_name: fisilti-minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      until (/usr/bin/mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-fisilti_admin} ${MINIO_ROOT_PASSWORD:-fisilti_minio_secret_2026}); do echo 'MinIO bekleniyor...' && sleep 1; done;
-      /usr/bin/mc mb --ignore-existing local/avatars;
-      /usr/bin/mc mb --ignore-existing local/audio-messages;
-      /usr/bin/mc mb --ignore-existing local/media;
-      /usr/bin/mc mb --ignore-existing local/files;
-      /usr/bin/mc anonymous set download local/avatars;
-      /usr/bin/mc anonymous set download local/audio-messages;
-      /usr/bin/mc anonymous set download local/media;
-      /usr/bin/mc anonymous set download local/files;
-      echo 'MinIO bucketlari basariyla olusturuldu.';
-      exit 0;
-      "
-
-  # 5. LiveKit SFU WebRTC Sunucusu (Self-Hosted)
+  # 4. LiveKit SFU WebRTC Sunucusu (Self-Hosted)
   livekit:
     image: livekit/livekit-server:latest
     container_name: fisilti-livekit

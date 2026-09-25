@@ -291,3 +291,39 @@ func (s *StorageService) DeleteMedia(ctx context.Context, mediaURL string) error
 
 	return s.client.RemoveObject(ctx, bucket, objectName, minio.RemoveObjectOptions{})
 }
+
+// EnsureBuckets - Uygulama başlangıcında gerekli MinIO bucketlarının varlığını denetler, yoksa oluşturur ve avatar için genel indirme politikasını tanımlar
+func (s *StorageService) EnsureBuckets(ctx context.Context) error {
+	buckets := []string{s.avatarBucket, s.mediaBucket, s.voiceBucket, s.filesBucket}
+	for _, b := range buckets {
+		if strings.TrimSpace(b) == "" {
+			continue
+		}
+		exists, err := s.client.BucketExists(ctx, b)
+		if err != nil {
+			return fmt.Errorf("bucket kontrol hatasi (%s): %w", b, err)
+		}
+		if !exists {
+			if err := s.client.MakeBucket(ctx, b, minio.MakeBucketOptions{}); err != nil {
+				return fmt.Errorf("bucket olusturulamadi (%s): %w", b, err)
+			}
+		}
+	}
+
+	if s.avatarBucket != "" {
+		policy := fmt.Sprintf(`{
+			"Version": "2012-10-17",
+			"Statement": [
+				{
+					"Effect": "Allow",
+					"Principal": {"AWS": ["*"]},
+					"Action": ["s3:GetObject"],
+					"Resource": ["arn:aws:s3:::%s/*"]
+				}
+			]
+		}`, s.avatarBucket)
+		_ = s.client.SetBucketPolicy(ctx, s.avatarBucket, policy)
+	}
+
+	return nil
+}
