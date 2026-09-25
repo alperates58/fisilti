@@ -650,10 +650,10 @@ export default function HomePage() {
         {activeConv ? (
           <>
             {/* Sohbet Üst Başlığı (ChatHeader) */}
-            <header className="h-16 border-b border-grupo-dark-border px-3 sm:px-6 flex items-center justify-between bg-grupo-dark-card/60 backdrop-blur-md z-10 flex-shrink-0">
+            <header className="h-16 border-b border-grupo-dark-border px-2.5 sm:px-6 flex items-center justify-between bg-grupo-dark-card/60 backdrop-blur-md z-10 flex-shrink-0">
               <div
                 onClick={() => setShowContactDrawer(!showContactDrawer)}
-                className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer"
+                className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2 cursor-pointer"
               >
                 {/* Mobilde Geri Butonu (<-- Geri) */}
                 <button
@@ -662,13 +662,13 @@ export default function HomePage() {
                     deselectConversation();
                   }}
                   title="Geri Dön"
-                  className="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer -ml-1"
+                  className="md:hidden p-1.5 sm:p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer -ml-1 flex-shrink-0"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
 
                 <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
                     {activeConv.other_user.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -684,11 +684,11 @@ export default function HomePage() {
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
                   )}
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-white truncate">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-white truncate leading-tight">
                     {activeConv.other_user.display_name}
                   </h3>
-                  <p className="text-xs text-slate-400 truncate">
+                  <p className="text-[11px] sm:text-xs text-slate-400 truncate leading-tight mt-0.5">
                     {isOtherTyping ? (
                       <span className="text-pink-400 font-semibold animate-pulse">
                         yazıyor...
@@ -706,7 +706,7 @@ export default function HomePage() {
               </div>
 
               {/* Sesli / Görüntülü Arama & Profil Butonları */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 {settings?.call_settings?.enable_audio_calls !== false && (
                   <button
                     onClick={() => setConfirmCallType("audio")}
@@ -725,7 +725,7 @@ export default function HomePage() {
                     <Video className="w-4 h-4" />
                   </button>
                 )}
-                {/* Sohbet İçi Arama Butonu (WhatsApp Tarzı) */}
+                {/* Sohbet İçi Arama Butonu (Masaüstünde doğrudan görünür, mobilde 3 nokta menüsünde) */}
                 <button
                   onClick={() => {
                     setIsChatSearchOpen(!isChatSearchOpen);
@@ -735,7 +735,7 @@ export default function HomePage() {
                     }
                   }}
                   title="Sohbette Ara"
-                  className={`p-2 sm:p-2.5 rounded-xl transition-colors cursor-pointer ${
+                  className={`hidden sm:flex p-2 sm:p-2.5 rounded-xl transition-colors cursor-pointer ${
                     isChatSearchOpen
                       ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
                       : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white"
@@ -747,7 +747,7 @@ export default function HomePage() {
                 <button
                   onClick={() => setShowContactDrawer(!showContactDrawer)}
                   title="Kişi Bilgisi"
-                  className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  className="hidden sm:flex p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
                 </button>
@@ -767,6 +767,16 @@ export default function HomePage() {
                       onClick={(e) => e.stopPropagation()}
                       className="absolute right-0 top-11 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95"
                     >
+                      <button
+                        onClick={() => {
+                          setShowActiveChatMenu(false);
+                          setShowContactDrawer(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer sm:hidden"
+                      >
+                        <Info className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Kişi Bilgisi</span>
+                      </button>
                       <button
                         onClick={() => {
                           setShowActiveChatMenu(false);
