@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/url"
 	"strings"
 
 	"fisilti/internal/config"
@@ -23,10 +24,70 @@ func NewWSHandler(cfg config.Config, hub *fisiltiws.Hub) *WSHandler {
 	}
 }
 
-// WebSocket Upgrade Öncesi Middleware (Kimlik Doğrulama)
+// isAllowedOrigin WebSocket handshake sırasında Origin başlığının güvenilir olup olmadığını doğrular (CSWSH koruması)
+func (h *WSHandler) isAllowedOrigin(origin string, c *fiber.Ctx) bool {
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil || parsedOrigin.Host == "" {
+		return false
+	}
+
+	// 1. Same-Origin kontrolü: Request Host ile Origin Host eşleşiyor mu?
+	reqHost := c.Hostname()
+	if strings.EqualFold(parsedOrigin.Hostname(), reqHost) {
+		return true
+	}
+
+	// 2. Config allowlist kontrolü: CORS_ALLOWED_ORIGINS
+	if h.cfg.CORSAllowedOrigins != "" {
+		allowedList := strings.Split(h.cfg.CORSAllowedOrigins, ",")
+		for _, raw := range allowedList {
+			allowed := strings.TrimSpace(raw)
+			if allowed == "" {
+				continue
+			}
+			if strings.EqualFold(origin, allowed) {
+				return true
+			}
+			if pAllowed, err := url.Parse(allowed); err == nil && pAllowed.Host != "" {
+				if strings.EqualFold(parsedOrigin.Host, pAllowed.Host) {
+					return true
+				}
+			}
+		}
+	}
+
+	// 3. Geliştirme ortamında localhost izinleri
+	if h.cfg.Environment != "production" {
+		host := strings.ToLower(parsedOrigin.Hostname())
+		if host == "localhost" || host == "127.0.0.1" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// WebSocket Upgrade Öncesi Middleware (Kimlik Doğrulama & CSWSH Koruması)
 func (h *WSHandler) UpgradeMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
+			// CSWSH Koruması: Origin Doğrulaması
+			origin := strings.TrimSpace(c.Get("Origin"))
+			if origin == "" {
+				// Cookie tabanlı kimlik doğrulama kullanıldığı için tarayıcı Origin başlığı zorunludur.
+				if h.cfg.Environment == "production" {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error": "Origin başlığı eksik (CSWSH koruması).",
+					})
+				}
+			} else {
+				if !h.isAllowedOrigin(origin, c) {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error": "Yetkisiz Origin adresi (CSWSH koruması).",
+					})
+				}
+			}
+
 			// 1. Cookie kontrolü
 			tokenStr := c.Cookies("access_token")
 

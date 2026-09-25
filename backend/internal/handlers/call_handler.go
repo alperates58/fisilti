@@ -81,6 +81,14 @@ func (h *CallHandler) InitiateCall(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Konuşma bulunamadı."})
 	}
 
+	if conv.UserOneID != callerID && conv.UserTwoID != callerID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu konuşmada arama başlatma yetkiniz yok."})
+	}
+
+	if conv.IsBlocked {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu kullanıcı ile iletişim engellenmiştir."})
+	}
+
 	receiverID := conv.UserTwoID
 	if conv.UserOneID != callerID {
 		receiverID = conv.UserOneID
@@ -190,6 +198,14 @@ func (h *CallHandler) AcceptCall(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
 	}
 
+	callLog, err := h.callRepo.GetCallByID(c.Context(), req.CallID)
+	if err != nil || callLog == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Arama kaydı bulunamadı."})
+	}
+	if callLog.ReceiverID != receiverID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu aramayı yalnızca aranan taraf kabul edebilir."})
+	}
+
 	// Redis kilitlerini görüşme süresine uzat (2 saat)
 	conv, _ := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
 	if conv != nil {
@@ -227,6 +243,14 @@ func (h *CallHandler) RejectCall(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
 	}
 
+	callLog, err := h.callRepo.GetCallByID(c.Context(), req.CallID)
+	if err != nil || callLog == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Arama kaydı bulunamadı."})
+	}
+	if callLog.CallerID != rejecterID && callLog.ReceiverID != rejecterID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu aramaya müdahale etme yetkiniz yok."})
+	}
+
 	reason := req.Reason
 	if reason == "" {
 		reason = "rejected"
@@ -253,18 +277,12 @@ func (h *CallHandler) RejectCall(c *fiber.Ctx) error {
 		h.hub.SendToUser(rejecterID, rejectedPayload)
 
 		// Reddedilen arama kaydı mesajı ekle
-		callLog, _ := h.callRepo.GetCallByID(c.Context(), req.CallID)
 		isCaller := false
-		callType := "audio"
+		callType := callLog.CallType
 		senderID := otherID
 		recipientID := rejecterID
-		if callLog != nil {
-			callType = callLog.CallType
-			senderID = callLog.CallerID
-			recipientID = callLog.ReceiverID
-			if rejecterID == callLog.CallerID {
-				isCaller = true
-			}
+		if rejecterID == callLog.CallerID {
+			isCaller = true
 		}
 
 		var content string
@@ -306,6 +324,14 @@ func (h *CallHandler) EndCall(c *fiber.Ctx) error {
 	var req EndCallRequest
 	if err := c.BodyParser(&req); err != nil || req.CallID == uuid.Nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek."})
+	}
+
+	callLog, err := h.callRepo.GetCallByID(c.Context(), req.CallID)
+	if err != nil || callLog == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Arama kaydı bulunamadı."})
+	}
+	if callLog.CallerID != enderID && callLog.ReceiverID != enderID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu aramayı sonlandırma yetkiniz yok."})
 	}
 
 	_ = h.callRepo.UpdateCallStatus(c.Context(), req.CallID, "completed", req.DurationSeconds)

@@ -65,6 +65,13 @@ func (h *ChatHandler) StartConversation(c *fiber.Ctx) error {
 		})
 	}
 
+	isBlocked, _ := h.chatRepo.IsUserBlocked(c.Context(), userID, req.RecipientID)
+	if isBlocked {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Bu kullanıcı ile iletişim engellenmiştir.",
+		})
+	}
+
 	conv, err := h.chatRepo.GetOrCreateConversation(c.Context(), userID, req.RecipientID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -125,8 +132,8 @@ func (h *ChatHandler) GetMessages(c *fiber.Ctx) error {
 
 	messages, err := h.chatRepo.GetMessages(c.Context(), convID, userID, limit, beforeTime)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Mesajlar getirilemedi.",
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": err.Error(),
 		})
 	}
 
@@ -343,6 +350,10 @@ func (h *ChatHandler) CreateMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Konuşma bulunamadı."})
 	}
 
+	if conv.IsBlocked {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu konuşma engellenmiştir."})
+	}
+
 	var recipientID uuid.UUID
 	if conv.UserOneID == userID {
 		recipientID = conv.UserTwoID
@@ -394,5 +405,82 @@ func (h *ChatHandler) CreateMessage(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(msgModel.ToResponse(userID))
 }
 
+// SearchMessages konuşma içindeki mesajlarda arama yapar
+func (h *ChatHandler) SearchMessages(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	convID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz konuşma ID."})
+	}
+	q := c.Query("q")
+	limit, _ := strconv.Atoi(c.Query("limit", "30"))
+
+	results, err := h.chatRepo.SearchMessages(c.Context(), convID, userID, q, limit)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(results)
+}
+
+// BlockConversation konuşmayı engeller
+func (h *ChatHandler) BlockConversation(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	convID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz konuşma ID."})
+	}
+
+	if err := h.chatRepo.BlockConversation(c.Context(), convID, userID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), convID)
+	if conv != nil && h.hub != nil {
+		otherID := conv.UserTwoID
+		if conv.UserOneID != userID {
+			otherID = conv.UserOneID
+		}
+		blockPayload, _ := fisiltiws.NewWSMessage("conversation_blocked", fiber.Map{
+			"conversation_id": convID,
+			"blocked_by":      userID,
+			"is_blocked":      true,
+		})
+		h.hub.SendToUser(userID, blockPayload)
+		h.hub.SendToUser(otherID, blockPayload)
+	}
+
+	return c.JSON(fiber.Map{"message": "Kullanıcı engellendi.", "is_blocked": true})
+}
+
+// UnblockConversation engeli kaldırır
+func (h *ChatHandler) UnblockConversation(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	convID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz konuşma ID."})
+	}
+
+	if err := h.chatRepo.UnblockConversation(c.Context(), convID, userID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), convID)
+	if conv != nil && h.hub != nil {
+		otherID := conv.UserTwoID
+		if conv.UserOneID != userID {
+			otherID = conv.UserOneID
+		}
+		unblockPayload, _ := fisiltiws.NewWSMessage("conversation_unblocked", fiber.Map{
+			"conversation_id": convID,
+			"is_blocked":      false,
+		})
+		h.hub.SendToUser(userID, unblockPayload)
+		h.hub.SendToUser(otherID, unblockPayload)
+	}
+
+	return c.JSON(fiber.Map{"message": "Engel kaldırıldı.", "is_blocked": false})
+}
+
 // Unused warning prevention
 var _ = json.Marshal
+

@@ -210,14 +210,26 @@ func (r *ChatRepository) SaveMessage(ctx context.Context, msg *models.Message) e
 	return nil
 }
 
+// CanUserAccessConversation kullanıcının verilen konuşmanın meşru bir tarafı (participant) olup olmadığını denetler.
+func (r *ChatRepository) CanUserAccessConversation(ctx context.Context, conversationID, userID uuid.UUID) (bool, *models.Conversation, error) {
+	conv, err := r.GetConversationByID(ctx, conversationID)
+	if err != nil || conv == nil {
+		return false, nil, errors.New("konuşma bulunamadı")
+	}
+	if conv.UserOneID != userID && conv.UserTwoID != userID {
+		return false, nil, errors.New("bu konuşmaya erişim yetkiniz yok")
+	}
+	return true, conv, nil
+}
+
 func (r *ChatRepository) GetMessages(ctx context.Context, conversationID, userID uuid.UUID, limit int, beforeTime *time.Time) ([]models.MessageResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 30
 	}
 
-	conv, err := r.GetConversationByID(ctx, conversationID)
-	if err != nil || conv == nil {
-		return nil, errors.New("konusma bulunamadi")
+	allowed, conv, err := r.CanUserAccessConversation(ctx, conversationID, userID)
+	if err != nil || !allowed || conv == nil {
+		return nil, errors.New("bu konuşmaya erişim yetkiniz yok")
 	}
 
 	clearedAt := conv.UserTwoClearedAt
@@ -504,6 +516,11 @@ func (r *ChatRepository) ToggleReaction(ctx context.Context, messageID, userID u
 		return nil, errors.New("mesaj bulunamadı")
 	}
 
+	allowed, _, err := r.CanUserAccessConversation(ctx, m.ConversationID, userID)
+	if err != nil || !allowed {
+		return nil, errors.New("bu mesaja tepki verme yetkiniz yok")
+	}
+
 	reactions := make(map[string][]string)
 	if len(m.Reactions) > 0 {
 		_ = json.Unmarshal(m.Reactions, &reactions)
@@ -602,6 +619,120 @@ func (r *ChatRepository) ToggleStar(ctx context.Context, messageID, userID uuid.
 	return starred, err
 }
 
+// BlockConversation konuşmayı engeller (yalnızca konuşmanın tarafı olan kullanıcı engelleyebilir)
+func (r *ChatRepository) BlockConversation(ctx context.Context, conversationID, blockerID uuid.UUID) error {
+	allowed, _, err := r.CanUserAccessConversation(ctx, conversationID, blockerID)
+	if err != nil || !allowed {
+		return errors.New("bu konuşmayı engelleme yetkiniz yok")
+	}
+	query := `
+		UPDATE conversations
+		SET is_blocked = TRUE, blocked_by = $1, updated_at = NOW()
+		WHERE id = $2 AND (user_one_id = $1 OR user_two_id = $1)
+	`
+	res, err := r.db.ExecContext(ctx, query, blockerID, conversationID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return errors.New("konuşma engellenemedi")
+	}
+	return nil
+}
+
+// UnblockConversation engelli konuşmanın engelini kaldırır (yalnızca engelleyen kullanıcı kaldırabilir)
+func (r *ChatRepository) UnblockConversation(ctx context.Context, conversationID, unblockerID uuid.UUID) error {
+	allowed, conv, err := r.CanUserAccessConversation(ctx, conversationID, unblockerID)
+	if err != nil || !allowed || conv == nil {
+		return errors.New("bu konuşmaya erişim yetkiniz yok")
+	}
+	if conv.BlockedBy == nil || *conv.BlockedBy != unblockerID {
+		return errors.New("bu engeli yalnızca engeli koyan kullanıcı kaldırabilir")
+	}
+	query := `
+		UPDATE conversations
+		SET is_blocked = FALSE, blocked_by = NULL, updated_at = NOW()
+		WHERE id = $1 AND blocked_by = $2
+	`
+	_, err = r.db.ExecContext(ctx, query, conversationID, unblockerID)
+	return err
+}
+
+// IsUserBlocked iki kullanıcı arasında aktif bir engelleme olup olmadığını kontrol eder.
+func (r *ChatRepository) IsUserBlocked(ctx context.Context, userA, userB uuid.UUID) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM conversations
+			WHERE ((user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1))
+			  AND is_blocked = TRUE
+		)
+	`
+	var isBlocked bool
+	err := r.db.QueryRowContext(ctx, query, userA, userB).Scan(&isBlocked)
+	return isBlocked, err
+}
+
+// SearchMessages konuşma içindeki mesajlarda yetkili metin araması yapar.
+func (r *ChatRepository) SearchMessages(ctx context.Context, conversationID, userID uuid.UUID, queryStr string, limit int) ([]models.MessageResponse, error) {
+	allowed, conv, err := r.CanUserAccessConversation(ctx, conversationID, userID)
+	if err != nil || !allowed || conv == nil {
+		return nil, errors.New("bu konuşmaya erişim yetkiniz yok")
+	}
+
+	cleanQuery := strings.TrimSpace(queryStr)
+	if len(cleanQuery) < 2 {
+		return nil, errors.New("arama terimi en az 2 karakter olmalıdır")
+	}
+	if len(cleanQuery) > 100 {
+		cleanQuery = cleanQuery[:100]
+	}
+
+	if limit <= 0 || limit > 50 {
+		limit = 30
+	}
+
+	clearedAt := conv.UserTwoClearedAt
+	if conv.UserOneID == userID {
+		clearedAt = conv.UserOneClearedAt
+	}
+
+	sqlQuery := `
+		SELECT id, conversation_id, sender_id, recipient_id, reply_to_id, message_type, content, media_url, media_metadata,
+		       sent_at, delivered_at, read_at, is_edited, is_starred, is_deleted_for_all, reactions, created_at
+		FROM messages
+		WHERE conversation_id = $1
+		  AND created_at > $2
+		  AND NOT ($3 = ANY(deleted_for_users))
+		  AND is_deleted_for_all = FALSE
+		  AND content ILIKE '%' || $4 || '%'
+		ORDER BY created_at DESC
+		LIMIT $5
+	`
+	rows, err := r.db.QueryContext(ctx, sqlQuery, conversationID, clearedAt, userID, cleanQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("mesajlar aranamadı: %w", err)
+	}
+	defer rows.Close()
+
+	var list []models.MessageResponse
+	for rows.Next() {
+		var m models.Message
+		if err := rows.Scan(
+			&m.ID, &m.ConversationID, &m.SenderID, &m.RecipientID, &m.ReplyToID, &m.MessageType, &m.Content,
+			&m.MediaURL, &m.MediaMetadata, &m.SentAt, &m.DeliveredAt, &m.ReadAt, &m.IsEdited, &m.IsStarred,
+			&m.IsDeletedForAll, &m.Reactions, &m.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		list = append(list, m.ToResponse(userID))
+	}
+	if list == nil {
+		list = []models.MessageResponse{}
+	}
+	return list, nil
+}
+
 // CanUserAccessMedia dosya nesnesinin adına ve kullanıcının yetkisine bakar.
 // Avatarlar herkese açıktır.
 // Özel mesaj medyaları için (ses, fotoğraf, video, belge):
@@ -630,9 +761,11 @@ func (r *ChatRepository) CanUserAccessMedia(ctx context.Context, userID uuid.UUI
 	// 4. Eğer yükleyen değilse, alıcı mı? Veritabanındaki messages tablosunda bu dosya bulunuyor mu?
 	baseObj := strings.TrimSuffix(objectName, filepath.Ext(objectName))
 	query := `
-		SELECT 1 FROM messages
-		WHERE (media_url LIKE '%' || $1 || '%')
-		  AND (sender_id = $2 OR recipient_id = $2)
+		SELECT 1 FROM messages m
+		JOIN conversations c ON c.id = m.conversation_id
+		WHERE (m.media_url LIKE '%' || $1 || '%')
+		  AND (m.sender_id = $2 OR m.recipient_id = $2)
+		  AND c.is_blocked = FALSE
 		LIMIT 1
 	`
 	var exists int

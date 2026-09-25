@@ -102,6 +102,9 @@ func (c *Client) WritePump() {
 func (c *Client) handleAction(msg WSMessage) {
 	ctx := context.Background()
 
+	// Her gelen soket aktivitesinde kullanıcının Presence TTL süresini tazele
+	_ = c.hub.presenceService.RefreshUserOnline(ctx, c.userID)
+
 	switch msg.Action {
 	case "ping":
 		pongMsg, _ := NewWSMessage("pong", map[string]string{"status": "alive"})
@@ -138,9 +141,27 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 
-		// 1. Konuşmayı doğrula ve alıcıyı bul
+		// 1. Konuşmayı doğrula ve yetki kontrolü yap
 		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
 		if err != nil || conv == nil {
+			return
+		}
+
+		// GÜVENLİK (IDOR Önlemi): Gönderen bu konuşmanın meşru tarafı mı?
+		if conv.UserOneID != c.userID && conv.UserTwoID != c.userID {
+			warnPayload, _ := NewWSMessage("error", map[string]string{
+				"message": "Bu sohbete mesaj gönderme yetkiniz bulunmuyor.",
+			})
+			c.send <- warnPayload
+			return
+		}
+
+		// Engelleme Kontrolü:
+		if conv.IsBlocked {
+			warnPayload, _ := NewWSMessage("error", map[string]string{
+				"message": "Bu konuşma engellenmiştir. Mesaj gönderemezsiniz.",
+			})
+			c.send <- warnPayload
 			return
 		}
 
@@ -244,6 +265,14 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 
+		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
+		if err != nil || conv == nil {
+			return
+		}
+		if conv.UserOneID != c.userID && conv.UserTwoID != c.userID {
+			return
+		}
+
 		updatedIDs, readAt, err := c.hub.chatRepo.MarkMessagesAsRead(ctx, p.ConversationID, c.userID, p.MessageIDs)
 		if err == nil && len(updatedIDs) > 0 {
 			readPayload, _ := NewWSMessage("message_read", MessageReadPayload{
@@ -253,14 +282,11 @@ func (c *Client) handleAction(msg WSMessage) {
 			})
 
 			// Konuşmadaki diğer tarafa (gönderene) Çift Mavi Tik bas
-			conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
-			if err == nil && conv != nil {
-				otherUserID := conv.UserTwoID
-				if conv.UserOneID != c.userID {
-					otherUserID = conv.UserOneID
-				}
-				c.hub.SendToUser(otherUserID, readPayload)
+			otherUserID := conv.UserTwoID
+			if conv.UserOneID != c.userID {
+				otherUserID = conv.UserOneID
 			}
+			c.hub.SendToUser(otherUserID, readPayload)
 		}
 
 	case "typing_start":
@@ -268,42 +294,57 @@ func (c *Client) handleAction(msg WSMessage) {
 		if err := json.Unmarshal(msg.Payload, &p); err != nil {
 			return
 		}
+
+		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
+		if err != nil || conv == nil {
+			return
+		}
+		if conv.UserOneID != c.userID && conv.UserTwoID != c.userID {
+			return
+		}
+		if conv.IsBlocked {
+			return
+		}
+
 		// Redis 5s TTL
 		_ = c.hub.typingService.SetTyping(ctx, p.ConversationID, c.userID)
 
-		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
-		if err == nil && conv != nil {
-			otherUserID := conv.UserTwoID
-			if conv.UserOneID != c.userID {
-				otherUserID = conv.UserOneID
-			}
-			typingPayload, _ := NewWSMessage("user_typing", UserTypingPayload{
-				ConversationID: p.ConversationID,
-				UserID:         c.userID,
-				IsTyping:       true,
-			})
-			c.hub.SendToUser(otherUserID, typingPayload)
+		otherUserID := conv.UserTwoID
+		if conv.UserOneID != c.userID {
+			otherUserID = conv.UserOneID
 		}
+		typingPayload, _ := NewWSMessage("user_typing", UserTypingPayload{
+			ConversationID: p.ConversationID,
+			UserID:         c.userID,
+			IsTyping:       true,
+		})
+		c.hub.SendToUser(otherUserID, typingPayload)
 
 	case "typing_stop":
 		var p TypingPayload
 		if err := json.Unmarshal(msg.Payload, &p); err != nil {
 			return
 		}
-		_ = c.hub.typingService.RemoveTyping(ctx, p.ConversationID, c.userID)
 
 		conv, err := c.hub.chatRepo.GetConversationByID(ctx, p.ConversationID)
-		if err == nil && conv != nil {
-			otherUserID := conv.UserTwoID
-			if conv.UserOneID != c.userID {
-				otherUserID = conv.UserOneID
-			}
-			typingPayload, _ := NewWSMessage("user_typing", UserTypingPayload{
-				ConversationID: p.ConversationID,
-				UserID:         c.userID,
-				IsTyping:       false,
-			})
-			c.hub.SendToUser(otherUserID, typingPayload)
+		if err != nil || conv == nil {
+			return
 		}
+		if conv.UserOneID != c.userID && conv.UserTwoID != c.userID {
+			return
+		}
+
+		_ = c.hub.typingService.RemoveTyping(ctx, p.ConversationID, c.userID)
+
+		otherUserID := conv.UserTwoID
+		if conv.UserOneID != c.userID {
+			otherUserID = conv.UserOneID
+		}
+		typingPayload, _ := NewWSMessage("user_typing", UserTypingPayload{
+			ConversationID: p.ConversationID,
+			UserID:         c.userID,
+			IsTyping:       false,
+		})
+		c.hub.SendToUser(otherUserID, typingPayload)
 	}
 }
