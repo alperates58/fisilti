@@ -6,6 +6,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSocketStore } from "@/store/useSocketStore";
 import { useCallStore } from "@/store/useCallStore";
+import { useStoryStore } from "@/store/useStoryStore";
+import { useBackNavigation } from "@/lib/useBackNavigation";
 import { useSettingsStore, applyThemeToDocument } from "@/store/useSettingsStore";
 import IncomingCallModal from "@/components/call/IncomingCallModal";
 import ActiveCallModal from "@/components/call/ActiveCallModal";
@@ -102,9 +104,12 @@ export default function HomePage() {
     starredMessages,
     loadStarredMessages,
     toggleStar,
+    selectedMessageInfo,
+    setSelectedMessageInfo,
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
+  const { activeViewerGroup, closeViewer, isCreatorOpen, closeCreator } = useStoryStore();
 
   const [activeTab, setActiveTab] = useState<NavTab>("chats");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -124,6 +129,39 @@ export default function HomePage() {
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  // Android Sistem Geri Tuşu & Tarayıcı Geri Gezinme Yönetimi
+  const { handleBackToChatList, showExitToast } = useBackNavigation({
+    activeConversationId,
+    onCloseChat: deselectConversation,
+    previewMedia,
+    onClosePreviewMedia: () => setPreviewMedia(null),
+    showContactDrawer,
+    onCloseContactDrawer: () => setShowContactDrawer(false),
+    isChatSearchOpen,
+    onCloseChatSearch: () => {
+      setIsChatSearchOpen(false);
+      setChatSearchQuery("");
+      setCurrentMatchIndex(0);
+    },
+    confirmCallType,
+    onCloseConfirmCallType: () => setConfirmCallType(null),
+    showActiveDeleteConfirm,
+    onCloseActiveDeleteConfirm: () => setShowActiveDeleteConfirm(null),
+    isSettingsOpen,
+    onCloseSettings: () => {
+      setIsSettingsOpen(false);
+      if (activeTab === "settings") setActiveTab("chats");
+    },
+    isAdminPanelOpen,
+    onCloseAdminPanel: () => setIsAdminPanelOpen(false),
+    selectedMessageInfo,
+    onCloseMessageInfo: () => setSelectedMessageInfo(null),
+    isStoryViewerOpen: !!activeViewerGroup,
+    onCloseStoryViewer: closeViewer,
+    isStoryCreatorOpen: isCreatorOpen,
+    onCloseStoryCreator: closeCreator,
+  });
 
   const [inputMessage, setInputMessage] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -784,7 +822,7 @@ export default function HomePage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    deselectConversation();
+                    handleBackToChatList();
                   }}
                   title="Geri Dön"
                   className="md:hidden p-1.5 sm:p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer -ml-1 flex-shrink-0"
@@ -1557,6 +1595,13 @@ export default function HomePage() {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Ana Ekran Geri Tuşu Çift Dokunma Bilgilendirme Kartı */}
+      {showExitToast && (
+        <div className="fixed bottom-16 sm:bottom-6 inset-x-0 mx-auto w-fit z-50 px-4 py-2 bg-slate-900/95 border border-slate-700 text-white text-xs font-medium rounded-full shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150 pointer-events-none select-none">
+          Çıkmak için tekrar dokunun
         </div>
       )}
     </div>
