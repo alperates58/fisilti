@@ -106,6 +106,12 @@ export default function HomePage() {
     toggleStar,
     selectedMessageInfo,
     setSelectedMessageInfo,
+    hasMoreMessages,
+    loadingOlderMessages,
+    loadOlderMessages,
+    blockConversation,
+    unblockConversation,
+    searchMessages,
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
@@ -192,6 +198,8 @@ export default function HomePage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef<Record<string, boolean>>({});
+  const prevMessagesCountRef = useRef<Record<string, number>>({});
+  const isPrependingOlderRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Akıllı ve güvenli en alta kaydırma fonksiyonu (Sadece mesaj konteynerini kaydırır, tarayıcı penceresini/document'ı kaydırmaz)
@@ -278,11 +286,21 @@ export default function HomePage() {
 
     if (!isFirstLoadRef.current[activeConversationId]) {
       isFirstLoadRef.current[activeConversationId] = true;
+      prevMessagesCountRef.current[activeConversationId] = (messages[activeConversationId] || []).length;
       scrollToBottom("auto");
       setTimeout(() => scrollToBottom("auto"), 50);
       setTimeout(() => scrollToBottom("auto"), 150);
       return;
     }
+
+    if (isPrependingOlderRef.current) {
+      isPrependingOlderRef.current = false;
+      prevMessagesCountRef.current[activeConversationId] = (messages[activeConversationId] || []).length;
+      return;
+    }
+
+    const currentCount = (messages[activeConversationId] || []).length;
+    prevMessagesCountRef.current[activeConversationId] = currentCount;
 
     const isHidden = typeof document !== "undefined" && document.hidden;
     if (isHidden) {
@@ -416,17 +434,50 @@ export default function HomePage() {
     setCurrentMatchIndex(0);
   }, [activeConversationId]);
 
-  // Sohbet İçi Arama ve Eşleşmeler (WhatsApp Tarzı)
+  // Sunucu tabanlı geçmiş arama sonuçları
+  const [serverSearchResults, setServerSearchResults] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!activeConversationId || !chatSearchQuery.trim() || chatSearchQuery.trim().length < 2) {
+      setServerSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchMessages(activeConversationId, chatSearchQuery.trim());
+        setServerSearchResults(results || []);
+      } catch (e) {
+        // ignore
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [activeConversationId, chatSearchQuery, searchMessages]);
+
+  // Sohbet İçi Arama ve Eşleşmeler (WhatsApp Tarzı + Sunucu Geçmişi Birleşimi)
   const searchFilteredMessages = useMemo(() => {
     if (!chatSearchQuery.trim()) return [];
     const q = chatSearchQuery.trim().toLowerCase();
-    return activeMessages.filter(
-      (m) =>
+    const map = new Map<string, any>();
+    activeMessages.forEach((m) => {
+      if (
         !m.is_deleted_for_all &&
         (m.content?.toLowerCase().includes(q) ||
           m.media_metadata?.file_name?.toLowerCase().includes(q))
+      ) {
+        map.set(m.id, m);
+      }
+    });
+    serverSearchResults.forEach((m) => {
+      if (!map.has(m.id)) {
+        map.set(m.id, m);
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) =>
+        new Date(a.created_at || a.sent_at).getTime() -
+        new Date(b.created_at || b.sent_at).getTime()
     );
-  }, [activeMessages, chatSearchQuery]);
+  }, [activeMessages, chatSearchQuery, serverSearchResults]);
 
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
@@ -1110,9 +1161,36 @@ export default function HomePage() {
             {/* Mesaj Akışı */}
             <div
               ref={messagesContainerRef}
+              onScroll={async (e) => {
+                const el = e.currentTarget;
+                if (
+                  el.scrollTop < 60 &&
+                  !loadingOlderMessages &&
+                  activeConversationId &&
+                  hasMoreMessages[activeConversationId] !== false
+                ) {
+                  const prevScrollHeight = el.scrollHeight;
+                  const prevScrollTop = el.scrollTop;
+                  isPrependingOlderRef.current = true;
+                  const loaded = await loadOlderMessages(activeConversationId);
+                  if (loaded) {
+                    requestAnimationFrame(() => {
+                      if (messagesContainerRef.current) {
+                        const diff = messagesContainerRef.current.scrollHeight - prevScrollHeight;
+                        messagesContainerRef.current.scrollTop = prevScrollTop + diff;
+                      }
+                    });
+                  }
+                }
+              }}
               className="flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto overflow-x-hidden overscroll-contain"
               style={{ scrollBehavior: "auto", overflowAnchor: "none" }}
             >
+              {loadingOlderMessages && (
+                <div className="flex justify-center py-2">
+                  <div className="w-5 h-5 border-2 border-grupo-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
                   <Sparkles className="w-8 h-8 text-grupo-accent/50 mb-2" />
@@ -1165,83 +1243,101 @@ export default function HomePage() {
                   : "pb-[max(0.625rem,env(safe-area-inset-bottom))]"
               } border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0`}
             >
-              <ReplyBar />
+              {activeConv.is_blocked ? (
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <span>Bu konuşma engellenmiştir. Mesaj gönderemezsiniz.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => unblockConversation(activeConv.id)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors cursor-pointer"
+                  >
+                    Engeli Kaldır
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <ReplyBar />
 
-              <div className="flex items-center gap-2 sm:gap-3">
-                <MediaUploadMenu
-                  conversationId={activeConv.id}
-                  onStartVoice={() => setIsRecordingVoice(true)}
-                />
-
-                {isRecordingVoice ? (
-                  <AudioRecorder
-                    conversationId={activeConv.id}
-                    onCancel={() => setIsRecordingVoice(false)}
-                    onComplete={() => setIsRecordingVoice(false)}
-                  />
-                ) : (
-                  <form onSubmit={handleSend} className="flex-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={inputMessage}
-                      onChange={handleInputChange}
-                      onFocus={() => {
-                        setIsInputFocused(true);
-                        setTimeout(() => {
-                          updateViewportMetrics();
-                          scrollToBottom("auto");
-                        }, 100);
-                        setTimeout(() => {
-                          updateViewportMetrics();
-                          scrollToBottom("auto");
-                        }, 300);
-                      }}
-                      onBlur={() => {
-                        setIsInputFocused(false);
-                        setTimeout(() => {
-                          updateViewportMetrics();
-                          scrollToBottom("auto");
-                        }, 60);
-                      }}
-                      placeholder="Bir mesaj yazın..."
-                      style={{
-                        borderColor:
-                          isInputFocused || inputMessage.trim()
-                            ? "var(--accent, #6366F1)"
-                            : undefined,
-                        boxShadow: isInputFocused
-                          ? "0 0 0 1px var(--accent, #6366F1)"
-                          : undefined,
-                      }}
-                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <MediaUploadMenu
+                      conversationId={activeConv.id}
+                      onStartVoice={() => setIsRecordingVoice(true)}
                     />
 
-                    {inputMessage.trim() ? (
-                      <button
-                        type="submit"
-                        style={{
-                          backgroundColor: "var(--accent, #6366F1)",
-                          color: "var(--accent-text, #ffffff)",
-                          boxShadow:
-                            "0 10px 15px -3px var(--accent-shadow, rgba(99, 102, 241, 0.35))",
-                        }}
-                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl hover:brightness-110 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
-                      >
-                        <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
+                    {isRecordingVoice ? (
+                      <AudioRecorder
+                        conversationId={activeConv.id}
+                        onCancel={() => setIsRecordingVoice(false)}
+                        onComplete={() => setIsRecordingVoice(false)}
+                      />
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsRecordingVoice(true)}
-                        title="Sesli Mesaj Kaydet"
-                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-grupo-dark-border flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
-                      >
-                        <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
+                      <form onSubmit={handleSend} className="flex-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={inputMessage}
+                          onChange={handleInputChange}
+                          onFocus={() => {
+                            setIsInputFocused(true);
+                            setTimeout(() => {
+                              updateViewportMetrics();
+                              scrollToBottom("auto");
+                            }, 100);
+                            setTimeout(() => {
+                              updateViewportMetrics();
+                              scrollToBottom("auto");
+                            }, 300);
+                          }}
+                          onBlur={() => {
+                            setIsInputFocused(false);
+                            setTimeout(() => {
+                              updateViewportMetrics();
+                              scrollToBottom("auto");
+                            }, 60);
+                          }}
+                          placeholder="Bir mesaj yazın..."
+                          style={{
+                            borderColor:
+                              isInputFocused || inputMessage.trim()
+                                ? "var(--accent, #6366F1)"
+                                : undefined,
+                            boxShadow: isInputFocused
+                              ? "0 0 0 1px var(--accent, #6366F1)"
+                              : undefined,
+                          }}
+                          className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
+                        />
+
+                        {inputMessage.trim() ? (
+                          <button
+                            type="submit"
+                            style={{
+                              backgroundColor: "var(--accent, #6366F1)",
+                              color: "var(--accent-text, #ffffff)",
+                              boxShadow:
+                                "0 10px 15px -3px var(--accent-shadow, rgba(99, 102, 241, 0.35))",
+                            }}
+                            className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl hover:brightness-110 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
+                          >
+                            <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsRecordingVoice(true)}
+                            title="Sesli Mesaj Kaydet"
+                            className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-grupo-dark-border flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+                          </button>
+                        )}
+                      </form>
                     )}
-                  </form>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </footer>
           </>
         ) : (
@@ -1396,8 +1492,30 @@ export default function HomePage() {
                 })()}
               </div>
 
-              {/* Sohbet Temizleme ve Silme Butonları */}
+              {/* Sohbet Temizleme, Silme ve Engelleme Butonları */}
               <div className="pt-4 border-t border-slate-800 space-y-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (activeConv.is_blocked) {
+                        await unblockConversation(activeConv.id);
+                      } else {
+                        await blockConversation(activeConv.id);
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                  className={`w-full py-2.5 px-3 rounded-xl ${
+                    activeConv.is_blocked
+                      ? "bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-400"
+                      : "bg-amber-600/15 hover:bg-amber-600/25 border border-amber-500/30 text-amber-400"
+                  } text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>{activeConv.is_blocked ? "Engeli Kaldır" : "Kullanıcıyı Engelle"}</span>
+                </button>
                 <button
                   onClick={() => setShowActiveDeleteConfirm("clear")}
                   className="w-full py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"

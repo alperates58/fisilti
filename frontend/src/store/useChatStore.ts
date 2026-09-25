@@ -58,6 +58,8 @@ interface ChatState {
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Record<string, Message[]>; // conversation_id -> Message[]
+  hasMoreMessages: Record<string, boolean>;
+  loadingOlderMessages: boolean;
   typingMap: Record<string, boolean>; // conversation_id -> isTyping
   selectedMessageInfo: Message | null;
   replyingTo: Message | null;
@@ -68,6 +70,10 @@ interface ChatState {
   selectConversation: (convId: string) => Promise<void>;
   deselectConversation: () => void;
   loadMessages: (convId: string) => Promise<void>;
+  loadOlderMessages: (convId: string) => Promise<boolean>;
+  blockConversation: (convId: string) => Promise<void>;
+  unblockConversation: (convId: string) => Promise<void>;
+  searchMessages: (convId: string, query: string) => Promise<Message[]>;
   sendMessage: (convId: string, content: string, replyToId?: string) => void;
   sendMediaMessage: (
     convId: string,
@@ -95,6 +101,8 @@ interface ChatState {
   onMessageEdited: (messageId: string, content: string) => void;
   onMessageDeleted: (messageId: string, isDeletedForAll: boolean) => void;
   onMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
+  onConversationBlocked: (convId: string) => void;
+  onConversationUnblocked: (convId: string) => void;
 
   deleteConversation: (convId: string) => Promise<void>;
   clearConversation: (convId: string) => Promise<void>;
@@ -106,6 +114,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   activeConversationId: null,
   messages: {},
+  hasMoreMessages: {},
+  loadingOlderMessages: false,
   typingMap: {},
   selectedMessageInfo: null,
   replyingTo: null,
@@ -190,15 +200,92 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadMessages: async (convId: string) => {
     try {
-      const res = await api.get<Message[]>(`/conversations/${convId}/messages`);
+      const res = await api.get<Message[]>(`/conversations/${convId}/messages?limit=50`);
+      const list = res.data || [];
       set((state) => ({
         messages: {
           ...state.messages,
-          [convId]: res.data,
+          [convId]: list,
+        },
+        hasMoreMessages: {
+          ...state.hasMoreMessages,
+          [convId]: list.length >= 50,
         },
       }));
     } catch (err) {
       console.error("Mesajlar yüklenemedi:", err);
+    }
+  },
+
+  loadOlderMessages: async (convId: string) => {
+    const currentMsgs = get().messages[convId] || [];
+    if (currentMsgs.length === 0 || get().loadingOlderMessages) return false;
+    const hasMore = get().hasMoreMessages[convId] ?? true;
+    if (!hasMore) return false;
+
+    set({ loadingOlderMessages: true });
+    try {
+      const oldestMsg = currentMsgs[0];
+      const res = await api.get<Message[]>(
+        `/conversations/${convId}/messages?limit=50&before=${encodeURIComponent(oldestMsg.created_at || oldestMsg.sent_at)}`
+      );
+      const olderMsgs = res.data || [];
+      set((state) => ({
+        loadingOlderMessages: false,
+        messages: {
+          ...state.messages,
+          [convId]: [...olderMsgs, ...(state.messages[convId] || [])],
+        },
+        hasMoreMessages: {
+          ...state.hasMoreMessages,
+          [convId]: olderMsgs.length >= 50,
+        },
+      }));
+      return olderMsgs.length > 0;
+    } catch (err) {
+      console.error("Eski mesajlar yüklenemedi:", err);
+      set({ loadingOlderMessages: false });
+      return false;
+    }
+  },
+
+  blockConversation: async (convId: string) => {
+    try {
+      await api.post(`/conversations/${convId}/block`);
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, is_blocked: true } : c
+        ),
+      }));
+    } catch (err) {
+      console.error("Kullanıcı engellenemedi:", err);
+      throw err;
+    }
+  },
+
+  unblockConversation: async (convId: string) => {
+    try {
+      await api.post(`/conversations/${convId}/unblock`);
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, is_blocked: false } : c
+        ),
+      }));
+    } catch (err) {
+      console.error("Engelleme kaldırılamadı:", err);
+      throw err;
+    }
+  },
+
+  searchMessages: async (convId: string, query: string) => {
+    try {
+      const res = await api.get<Message[]>(
+        `/conversations/${convId}/search?q=${encodeURIComponent(query)}`
+      );
+      return res.data || [];
+    } catch (err) {
+      console.error("Mesaj araması yapılamadı:", err);
+      return [];
     }
   },
 
@@ -564,6 +651,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { messages: newMessages };
     });
+  },
+
+  onConversationBlocked: (convId: string) => {
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, is_blocked: true } : c
+      ),
+    }));
+  },
+
+  onConversationUnblocked: (convId: string) => {
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, is_blocked: false } : c
+      ),
+    }));
   },
 
   startNewConversation: async (recipientId: string) => {

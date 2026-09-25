@@ -206,6 +206,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             chatStore.onMessageReaction(data.payload.message_id, data.payload.reactions);
             break;
 
+          case "conversation_blocked":
+            chatStore.onConversationBlocked(data.payload.conversation_id);
+            break;
+
+          case "conversation_unblocked":
+            chatStore.onConversationUnblocked(data.payload.conversation_id);
+            break;
+
           case "system_settings_updated":
             import("./useSettingsStore").then(({ useSettingsStore }) => {
               useSettingsStore.getState().updateSettingLocally(data.payload.key, data.payload.value);
