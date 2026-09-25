@@ -276,16 +276,45 @@ func (s *StorageService) FPutObject(ctx context.Context, bucket, objectName, fil
 }
 
 func (s *StorageService) DeleteMedia(ctx context.Context, mediaURL string) error {
+	if strings.TrimSpace(mediaURL) == "" {
+		return nil
+	}
 	u, err := url.Parse(mediaURL)
 	if err != nil {
 		return err
 	}
 
-	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	cleanPath := strings.Trim(u.Path, "/")
+	// /api/v1/media/file/:bucket/:objectName veya /media/file/:bucket/:objectName kontrolü
+	mediaMarker := "media/file/"
+	if idx := strings.Index(cleanPath, mediaMarker); idx != -1 {
+		rest := cleanPath[idx+len(mediaMarker):]
+		parts := strings.Split(rest, "/")
+		if len(parts) >= 2 {
+			bucket := parts[0]
+			objectName := strings.Join(parts[1:], "/")
+			return s.client.RemoveObject(ctx, bucket, objectName, minio.RemoveObjectOptions{})
+		}
+	}
+
+	parts := strings.Split(cleanPath, "/")
 	if len(parts) < 2 {
 		return errors.New("gecersiz medya url")
 	}
 
+	// Bilinen bucket'lardan birini içeriyorsa onu bucket kabul et
+	knownBuckets := []string{s.avatarBucket, s.mediaBucket, s.voiceBucket, s.filesBucket}
+	for i, p := range parts {
+		for _, b := range knownBuckets {
+			if b != "" && p == b && i+1 < len(parts) {
+				bucket := p
+				objectName := strings.Join(parts[i+1:], "/")
+				return s.client.RemoveObject(ctx, bucket, objectName, minio.RemoveObjectOptions{})
+			}
+		}
+	}
+
+	// Yedek durum: ilk segmenti bucket say
 	bucket := parts[0]
 	objectName := strings.Join(parts[1:], "/")
 
