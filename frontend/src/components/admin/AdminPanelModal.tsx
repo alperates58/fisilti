@@ -8,7 +8,7 @@ import {
   AdminAccessLog,
 } from "@/lib/admin_api";
 import { User } from "@/store/useAuthStore";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { useSettingsStore, applyThemeToDocument } from "@/store/useSettingsStore";
 import { getContrastTextColor } from "@/lib/utils";
 import {
   ShieldAlert,
@@ -35,6 +35,7 @@ import {
   Check,
   ChevronRight,
   ExternalLink,
+  Send,
 } from "lucide-react";
 
 interface AdminPanelModalProps {
@@ -52,17 +53,124 @@ type TabType =
   | "logs"
   | "stats";
 
-const COLOR_PRESETS = [
-  { name: "Aura Pembe", color: "#E91E63", bubble: "#BE185D", card: "#16191E", border: "#1E293B" },
-  { name: "WhatsApp Koyu", color: "#25D366", bubble: "#005C4B", card: "#111B21", border: "#222D34" },
-  { name: "Telegram Gece", color: "#2AABEE", bubble: "#2B5278", card: "#17212B", border: "#242F3D" },
-  { name: "Siber Turkuaz", color: "#06B6D4", bubble: "#0E7490", card: "#0F172A", border: "#1E293B" },
-  { name: "Kraliyet Moru", color: "#8B5CF6", bubble: "#6D28D9", card: "#141026", border: "#261C3D" },
-  { name: "Zümrüt Derinlik", color: "#10B981", bubble: "#047857", card: "#064E3B", border: "#065F46" },
-  { name: "Gün Batımı", color: "#F59E0B", bubble: "#B45309", card: "#1C1917", border: "#292524" },
-  { name: "Ateş Kırmızısı", color: "#EF4444", bubble: "#B91C1C", card: "#1A1114", border: "#2B191F" },
-  { name: "Gece Mavisi", color: "#3B82F6", bubble: "#1D4ED8", card: "#0F172A", border: "#1E293B" },
-  { name: "Gece Yarısı Gri", color: "#94A3B8", bubble: "#334155", card: "#0F1117", border: "#1E222D" },
+export const THEME_PRESETS = [
+  {
+    id: "linear-obsidian",
+    name: "Linear Obsidian",
+    badge: "Varsayılan SaaS",
+    description: "Linear & Vercel ilhamlı; göz yormayan derin çivit ve gece mavisi.",
+    color: "#6366F1",
+    bubble: "#4F46E5",
+    text: "#FFFFFF",
+    main_bg: "#090A0F",
+    card_bg: "#11141E",
+    border_color: "#1E2333",
+    incoming_bubble: "#181C28",
+  },
+  {
+    id: "supabase-emerald",
+    name: "Supabase Emerald",
+    badge: "Siber Zümrüt",
+    description: "Supabase tarzı fütüristik zümrüt yeşili ve mat antrasit zemin.",
+    color: "#10B981",
+    bubble: "#059669",
+    text: "#FFFFFF",
+    main_bg: "#080E0B",
+    card_bg: "#0E1713",
+    border_color: "#192B23",
+    incoming_bubble: "#14221C",
+  },
+  {
+    id: "raycast-midnight",
+    name: "Raycast Midnight",
+    badge: "Kozmik Mor",
+    description: "Raycast Theme Studio esintili, asil ve derin elektrik moru tonları.",
+    color: "#A855F7",
+    bubble: "#7E22CE",
+    text: "#FFFFFF",
+    main_bg: "#0C0A14",
+    card_bg: "#141021",
+    border_color: "#241C38",
+    incoming_bubble: "#1C162E",
+  },
+  {
+    id: "telegram-amoled",
+    name: "Telegram AMOLED",
+    badge: "Zifiri Siyah",
+    description: "OLED ekranlar için pil tasarruflu gerçek %100 siyah (#000000).",
+    color: "#229ED9",
+    bubble: "#1E4E79",
+    text: "#FFFFFF",
+    main_bg: "#000000",
+    card_bg: "#0D0D0D",
+    border_color: "#222222",
+    incoming_bubble: "#181818",
+  },
+  {
+    id: "whatsapp-stealth",
+    name: "WhatsApp Stealth",
+    badge: "Klasik Koyu",
+    description: "Koyu petrol mavisi-yeşili ve kurşun zemin uyumu.",
+    color: "#25D366",
+    bubble: "#005C4B",
+    text: "#E9EDEF",
+    main_bg: "#0C1317",
+    card_bg: "#111B21",
+    border_color: "#222D34",
+    incoming_bubble: "#202C33",
+  },
+  {
+    id: "nordic-arctic",
+    name: "Nordic Arctic",
+    badge: "Soğuk Grafit",
+    description: "macOS ve GitHub Dark soğuk grafit ve gök mavisi.",
+    color: "#38BDF8",
+    bubble: "#0284C7",
+    text: "#FFFFFF",
+    main_bg: "#0B111A",
+    card_bg: "#111923",
+    border_color: "#1E2D3D",
+    incoming_bubble: "#192535",
+  },
+  {
+    id: "cyber-crimson",
+    name: "Cyber Crimson",
+    badge: "Aura Rose",
+    description: "Modern neon gül ve yakut kadife tonlarıyla lüks bir hava.",
+    color: "#F43F5E",
+    bubble: "#BE123C",
+    text: "#FFFFFF",
+    main_bg: "#0D080A",
+    card_bg: "#160F13",
+    border_color: "#2B1922",
+    incoming_bubble: "#1F141A",
+  },
+  {
+    id: "warm-amber",
+    name: "Warm Amber",
+    badge: "Sıcak Kehribar",
+    description: "Espresso, kavrulmuş fındık ve yumuşak altın tonları.",
+    color: "#F59E0B",
+    bubble: "#B45309",
+    text: "#FFFFFF",
+    main_bg: "#0E0C0A",
+    card_bg: "#161310",
+    border_color: "#2B231C",
+    incoming_bubble: "#211C17",
+  },
+  {
+    id: "titanium-mono",
+    name: "Titanium Mono",
+    badge: "Minimalist Mat",
+    description: "Ultra sade, dikkat dağıtmayan titanyum mat koyu gri.",
+    color: "#94A3B8",
+    bubble: "#334155",
+    text: "#F8FAFC",
+    main_bg: "#0B0C0E",
+    card_bg: "#131519",
+    border_color: "#23272F",
+    incoming_bubble: "#1C1F26",
+  },
 ];
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
@@ -93,7 +201,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [cardBgColor, setCardBgColor] = useState("#11141E");
   const [borderColor, setBorderColor] = useState("#1E2333");
   const [outgoingBubble, setOutgoingBubble] = useState("#4F46E5");
+  const [outgoingText, setOutgoingText] = useState("auto");
+  const [incomingBubble, setIncomingBubble] = useState("#181C28");
+  const [mainBgColor, setMainBgColor] = useState("#090A0F");
   const [fontFamily, setFontFamily] = useState("Inter");
+
+  const effectiveTextColor =
+    outgoingText === "auto"
+      ? getContrastTextColor(outgoingBubble)
+      : outgoingText;
 
   // Load initial tab data
   useEffect(() => {
@@ -105,27 +221,59 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     if (activeTab === "logs") loadLogs();
   }, [isOpen, activeTab]);
 
-  const applyThemeToDocument = (
-    accent: string,
-    card: string,
-    border: string,
-    bubble?: string,
-    incoming?: string
-  ) => {
-    if (typeof document !== "undefined") {
-      document.documentElement.style.setProperty("--accent", accent);
-      document.documentElement.style.setProperty("--primary", accent);
-      document.documentElement.style.setProperty("--card", card);
-      document.documentElement.style.setProperty("--border", border);
-      if (bubble) {
-        document.documentElement.style.setProperty("--outgoing-bubble", bubble);
-        const textColor = getContrastTextColor(bubble);
-        document.documentElement.style.setProperty("--outgoing-text", textColor);
-        const muted = textColor === "#FFFFFF" ? "rgba(255, 255, 255, 0.75)" : "rgba(15, 23, 42, 0.7)";
-        document.documentElement.style.setProperty("--outgoing-text-muted", muted);
-      }
-      if (incoming) document.documentElement.style.setProperty("--incoming-bubble", incoming);
-    }
+  const handleApplyPreset = (preset: (typeof THEME_PRESETS)[0]) => {
+    setAccentColor(preset.color);
+    setOutgoingBubble(preset.bubble);
+    setOutgoingText(preset.text || "auto");
+    setMainBgColor(preset.main_bg);
+    setCardBgColor(preset.card_bg);
+    setBorderColor(preset.border_color);
+    setIncomingBubble(preset.incoming_bubble);
+    applyThemeToDocument({
+      primary_color: preset.color,
+      outgoing_bubble: preset.bubble,
+      outgoing_text: preset.text || "auto",
+      main_bg: preset.main_bg,
+      card_bg: preset.card_bg,
+      border_color: preset.border_color,
+      incoming_bubble: preset.incoming_bubble,
+    });
+  };
+
+  const handleUpdateColor = (updates: Partial<{
+    accent: string;
+    outgoing: string;
+    text: string;
+    mainBg: string;
+    cardBg: string;
+    border: string;
+    incoming: string;
+  }>) => {
+    const newAcc = updates.accent ?? accentColor;
+    const newOut = updates.outgoing ?? outgoingBubble;
+    const newTxt = updates.text ?? outgoingText;
+    const newMbg = updates.mainBg ?? mainBgColor;
+    const newCrd = updates.cardBg ?? cardBgColor;
+    const newBrd = updates.border ?? borderColor;
+    const newInc = updates.incoming ?? incomingBubble;
+
+    if (updates.accent !== undefined) setAccentColor(newAcc);
+    if (updates.outgoing !== undefined) setOutgoingBubble(newOut);
+    if (updates.text !== undefined) setOutgoingText(newTxt);
+    if (updates.mainBg !== undefined) setMainBgColor(newMbg);
+    if (updates.cardBg !== undefined) setCardBgColor(newCrd);
+    if (updates.border !== undefined) setBorderColor(newBrd);
+    if (updates.incoming !== undefined) setIncomingBubble(newInc);
+
+    applyThemeToDocument({
+      primary_color: newAcc,
+      outgoing_bubble: newOut,
+      outgoing_text: newTxt,
+      main_bg: newMbg,
+      card_bg: newCrd,
+      border_color: newBrd,
+      incoming_bubble: newInc,
+    });
   };
 
   const loadSettings = async () => {
@@ -139,14 +287,27 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         const crd = data.theme_settings.card_bg || "#11141E";
         const brd = data.theme_settings.border_color || "#1E2333";
         const bbl = data.theme_settings.outgoing_bubble || "#4F46E5";
-        const inc = data.theme_settings.incoming_bubble || crd;
+        const inc = data.theme_settings.incoming_bubble || "#181C28";
+        const mbg = data.theme_settings.main_bg || "#090A0F";
+        const txt = data.theme_settings.outgoing_text || "auto";
 
         setAccentColor(acc);
         setCardBgColor(crd);
         setBorderColor(brd);
         setOutgoingBubble(bbl);
+        setIncomingBubble(inc);
+        setMainBgColor(mbg);
+        setOutgoingText(txt);
         setFontFamily(data.theme_settings.font_family || "Inter");
-        applyThemeToDocument(acc, crd, brd, bbl, inc);
+        applyThemeToDocument({
+          primary_color: acc,
+          card_bg: crd,
+          border_color: brd,
+          outgoing_bubble: bbl,
+          incoming_bubble: inc,
+          main_bg: mbg,
+          outgoing_text: txt,
+        });
       }
     } catch (e: any) {
       console.error("Ayarlar yüklenemedi", e);
@@ -214,14 +375,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       primary_color: accentColor,
       card_bg: cardBgColor,
       nav_bg: "#0B0D14",
-      main_bg: "#090A0F",
+      main_bg: mainBgColor,
       border_color: borderColor,
       outgoing_bubble: outgoingBubble,
-      incoming_bubble: cardBgColor,
+      outgoing_text: outgoingText,
+      incoming_bubble: incomingBubble,
       font_family: fontFamily,
       border_radius: "rounded-2xl",
     };
-    applyThemeToDocument(accentColor, cardBgColor, borderColor, outgoingBubble, cardBgColor);
+    applyThemeToDocument(updatedTheme);
     useSettingsStore.getState().updateSettingLocally("theme_settings", updatedTheme);
     await handleSaveSetting("theme_settings", updatedTheme);
   };
@@ -492,163 +654,186 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: TEMA & RENKLER (AURA CUSTOMIZER) */}
+              {/* TAB 2: MERKEZİ SİSTEM TEMASI & RENK PARAMETRELERİ */}
               {activeTab === "theme" && (
                 <div className="space-y-6">
-                  {/* Bilgi Kutusu */}
-                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 to-indigo-500/10 border border-pink-500/20 flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-xs font-bold text-white">Aura Canlı Tema & Renk Yönetimi</h4>
-                      <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
-                        Burada seçtiğiniz vurgu renkleri, butonlar, arama ekranı ve mesajlaşma arayüzüne anında uygulanır.
-                      </p>
+                  {/* Başlık & Bilgi Kutusu */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-500/20 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 flex-shrink-0 mt-0.5">
+                        <Palette className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-white">Merkezi Sistem Teması & Görünüm Parametreleri</h4>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            Dark-First SaaS
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                          Linear, Supabase ve Raycast standartlarında profesyonel koyu mod temalarını seçin veya her rengi özelleştirin. Burada kaydedilen ayarlar tüm platform kullanıcılarına tek merkezden uygulanır.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Vurgu Rengi Seçici (Accent Palette) */}
-                  <div className="p-4 rounded-2xl bg-[#12151D] border border-[#222631] space-y-3">
+                  {/* 1. KÜRATORLÜ PREMİUM KOYU TEMA KARTLARI */}
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-white">Ana Vurgu Rengi (Accent Color)</label>
-                      <span className="font-mono text-xs text-pink-400">{accentColor}</span>
-                    </div>
-
-                    {/* Hızlı Renk Paletleri */}
-                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 pt-1">
-                      {COLOR_PRESETS.map((p) => (
-                        <button
-                          key={p.name}
-                          type="button"
-                          onClick={() => {
-                            setAccentColor(p.color);
-                            setCardBgColor(p.card);
-                            setBorderColor(p.border);
-                            setOutgoingBubble(p.bubble);
-                            applyThemeToDocument(p.color, p.card, p.border, p.bubble, p.card);
-                          }}
-                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer border-2 ${
-                            accentColor.toLowerCase() === p.color.toLowerCase()
-                              ? "border-white scale-105 shadow-md shadow-black/50"
-                              : "border-transparent hover:scale-102"
-                          }`}
-                          style={{ backgroundColor: p.color }}
-                          title={`${p.name} (Balon: ${p.bubble})`}
-                        >
-                          {accentColor.toLowerCase() === p.color.toLowerCase() && (
-                            <Check className="w-4 h-4 text-white drop-shadow-md" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Manuel Hex Girişi & Renk Seçici */}
-                    <div className="flex items-center gap-3 pt-2">
-                      <div className="relative flex-1">
-                        <input
-                          type="text"
-                          value={accentColor}
-                          onChange={(e) => {
-                            setAccentColor(e.target.value);
-                            applyThemeToDocument(e.target.value, cardBgColor, borderColor, outgoingBubble, cardBgColor);
-                          }}
-                          placeholder="#E91E63"
-                          className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-pink-500"
-                        />
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Küratörlü Koyu Mod Koleksiyonu (9 Önayar)</span>
                       </div>
-                      <input
-                        type="color"
-                        value={accentColor.startsWith("#") ? accentColor : "#E91E63"}
-                        onChange={(e) => {
-                          setAccentColor(e.target.value);
-                          applyThemeToDocument(e.target.value, cardBgColor, borderColor, outgoingBubble, cardBgColor);
-                        }}
-                        className="w-10 h-8 rounded-lg bg-transparent cursor-pointer border-0"
-                      />
+                      <span className="text-[11px] text-slate-400">Tek tıkla tüm platformu dönüştürün</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {THEME_PRESETS.map((p) => {
+                        const isSelected =
+                          outgoingBubble.toLowerCase() === p.bubble.toLowerCase() &&
+                          accentColor.toLowerCase() === p.color.toLowerCase() &&
+                          mainBgColor.toLowerCase() === p.main_bg.toLowerCase();
+
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleApplyPreset(p)}
+                            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 relative group overflow-hidden ${
+                              isSelected
+                                ? "border-indigo-400/80 bg-slate-800/80 shadow-lg shadow-indigo-950/40 ring-2 ring-indigo-500/50 scale-[1.01]"
+                                : "border-[#222631] bg-[#12151D] hover:border-slate-700 hover:bg-[#161A24]"
+                            }`}
+                          >
+                            {/* Başlık ve Rozet */}
+                            <div className="flex items-center justify-between gap-1 w-full">
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                                  <span>{p.name}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
+                                  {p.description}
+                                </div>
+                              </div>
+                              <span
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0 border"
+                                style={{
+                                  backgroundColor: `${p.color}18`,
+                                  color: p.color,
+                                  borderColor: `${p.color}35`,
+                                }}
+                              >
+                                {p.badge}
+                              </span>
+                            </div>
+
+                            {/* Mini Arayüz / Balon Mockup Görseli */}
+                            <div
+                              className="w-full rounded-xl p-2.5 border space-y-1.5 shadow-inner"
+                              style={{
+                                backgroundColor: p.main_bg,
+                                borderColor: p.border_color,
+                              }}
+                            >
+                              {/* Mini Gelen Mesaj */}
+                              <div className="flex justify-start">
+                                <div
+                                  className="px-2 py-1 rounded-lg rounded-bl-none text-[10px] text-slate-300 border max-w-[85%]"
+                                  style={{
+                                    backgroundColor: p.incoming_bubble,
+                                    borderColor: p.border_color,
+                                  }}
+                                >
+                                  SaaS koyu mod harika!
+                                </div>
+                              </div>
+
+                              {/* Mini Giden Mesaj */}
+                              <div className="flex justify-end">
+                                <div
+                                  className="px-2 py-1 rounded-lg rounded-br-none text-[10px] shadow-sm max-w-[85%]"
+                                  style={{
+                                    backgroundColor: p.bubble,
+                                    color: p.text,
+                                  }}
+                                >
+                                  Kusursuz görünüyor ✓✓
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Alt Palet Renk Noktaları & Seçim İşareti */}
+                            <div className="flex items-center justify-between pt-1 border-t border-white/5 w-full">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs"
+                                  style={{ backgroundColor: p.color }}
+                                  title={`Vurgu: ${p.color}`}
+                                />
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs"
+                                  style={{ backgroundColor: p.bubble }}
+                                  title={`Giden Balon: ${p.bubble}`}
+                                />
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs"
+                                  style={{ backgroundColor: p.incoming_bubble }}
+                                  title={`Gelen Balon: ${p.incoming_bubble}`}
+                                />
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs"
+                                  style={{ backgroundColor: p.main_bg }}
+                                  title={`Arka Plan: ${p.main_bg}`}
+                                />
+                              </div>
+                              {isSelected && (
+                                <span className="flex items-center gap-1 text-[11px] font-bold text-indigo-400">
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Aktif</span>
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Arka Plan ve Kart Renkleri */}
+                  {/* 2. ÖZEL RENK & TİPOGRAFİ İNCE AYARI */}
                   <div className="p-4 rounded-2xl bg-[#12151D] border border-[#222631] space-y-4">
-                    <h4 className="text-xs font-bold text-white">Yüzey & Kart Renkleri</h4>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-indigo-400" />
+                        <span>Özel Renk & Tipografi İnce Ayarı</span>
+                      </div>
+                      <span className="text-[10px] text-indigo-400 font-medium">Anında Canlı Önizleme</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {/* 1. Ana Vurgu Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
                         <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
-                          Sohbet Kart Arka Planı
+                          Ana Vurgu Rengi (Butonlar/İkonlar)
                         </label>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
-                            value={cardBgColor}
-                            onChange={(e) => {
-                              setCardBgColor(e.target.value);
-                              applyThemeToDocument(accentColor, e.target.value, borderColor, outgoingBubble, e.target.value);
-                            }}
-                            className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
+                            value={accentColor}
+                            onChange={(e) => handleUpdateColor({ accent: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
                           />
                           <input
                             type="color"
-                            value={cardBgColor.startsWith("#") ? cardBgColor : "#16191E"}
-                            onChange={(e) => {
-                              setCardBgColor(e.target.value);
-                              applyThemeToDocument(accentColor, e.target.value, borderColor, outgoingBubble, e.target.value);
-                            }}
+                            value={accentColor.startsWith("#") ? accentColor : "#6366F1"}
+                            onChange={(e) => handleUpdateColor({ accent: e.target.value })}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Vurgu Rengi Seç"
                           />
                         </div>
                       </div>
 
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
-                          Kenarlık & Ayraç Rengi
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={borderColor}
-                            onChange={(e) => {
-                              setBorderColor(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, e.target.value, outgoingBubble, cardBgColor);
-                            }}
-                            className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
-                          />
-                          <input
-                            type="color"
-                            value={borderColor.startsWith("#") ? borderColor : "#1E293B"}
-                            onChange={(e) => {
-                              setBorderColor(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, e.target.value, outgoingBubble, cardBgColor);
-                            }}
-                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Yazı Tipi & Arayüz Stili */}
-                  <div className="p-4 rounded-2xl bg-[#12151D] border border-[#222631] space-y-4">
-                    <h4 className="text-xs font-bold text-white">Tipografi & Kenar Yumuşatma</h4>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
-                          Yazı Tipi (Font Family)
-                        </label>
-                        <select
-                          value={fontFamily}
-                          onChange={(e) => setFontFamily(e.target.value)}
-                          className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                        >
-                          <option value="Inter">Inter (Aura Varsayılan)</option>
-                          <option value="Roboto">Roboto</option>
-                          <option value="Poppins">Poppins Modern</option>
-                          <option value="Outfit">Outfit Minimalist</option>
-                          <option value="System">Sistem Varsayılanı</option>
-                        </select>
-                      </div>
-
-                      <div>
+                      {/* 2. Giden Mesaj Balon Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
                         <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
                           Giden Mesaj Balon Rengi
                         </label>
@@ -656,90 +841,270 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <input
                             type="text"
                             value={outgoingBubble}
-                            onChange={(e) => {
-                              setOutgoingBubble(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, borderColor, e.target.value, cardBgColor);
-                            }}
-                            className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
+                            onChange={(e) => handleUpdateColor({ outgoing: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
                           />
                           <input
                             type="color"
-                            value={outgoingBubble.startsWith("#") ? outgoingBubble : "#BE185D"}
-                            onChange={(e) => {
-                              setOutgoingBubble(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, borderColor, e.target.value, cardBgColor);
-                            }}
+                            value={outgoingBubble.startsWith("#") ? outgoingBubble : "#4F46E5"}
+                            onChange={(e) => handleUpdateColor({ outgoing: e.target.value })}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Giden Balon Rengi Seç"
                           />
                         </div>
                       </div>
+
+                      {/* 3. Giden Mesaj Yazı Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Giden Mesaj Yazı Rengi
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={
+                              outgoingText === "auto" ||
+                              outgoingText === "#FFFFFF" ||
+                              outgoingText === "#0F172A"
+                                ? outgoingText
+                                : "custom"
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val !== "custom") {
+                                handleUpdateColor({ text: val });
+                              }
+                            }}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
+                          >
+                            <option value="auto">Otomatik (Akıllı Kontrast)</option>
+                            <option value="#FFFFFF">Beyaz (#FFFFFF)</option>
+                            <option value="#0F172A">Koyu Siyah (#0F172A)</option>
+                            <option value="custom">Özel Hex Seç...</option>
+                          </select>
+                          <input
+                            type="color"
+                            value={effectiveTextColor.startsWith("#") ? effectiveTextColor : "#FFFFFF"}
+                            onChange={(e) => handleUpdateColor({ text: e.target.value })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Özel Yazı Rengi Seç"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 4. Gelen Mesaj Balon Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Gelen Mesaj Balon Rengi
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={incomingBubble}
+                            onChange={(e) => handleUpdateColor({ incoming: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                          />
+                          <input
+                            type="color"
+                            value={incomingBubble.startsWith("#") ? incomingBubble : "#181C28"}
+                            onChange={(e) => handleUpdateColor({ incoming: e.target.value })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Gelen Balon Rengi Seç"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 5. Panel ve Kart Zemin Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Panel ve Kart Zemin Rengi
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={cardBgColor}
+                            onChange={(e) => handleUpdateColor({ cardBg: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                          />
+                          <input
+                            type="color"
+                            value={cardBgColor.startsWith("#") ? cardBgColor : "#11141E"}
+                            onChange={(e) => handleUpdateColor({ cardBg: e.target.value })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Kart Rengi Seç"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 6. Ana Zemin / Canvas Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Ana Zemin / Canvas Rengi
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={mainBgColor}
+                            onChange={(e) => handleUpdateColor({ mainBg: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                          />
+                          <input
+                            type="color"
+                            value={mainBgColor.startsWith("#") ? mainBgColor : "#090A0F"}
+                            onChange={(e) => handleUpdateColor({ mainBg: e.target.value })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Ana Zemin Rengi Seç"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 7. Kenarlık & Ayraç Rengi */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Kenarlık & Ayraç Rengi
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={borderColor}
+                            onChange={(e) => handleUpdateColor({ border: e.target.value })}
+                            className="flex-1 bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                          />
+                          <input
+                            type="color"
+                            value={borderColor.startsWith("#") ? borderColor : "#1E2333"}
+                            onChange={(e) => handleUpdateColor({ border: e.target.value })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Kenarlık Rengi Seç"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 8. Tipografi & Font Family */}
+                      <div className="p-3 rounded-xl bg-[#161922] border border-[#252936]">
+                        <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
+                          Tipografi (Font Family)
+                        </label>
+                        <select
+                          value={fontFamily}
+                          onChange={(e) => setFontFamily(e.target.value)}
+                          className="w-full bg-[#10131A] border border-[#292D38] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                        >
+                          <option value="Inter">Inter (Varsayılan SaaS)</option>
+                          <option value="Roboto">Roboto</option>
+                          <option value="Poppins">Poppins Modern</option>
+                          <option value="Outfit">Outfit Minimalist</option>
+                          <option value="System">Sistem Varsayılanı</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Akıllı Kontrast Bilgisi */}
+                    <div className="flex items-center gap-2 text-[11px] text-slate-300 bg-[#0E1017] p-2.5 rounded-xl border border-[#222631]">
+                      <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span>
+                        <strong>Akıllı Yazı Rengi:</strong> Otomatik mod açıkken giden balonun rengine göre yazı rengi maksimum kontrast (beyaz veya koyu) için otomatik adapte edilir.
+                      </span>
                     </div>
                   </div>
 
-                  {/* Canlı Önizleme Kartı */}
-                  <div className="p-4 rounded-2xl border space-y-3" style={{ backgroundColor: cardBgColor, borderColor: borderColor }}>
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Canlı Tema ve Sohbet Önizlemesi
-                    </div>
+                  {/* 3. CANLI SOHBET SİMÜLATÖRÜ / ÖNİZLEME */}
+                  <div
+                    className="p-4 rounded-2xl border space-y-3 transition-colors duration-200 shadow-xl"
+                    style={{
+                      backgroundColor: mainBgColor,
+                      borderColor: borderColor,
+                    }}
+                  >
                     <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: borderColor }}>
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white" style={{ backgroundColor: accentColor }}>
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
+                          style={{
+                            backgroundColor: cardBgColor,
+                            color: accentColor,
+                            border: `1px solid ${borderColor}`,
+                          }}
+                        >
                           A
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white">Canlı Vurgu Butonu</div>
-                          <div className="text-[10px] text-slate-400">Temanız bu şekilde gözükecek</div>
+                          <div className="text-xs font-bold text-white leading-tight">Antigravity Aura</div>
+                          <div className="text-[10px] text-emerald-400 font-medium leading-tight">Çevrimiçi</div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-md cursor-default"
-                        style={{ backgroundColor: accentColor }}
-                      >
-                        Vurgu Butonu
-                      </button>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Canlı Sohbet Önizlemesi
+                      </div>
                     </div>
 
-                    {/* Canlı Mesajlaşma Önizlemesi */}
-                    <div className="space-y-2 pt-1">
+                    {/* Mesaj Akışı */}
+                    <div className="space-y-2 py-1">
+                      {/* Gelen Mesaj */}
                       <div className="flex justify-start">
                         <div
-                          className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs text-slate-200 border shadow-sm max-w-[80%]"
-                          style={{ backgroundColor: cardBgColor, borderColor: borderColor }}
+                          className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs text-slate-200 border max-w-[85%] shadow-sm transition-colors duration-200"
+                          style={{
+                            backgroundColor: incomingBubble,
+                            borderColor: borderColor,
+                          }}
                         >
-                          <div>Merhaba! Yeni temayı deniyorum.</div>
+                          <div>Yeni SaaS koyu mod teması nasıl duruyor?</div>
                           <div className="text-[10px] text-slate-400 text-right mt-0.5">14:30</div>
                         </div>
                       </div>
 
+                      {/* Giden Mesaj */}
                       <div className="flex justify-end">
                         <div
-                          className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs shadow-md max-w-[80%] transition-colors duration-200"
+                          className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs shadow-md max-w-[85%] transition-all duration-200"
                           style={{
                             backgroundColor: outgoingBubble,
-                            color: getContrastTextColor(outgoingBubble),
+                            color: effectiveTextColor,
                           }}
                         >
-                          <div>Giden mesaj balon rengim anında güncellendi! Çok iyi görünüyor.</div>
-                          <div
-                            className="text-[10px] text-right mt-0.5"
-                            style={{ opacity: 0.75 }}
-                          >
+                          <div>Kusursuz! Gözü hiç yormuyor ve tam aradığım premium havayı veriyor.</div>
+                          <div className="text-[10px] text-right mt-0.5" style={{ opacity: 0.8 }}>
                             14:31 ✓✓
                           </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Mock Yazma Barı */}
+                    <div
+                      className="p-1.5 rounded-xl border flex items-center gap-2"
+                      style={{
+                        backgroundColor: cardBgColor,
+                        borderColor: borderColor,
+                      }}
+                    >
+                      <div className="flex-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-900/60">
+                        Bir mesaj yazın...
+                      </div>
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0"
+                        style={{
+                          backgroundColor: accentColor,
+                          color: getContrastTextColor(accentColor),
+                        }}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Kaydet Butonu */}
+                  {/* 4. TEMAYI KAYDET BUTONU */}
                   <button
                     type="button"
                     onClick={handleSaveTheme}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-pink-600 hover:bg-pink-500 shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: accentColor,
+                      color: getContrastTextColor(accentColor),
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl text-xs font-bold shadow-lg hover:brightness-110 active:scale-[0.99] flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Temayı Canlı Uygula ve Veritabanına Kaydet</span>
+                    <span>Temayı Canlı Uygula ve Veritabanına Kaydet (Tüm Kullanıcılar İçin)</span>
                   </button>
                 </div>
               )}

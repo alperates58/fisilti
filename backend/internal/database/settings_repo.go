@@ -229,13 +229,14 @@ func (r *SettingsRepository) GetSecuritySettings(ctx context.Context) models.Sec
 
 func (r *SettingsRepository) GetThemeSettings(ctx context.Context) models.ThemeSettings {
 	defaults := models.ThemeSettings{
-		PrimaryColor:   "#E91E63",
-		CardBg:         "#16191E",
-		NavBg:          "#0F1115",
-		MainBg:         "#0D0F12",
-		BorderColor:    "#23272F",
-		OutgoingBubble: "#BE185D",
-		IncomingBubble: "#1E232B",
+		PrimaryColor:   "#6366F1",
+		CardBg:         "#11141E",
+		NavBg:          "#0B0D14",
+		MainBg:         "#090A0F",
+		BorderColor:    "#1E2333",
+		OutgoingBubble: "#4F46E5",
+		OutgoingText:   "#FFFFFF",
+		IncomingBubble: "#181C28",
 		FontFamily:     "Inter",
 		BorderRadius:   "rounded-2xl",
 	}

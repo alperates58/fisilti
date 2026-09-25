@@ -208,14 +208,9 @@ export default function HomePage() {
       }
     });
 
-    // Kayıtlı kullanıcı temasını hemen uygula
+    // Eski yerel tema kalıntılarını temizle (tek merkez parametreler)
     if (typeof window !== "undefined") {
-      const userThemeStr = localStorage.getItem("aura_user_theme");
-      if (userThemeStr) {
-        try {
-          applyThemeToDocument(JSON.parse(userThemeStr));
-        } catch (e) {}
-      }
+      localStorage.removeItem("aura_user_theme");
     }
   }, [checkAuth, router]);
 

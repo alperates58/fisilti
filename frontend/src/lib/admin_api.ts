@@ -53,6 +53,7 @@ export interface SystemSettings {
     main_bg: string;
     border_color: string;
     outgoing_bubble: string;
+    outgoing_text?: string;
     incoming_bubble: string;
     font_family: string;
     border_radius: string;

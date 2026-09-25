@@ -55,6 +55,7 @@ type ThemeSettings struct {
 	MainBg         string `json:"main_bg"`
 	BorderColor    string `json:"border_color"`
 	OutgoingBubble string `json:"outgoing_bubble"`
+	OutgoingText   string `json:"outgoing_text,omitempty"`
 	IncomingBubble string `json:"incoming_bubble"`
 	FontFamily     string `json:"font_family"`
 	BorderRadius   string `json:"border_radius"`
