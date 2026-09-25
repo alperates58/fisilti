@@ -36,7 +36,7 @@ services:
 
   # 3. MinIO S3 Nesne Depolama Servisi
   minio:
-    image: quay.io/minio/minio:latest
+    image: minio/minio:latest
     container_name: fisilti-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -56,7 +56,7 @@ services:
 
   # 4. MinIO Başlangıç Bucket Oluşturucu (Tek seferlik)
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: minio/mc:latest
     container_name: fisilti-minio-init
     depends_on:
       minio:
