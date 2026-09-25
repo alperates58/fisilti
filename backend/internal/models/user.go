@@ -96,6 +96,7 @@ type UpdatePrivacyRequest struct {
 	ReadReceipts *bool `json:"read_receipts,omitempty"`
 	LastSeen     *bool `json:"last_seen,omitempty"`
 	AllowCalls   *bool `json:"allow_calls,omitempty"`
+	SoundAlerts  *bool `json:"sound_alerts,omitempty"`
 }
 
 type AuthResponse struct {

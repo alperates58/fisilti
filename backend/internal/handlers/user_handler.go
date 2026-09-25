@@ -128,6 +128,9 @@ func (h *UserHandler) UpdatePrivacy(c *fiber.Ctx) error {
 	if req.AllowCalls != nil {
 		currentSettings.AllowCalls = *req.AllowCalls
 	}
+	if req.SoundAlerts != nil {
+		currentSettings.SoundAlerts = *req.SoundAlerts
+	}
 
 	if err := h.userRepo.UpdatePrivacy(c.Context(), userID, currentSettings); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

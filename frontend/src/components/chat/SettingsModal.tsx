@@ -72,9 +72,10 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
   const [allowCalls, setAllowCalls] = useState(user?.privacy_settings?.allow_calls ?? true);
   const [soundAlerts, setSoundAlerts] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("aura_sound_alerts") !== "false";
+      const saved = localStorage.getItem("aura_sound_alerts");
+      if (saved !== null) return saved !== "false";
     }
-    return true;
+    return user?.privacy_settings?.sound_alerts ?? true;
   });
 
   const [userOutgoingBubble, setUserOutgoingBubble] = useState<string>(() => {
@@ -127,8 +128,11 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     if (user?.privacy_settings?.sound_alerts !== undefined) {
       setSoundAlerts(user.privacy_settings.sound_alerts);
       soundEffects.setSoundEnabled(user.privacy_settings.sound_alerts);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("aura_sound_alerts", String(user.privacy_settings.sound_alerts));
+      }
     }
-  }, [user]);
+  }, [user?.privacy_settings?.sound_alerts]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -228,6 +232,9 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     const nextVal = !soundAlerts;
     setSoundAlerts(nextVal);
     soundEffects.setSoundEnabled(nextVal);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("aura_sound_alerts", String(nextVal));
+    }
     try {
       await updatePrivacy({ sound_alerts: nextVal });
     } catch (e) {
@@ -478,8 +485,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
           {activeTab === "privacy" && (
             <div className="space-y-5">
               {/* Okundu Bilgisi (Mavi Tik) */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-white">Okundu Bilgisi (Mavi Tik)</div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     Kapalıysa karşı taraf mesajları okuduğunuzu göremez.
@@ -488,21 +495,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 <button
                   type="button"
                   onClick={() => handlePrivacyToggle("read_receipts", !readReceipts)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    readReceipts ? "bg-grupo-accent" : "bg-slate-700"
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
+                    readReceipts ? "bg-pink-600" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      readReceipts ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      readReceipts ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
               </div>
 
               {/* Son Görülme Zamanı */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-white">Son Görülme Zamanı</div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     Çevrimiçi olmadığınızda son görülme bilginiz gizlenir.
@@ -511,21 +518,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 <button
                   type="button"
                   onClick={() => handlePrivacyToggle("last_seen", !lastSeen)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    lastSeen ? "bg-grupo-accent" : "bg-slate-700"
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
+                    lastSeen ? "bg-pink-600" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      lastSeen ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      lastSeen ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
               </div>
 
               {/* Sesli / Görüntülü Arama İzni */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-white">Gelen Aramaları Kabul Et</div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     Kapalıysa gelen tüm WebRTC aramaları otomatik meşgule düşer.
@@ -534,51 +541,59 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 <button
                   type="button"
                   onClick={() => handlePrivacyToggle("allow_calls", !allowCalls)}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    allowCalls ? "bg-grupo-accent" : "bg-slate-700"
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
+                    allowCalls ? "bg-pink-600" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      allowCalls ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      allowCalls ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
               </div>
 
               {/* Bildirim Sesleri Aç / Kapat */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold text-white flex items-center gap-2">
-                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    Bildirim Sesleri ve Uyarılar
-                    {soundAlerts ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Sesli
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                        Sessiz
-                      </span>
-                    )}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400 flex-shrink-0" /> : <VolumeX className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                    <span>Bildirim Sesleri ve Uyarılar</span>
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        soundAlerts
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : "bg-slate-800 text-slate-400 border-slate-700"
+                      }`}
+                    >
+                      {soundAlerts ? "Sesli" : "Sessiz"}
+                    </span>
                   </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Telefonunuz seslide olsa dahi bildirimler sessiz iletilir ve mesaj sesi çalmaz.
+                  <div className="text-xs text-slate-400 mt-1">
+                    {soundAlerts
+                      ? "Yeni mesaj geldiğinde ses efekti çalınır."
+                      : "Telefonunuz seslide olsa dahi bildirimler sessiz iletilir ve ses çalmaz."}
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleToggleSound}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    soundAlerts ? "bg-grupo-accent" : "bg-slate-700"
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
+                    soundAlerts ? "bg-pink-600" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      soundAlerts ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 flex items-center justify-center ${
+                      soundAlerts ? "translate-x-5" : "translate-x-0"
                     }`}
-                  />
+                  >
+                    {soundAlerts ? (
+                      <Volume2 className="w-2.5 h-2.5 text-pink-600" />
+                    ) : (
+                      <VolumeX className="w-2.5 h-2.5 text-slate-500" />
+                    )}
+                  </span>
                 </button>
               </div>
 
@@ -815,16 +830,16 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
               )}
 
               {/* Web Push Aç / Kapat */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-white flex items-center gap-2">
-                    Anlık Cihaz Bildirimleri
+                    <span>Anlık Cihaz Bildirimleri</span>
                     {isPushSubscribed ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
                         Aktif
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 whitespace-nowrap">
                         Kapalı
                       </span>
                     )}
@@ -838,30 +853,30 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                   type="button"
                   disabled={isPushLoading}
                   onClick={handleTogglePush}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
                     isPushSubscribed ? "bg-grupo-accent" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      isPushSubscribed ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      isPushSubscribed ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
               </div>
 
               {/* Sesli Bildirim ve Zil Sesi Aç / Kapat */}
-              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-white flex items-center gap-2">
-                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    Bildirim Sesleri ve Zil Sesi
+                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400 flex-shrink-0" /> : <VolumeX className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                    <span>Bildirim Sesleri ve Zil Sesi</span>
                     {soundAlerts ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
                         Sesli
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 whitespace-nowrap">
                         Sessiz
                       </span>
                     )}
@@ -874,15 +889,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 <button
                   type="button"
                   onClick={handleToggleSound}
-                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-                    soundAlerts ? "bg-grupo-accent" : "bg-slate-700"
+                  className={`w-11 h-6 rounded-full transition-colors duration-200 relative cursor-pointer flex-shrink-0 ${
+                    soundAlerts ? "bg-pink-600" : "bg-slate-700"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      soundAlerts ? "translate-x-6" : "translate-x-0"
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 flex items-center justify-center ${
+                      soundAlerts ? "translate-x-5" : "translate-x-0"
                     }`}
-                  />
+                  >
+                    {soundAlerts ? (
+                      <Volume2 className="w-2.5 h-2.5 text-pink-600" />
+                    ) : (
+                      <VolumeX className="w-2.5 h-2.5 text-slate-500" />
+                    )}
+                  </span>
                 </button>
               </div>
 
