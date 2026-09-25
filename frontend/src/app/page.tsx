@@ -477,7 +477,7 @@ export default function HomePage() {
     return (
       <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-3 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-3 border-grupo-accent border-t-transparent rounded-full animate-spin"></div>
           <p className="text-sm text-slate-400 font-medium">Aura yükleniyor...</p>
         </div>
       </div>
@@ -522,7 +522,7 @@ export default function HomePage() {
               onClick={() => setIsSettingsOpen(true)}
               className="relative flex-shrink-0 cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden">
                 {user?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -602,7 +602,7 @@ export default function HomePage() {
                 className="w-full p-2.5 rounded-xl hover:bg-slate-800/60 flex items-center justify-between text-left transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-pink-400 overflow-hidden">
+                  <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-grupo-accent overflow-hidden">
                     {u.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={u.avatar_url} alt={u.display_name} className="w-full h-full object-cover" />
@@ -639,7 +639,7 @@ export default function HomePage() {
                   className="w-full p-3 rounded-2xl hover:bg-slate-800/60 flex items-center gap-3 text-left transition-all cursor-pointer"
                 >
                   <div className="relative flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden">
                       {contact.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={contact.avatar_url} alt={contact.display_name} className="w-full h-full object-cover" />
@@ -664,7 +664,7 @@ export default function HomePage() {
                     </div>
                     <div className="text-xs text-slate-400 truncate">@{contact.username}</div>
                   </div>
-                  <UserPlus className="w-4 h-4 text-pink-400 flex-shrink-0" />
+                  <UserPlus className="w-4 h-4 text-grupo-accent flex-shrink-0" />
                 </button>
               ))
             )}
@@ -798,7 +798,7 @@ export default function HomePage() {
                 </button>
 
                 <div className="relative flex-shrink-0">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden">
                     {activeConv.other_user.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -821,7 +821,7 @@ export default function HomePage() {
                   <p className="text-[11px] sm:text-xs text-slate-400 truncate leading-tight mt-0.5">
                     {isOtherTyping ? (
                       <span
-                        style={{ color: "var(--accent, #E91E63)" }}
+                        style={{ color: "var(--accent, #6366F1)" }}
                         className="font-semibold animate-pulse"
                       >
                         yazıyor...
@@ -853,7 +853,7 @@ export default function HomePage() {
                   <button
                     onClick={() => setConfirmCallType("video")}
                     title="Görüntülü Arama Başlat"
-                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-pink-400 transition-colors cursor-pointer"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-grupo-accent transition-colors cursor-pointer"
                   >
                     <Video className="w-4 h-4" />
                   </button>
@@ -876,9 +876,9 @@ export default function HomePage() {
                   style={
                     isChatSearchOpen
                       ? {
-                          backgroundColor: "var(--accent, #E91E63)",
+                          backgroundColor: "var(--accent, #6366F1)",
                           color: "var(--accent-text, #ffffff)",
-                          boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.3))",
+                          boxShadow: "0 4px 12px var(--accent-shadow, rgba(99, 102, 241, 0.3))",
                         }
                       : undefined
                   }
@@ -926,7 +926,7 @@ export default function HomePage() {
                         }}
                         className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
                       >
-                        <Search className="w-3.5 h-3.5" style={{ color: "var(--accent, #E91E63)" }} />
+                        <Search className="w-3.5 h-3.5" style={{ color: "var(--accent, #6366F1)" }} />
                         <span>Sohbette Ara</span>
                       </button>
                       <div className="h-px bg-slate-800 my-1" />
@@ -1048,7 +1048,7 @@ export default function HomePage() {
             >
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
-                  <Sparkles className="w-8 h-8 text-pink-500/50 mb-2" />
+                  <Sparkles className="w-8 h-8 text-grupo-accent/50 mb-2" />
                   <p className="text-sm font-medium">Bu sohbette henüz mesaj yok.</p>
                   <p className="text-xs text-slate-600 mt-1">İlk mesajı göndererek başlayın!</p>
                 </div>
@@ -1140,10 +1140,10 @@ export default function HomePage() {
                       style={{
                         borderColor:
                           isInputFocused || inputMessage.trim()
-                            ? "var(--accent, #E91E63)"
+                            ? "var(--accent, #6366F1)"
                             : undefined,
                         boxShadow: isInputFocused
-                          ? "0 0 0 1px var(--accent, #E91E63)"
+                          ? "0 0 0 1px var(--accent, #6366F1)"
                           : undefined,
                       }}
                       className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
@@ -1153,10 +1153,10 @@ export default function HomePage() {
                       <button
                         type="submit"
                         style={{
-                          backgroundColor: "var(--accent, #E91E63)",
+                          backgroundColor: "var(--accent, #6366F1)",
                           color: "var(--accent-text, #ffffff)",
                           boxShadow:
-                            "0 10px 15px -3px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                            "0 10px 15px -3px var(--accent-shadow, rgba(99, 102, 241, 0.35))",
                         }}
                         className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl hover:brightness-110 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
                       >
@@ -1180,7 +1180,7 @@ export default function HomePage() {
         ) : (
           /* Aktif Konuşma Yokken Karşılama Ekranı (Desktop) */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
-            <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-pink-400 mb-4 shadow-xl">
+            <div className="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-grupo-accent mb-4 shadow-xl">
               <MessageSquare className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold text-white mb-1">Aura</h3>
@@ -1204,7 +1204,7 @@ export default function HomePage() {
             </div>
 
             <div className="p-6 flex flex-col items-center text-center border-b border-grupo-dark-border">
-              <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-pink-500/40 flex items-center justify-center font-bold text-2xl text-pink-400 overflow-hidden mb-3 shadow-lg">
+              <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-grupo-accent/40 flex items-center justify-center font-bold text-2xl text-grupo-accent overflow-hidden mb-3 shadow-lg">
                 {activeConv.other_user.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -1296,7 +1296,7 @@ export default function HomePage() {
                                 name: m.media_metadata?.file_name,
                               })
                             }
-                            className="aspect-square rounded-xl overflow-hidden bg-slate-800 relative cursor-pointer group hover:scale-[1.03] hover:ring-2 hover:ring-pink-500/60 transition-all duration-150 shadow-sm"
+                            className="aspect-square rounded-xl overflow-hidden bg-slate-800 relative cursor-pointer group hover:scale-[1.03] hover:ring-2 hover:ring-grupo-accent/60 transition-all duration-150 shadow-sm"
                             title="Büyütmek için tıkla"
                           >
                             {isVid ? (
@@ -1427,7 +1427,7 @@ export default function HomePage() {
                   className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
                     confirmCallType === "audio"
                       ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-pink-500/20 text-pink-400"
+                      : "bg-grupo-accent/20 text-grupo-accent"
                   }`}
                 >
                   {confirmCallType === "audio" ? (
@@ -1472,7 +1472,7 @@ export default function HomePage() {
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-lg ${
                     confirmCallType === "audio"
                       ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30"
-                      : "bg-pink-600 hover:bg-pink-500 shadow-pink-600/30"
+                      : "bg-grupo-accent hover:brightness-110 shadow-lg"
                   }`}
                 >
                   {confirmCallType === "audio" ? (

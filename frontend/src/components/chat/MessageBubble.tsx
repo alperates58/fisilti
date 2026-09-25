@@ -254,7 +254,7 @@ export default function MessageBubble({
             target="_blank"
             rel="noopener noreferrer"
             className={`underline hover:opacity-80 transition-opacity break-all ${
-              message.is_mine ? "text-pink-100 font-medium" : "text-pink-400 font-medium"
+              message.is_mine ? "text-inherit opacity-95 font-medium underline" : "text-grupo-accent font-medium"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -367,7 +367,7 @@ export default function MessageBubble({
         {/* WhatsApp Tarzı Sağa Kaydırma Yanıt İkonu */}
         {swipeOffset > 0 && (
           <div
-            className="absolute left-[-38px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-850 border border-pink-500/60 flex items-center justify-center text-pink-400 shadow-xl pointer-events-none transition-transform z-10"
+            className="absolute left-[-38px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-slate-850 border border-grupo-accent/60 flex items-center justify-center text-grupo-accent shadow-xl pointer-events-none transition-transform z-10"
             style={{
               opacity: Math.min(swipeOffset / 40, 1),
               transform: `translateY(-50%) scale(${Math.min(swipeOffset / 45, 1)})`,
@@ -388,9 +388,9 @@ export default function MessageBubble({
             transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined,
             transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28)",
             backgroundColor: message.is_mine
-              ? "var(--outgoing-bubble, #BE185D)"
-              : "var(--incoming-bubble, #1E232B)",
-            borderColor: message.is_mine ? "transparent" : "var(--border, #1E293B)",
+              ? "var(--outgoing-bubble, #4F46E5)"
+              : "var(--incoming-bubble, #181C28)",
+            borderColor: message.is_mine ? "transparent" : "var(--border, #1E2333)",
             color: message.is_mine ? "var(--outgoing-text, #ffffff)" : undefined,
           }}
           className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none max-w-full min-w-0 overflow-hidden break-words ${
@@ -423,7 +423,7 @@ export default function MessageBubble({
               {/* Dikey Düz Şerit (WhatsApp Style) */}
               <div
                 className={`w-1 self-stretch flex-shrink-0 ${
-                  message.is_mine ? "bg-current opacity-80" : "bg-pink-500"
+                  message.is_mine ? "bg-current opacity-80" : "bg-grupo-accent"
                 }`}
               />
 
@@ -432,7 +432,7 @@ export default function MessageBubble({
                 <div className="flex items-center justify-between gap-1 mb-0.5">
                   <span
                     className={`font-bold text-[11px] truncate ${
-                      message.is_mine ? "text-pink-200" : "text-pink-400"
+                      message.is_mine ? "text-inherit opacity-90" : "text-grupo-accent"
                     }`}
                   >
                     {targetRepliedMessage
@@ -541,7 +541,8 @@ export default function MessageBubble({
                   href={`https://www.google.com/maps?q=${message.media_metadata?.latitude},${message.media_metadata?.longitude}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors flex-shrink-0 cursor-pointer"
+                  style={{ backgroundColor: "var(--accent, #6366F1)" }}
+                  className="px-2.5 py-1.5 rounded-lg hover:brightness-110 text-white text-[11px] font-semibold flex items-center gap-1 transition-all flex-shrink-0 cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>Aç</span>
@@ -557,7 +558,7 @@ export default function MessageBubble({
                 message.is_mine ? "bg-black/25" : "bg-slate-900/80"
               }`}
             >
-              <div className="w-10 h-10 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-grupo-accent/20 text-grupo-accent flex items-center justify-center flex-shrink-0">
                 <FileText className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
@@ -639,7 +640,7 @@ export default function MessageBubble({
                 type="text"
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                className="flex-1 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-lg border border-pink-500 focus:outline-none"
+                className="flex-1 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-lg border border-grupo-accent focus:outline-none"
                 autoFocus
               />
               <button
@@ -747,7 +748,7 @@ export default function MessageBubble({
               }}
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer text-slate-200"
             >
-              <CornerUpLeft className="w-3.5 h-3.5 text-pink-400" />
+              <CornerUpLeft className="w-3.5 h-3.5 text-grupo-accent" />
               <span>Yanıtla</span>
             </button>
 

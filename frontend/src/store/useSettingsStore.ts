@@ -59,13 +59,13 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
     maintenance_mode: false,
   },
   theme_settings: {
-    primary_color: "#E91E63",
-    card_bg: "#16191E",
-    nav_bg: "#0F1115",
-    main_bg: "#0D0F12",
-    border_color: "#23272F",
-    outgoing_bubble: "#BE185D",
-    incoming_bubble: "#1E232B",
+    primary_color: "#6366F1",
+    card_bg: "#11141E",
+    nav_bg: "#0B0D14",
+    main_bg: "#090A0F",
+    border_color: "#1E2333",
+    outgoing_bubble: "#4F46E5",
+    incoming_bubble: "#181C28",
     font_family: "Inter",
     border_radius: "rounded-2xl",
   },
@@ -96,7 +96,7 @@ function hexToRgba(hex: string, alpha: number = 1): string {
   let c = hex.replace("#", "").trim();
   if (c.length === 3) c = c.split("").map((x) => x + x).join("");
   const num = parseInt(c, 16);
-  if (isNaN(num) || c.length !== 6) return `rgba(233, 30, 99, ${alpha})`;
+  if (isNaN(num) || c.length !== 6) return `rgba(99, 102, 241, ${alpha})`;
   const r = (num >> 16) & 255;
   const g = (num >> 8) & 255;
   const b = num & 255;
@@ -104,16 +104,39 @@ function hexToRgba(hex: string, alpha: number = 1): string {
 }
 
 export const applyThemeToDocument = (
-  theme: Partial<PublicSettings["theme_settings"]> & { outgoing_text?: string }
+  themeOrPrimary:
+    | (Partial<PublicSettings["theme_settings"]> & { outgoing_text?: string })
+    | string,
+  card_bg?: string,
+  border_color?: string,
+  outgoing_bubble?: string,
+  incoming_bubble?: string,
+  main_bg?: string
 ) => {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+
+  let theme: Partial<PublicSettings["theme_settings"]> & { outgoing_text?: string };
+
+  if (typeof themeOrPrimary === "string") {
+    theme = {
+      primary_color: themeOrPrimary,
+      card_bg,
+      border_color,
+      outgoing_bubble,
+      incoming_bubble,
+      main_bg,
+    };
+  } else {
+    theme = themeOrPrimary || {};
+  }
+
   if (theme.primary_color) {
     root.style.setProperty("--accent", theme.primary_color);
     root.style.setProperty("--primary", theme.primary_color);
     root.style.setProperty("--accent-hover", theme.primary_color);
     
-    // Vurgu rengine göre kontrast metin rengi (beyaz veya siyah)
+    // Vurgu rengine göre kontrast metin rengi (beyaz veya koyu)
     const accentTextColor = getContrastTextColor(theme.primary_color);
     root.style.setProperty("--accent-text", accentTextColor);
 

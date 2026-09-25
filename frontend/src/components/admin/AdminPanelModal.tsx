@@ -89,10 +89,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [accessLogs, setAccessLogs] = useState<AdminAccessLog[]>([]);
 
   // Theme customizer state
-  const [accentColor, setAccentColor] = useState("#E91E63");
-  const [cardBgColor, setCardBgColor] = useState("#16191E");
-  const [borderColor, setBorderColor] = useState("#1E293B");
-  const [outgoingBubble, setOutgoingBubble] = useState("#BE185D");
+  const [accentColor, setAccentColor] = useState("#6366F1");
+  const [cardBgColor, setCardBgColor] = useState("#11141E");
+  const [borderColor, setBorderColor] = useState("#1E2333");
+  const [outgoingBubble, setOutgoingBubble] = useState("#4F46E5");
   const [fontFamily, setFontFamily] = useState("Inter");
 
   // Load initial tab data
@@ -135,10 +135,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const data = await adminApi.getSettings();
       setSettings(data);
       if (data.theme_settings) {
-        const acc = data.theme_settings.primary_color || "#E91E63";
-        const crd = data.theme_settings.card_bg || "#16191E";
-        const brd = data.theme_settings.border_color || "#1E293B";
-        const bbl = data.theme_settings.outgoing_bubble || "#BE185D";
+        const acc = data.theme_settings.primary_color || "#6366F1";
+        const crd = data.theme_settings.card_bg || "#11141E";
+        const brd = data.theme_settings.border_color || "#1E2333";
+        const bbl = data.theme_settings.outgoing_bubble || "#4F46E5";
         const inc = data.theme_settings.incoming_bubble || crd;
 
         setAccentColor(acc);
@@ -213,8 +213,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     const updatedTheme = {
       primary_color: accentColor,
       card_bg: cardBgColor,
-      nav_bg: "#0F1115",
-      main_bg: "#0B0C0F",
+      nav_bg: "#0B0D14",
+      main_bg: "#090A0F",
       border_color: borderColor,
       outgoing_bubble: outgoingBubble,
       incoming_bubble: cardBgColor,

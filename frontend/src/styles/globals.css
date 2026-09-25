@@ -3,33 +3,34 @@
 @tailwind utilities;
 
 :root {
-  --background: #0B0C0F;
+  --background: #090A0F;
   --foreground: #F8FAFC;
-  --card: #16191E;
-  --border: #1E293B;
-  --accent: #E91E63;
+  --card: #11141E;
+  --border: #1E2333;
+  --hover: #181C28;
+  --accent: #6366F1;
   --accent-text: #FFFFFF;
-  --accent-shadow: rgba(233, 30, 99, 0.35);
-  --accent-rgb: 233, 30, 99;
-  --accent-hover: #D81B60;
-  --outgoing-bubble: #BE185D;
+  --accent-shadow: rgba(99, 102, 241, 0.35);
+  --accent-rgb: 99, 102, 241;
+  --accent-hover: #4F46E5;
+  --outgoing-bubble: #4F46E5;
   --outgoing-text: #FFFFFF;
   --outgoing-text-muted: rgba(255, 255, 255, 0.75);
-  --incoming-bubble: #1E232B;
+  --incoming-bubble: #181C28;
 }
 
 @layer utilities {
   .bg-grupo-accent,
   .bg-theme-accent {
-    background-color: var(--accent, #E91E63) !important;
+    background-color: var(--accent, #6366F1) !important;
   }
   .border-grupo-accent,
   .border-theme-accent {
-    border-color: var(--accent, #E91E63) !important;
+    border-color: var(--accent, #6366F1) !important;
   }
   .text-grupo-accent,
   .text-theme-accent {
-    color: var(--accent, #E91E63) !important;
+    color: var(--accent, #6366F1) !important;
   }
   .hover\:bg-grupo-accent-hover:hover {
     filter: brightness(1.1);
