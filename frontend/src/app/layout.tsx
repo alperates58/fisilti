@@ -27,8 +27,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  interactiveWidget: "resizes-content",
   themeColor: "#0B0C0F",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
@@ -47,7 +47,7 @@ export default function RootLayout({
           crossOrigin="use-credentials"
         />
       </head>
-      <body className="bg-grupo-dark-bg text-slate-100 antialiased h-full h-[100dvh] w-full overflow-hidden flex flex-col">
+      <body className="bg-grupo-dark-bg text-slate-100 antialiased h-full w-full overflow-hidden flex flex-col">
         <ServiceWorkerRegister />
         <SystemSettingsInitializer />
         {children}

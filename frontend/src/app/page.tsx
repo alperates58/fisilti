@@ -132,22 +132,44 @@ export default function HomePage() {
   const [contactsList, setContactsList] = useState<any[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  const updateViewportHeight = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (window.visualViewport) {
+      setViewportHeight(window.visualViewport.height);
+    } else {
+      setViewportHeight(window.innerHeight);
+    }
+  }, []);
+
+  useEffect(() => {
+    updateViewportHeight();
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateViewportHeight);
+    }
+    window.addEventListener("resize", updateViewportHeight);
+
+    return () => {
+      if (typeof window !== "undefined" && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", updateViewportHeight);
+      }
+      window.removeEventListener("resize", updateViewportHeight);
+    };
+  }, [updateViewportHeight]);
+
+  const isKeyboardOpen =
+    typeof window !== "undefined" && viewportHeight
+      ? viewportHeight < window.innerHeight * 0.82
+      : false;
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef<Record<string, boolean>>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Akıllı ve güvenli en alta kaydırma fonksiyonu (Window kaymasını sıfırlar, konteyneri tam tabana indirir)
+  // Akıllı ve güvenli en alta kaydırma fonksiyonu (Sadece mesaj konteynerini kaydırır, pencereyi bozmaz)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    if (typeof window !== "undefined" && window.scrollY !== 0) {
-      window.scrollTo(0, 0);
-    }
-    if (typeof document !== "undefined") {
-      if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
-      if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
-    }
-
     if (messagesContainerRef.current) {
       const el = messagesContainerRef.current;
       el.scrollTo({
@@ -213,6 +235,8 @@ export default function HomePage() {
       if (isVisible) {
         notificationManager.stopFlash();
 
+        updateViewportHeight();
+
         // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
         if (typeof window !== "undefined") {
           window.scrollTo(0, 0);
@@ -262,31 +286,26 @@ export default function HomePage() {
       window.removeEventListener("focus", handleVisibilityOrFocus);
       window.removeEventListener("online", handleVisibilityOrFocus);
     };
-  }, [activeConversationId, messages, loadConversations, scrollToBottom]);
+  }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportHeight]);
 
-  // 3c. Ekran kilidi açıldığında, sanal klavye açılıp/kapandığında veya ekran yönü değiştiğinde alta sabitle
+  // 3c. Ekran boyutu değiştiğinde veya klavye açılıp kapandığında tabana kaydır
   useEffect(() => {
     const handleViewportChange = () => {
-      if (typeof window !== "undefined") {
-        if (window.scrollY !== 0) window.scrollTo(0, 0);
-        if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
-      }
+      updateViewportHeight();
       scrollToBottom("auto");
     };
 
     window.addEventListener("resize", handleViewportChange);
     if (typeof window !== "undefined" && window.visualViewport) {
       window.visualViewport.addEventListener("resize", handleViewportChange);
-      window.visualViewport.addEventListener("scroll", handleViewportChange);
     }
     return () => {
       window.removeEventListener("resize", handleViewportChange);
       if (typeof window !== "undefined" && window.visualViewport) {
         window.visualViewport.removeEventListener("resize", handleViewportChange);
-        window.visualViewport.removeEventListener("scroll", handleViewportChange);
       }
     };
-  }, [scrollToBottom]);
+  }, [updateViewportHeight, scrollToBottom]);
 
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
@@ -466,7 +485,13 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex h-full h-[100dvh] w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden">
+    <div
+      className="flex h-full w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
+      style={{
+        height: viewportHeight ? `${viewportHeight}px` : "100%",
+        maxHeight: viewportHeight ? `${viewportHeight}px` : "100%",
+      }}
+    >
       {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
       <SideNavigation
         activeTab={activeTab}
@@ -1065,7 +1090,13 @@ export default function HomePage() {
             </div>
 
             {/* Mesaj Giriş Barı & Alıntılama & Medya Menüsü */}
-            <footer className="p-2.5 sm:p-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0">
+            <footer
+              className={`p-2.5 sm:p-4 ${
+                isKeyboardOpen
+                  ? "pb-2.5 sm:pb-4"
+                  : "pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+              } border-t border-grupo-dark-border bg-grupo-dark-card/40 backdrop-blur-md flex-shrink-0`}
+            >
               <ReplyBar />
 
               <div className="flex items-center gap-2 sm:gap-3">
@@ -1088,14 +1119,10 @@ export default function HomePage() {
                       onChange={handleInputChange}
                       onFocus={() => {
                         setIsInputFocused(true);
-                        setTimeout(() => scrollToBottom("smooth"), 150);
+                        setTimeout(() => scrollToBottom("auto"), 100);
                       }}
                       onBlur={() => {
                         setIsInputFocused(false);
-                        if (typeof window !== "undefined") {
-                          window.scrollTo(0, 0);
-                          document.body.scrollTop = 0;
-                        }
                         setTimeout(() => scrollToBottom("auto"), 60);
                       }}
                       placeholder="Bir mesaj yazın..."
