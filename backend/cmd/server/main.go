@@ -127,7 +127,7 @@ func main() {
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService, userRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb, hub)
 	storyRepo := database.NewStoryRepository(db)
-	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo)
+	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo, hub)
 
 	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{

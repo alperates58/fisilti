@@ -212,6 +212,25 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             });
             break;
 
+          case "new_story": {
+            const currentUserId = useAuthStore.getState().user?.id;
+            if (data.payload?.user_id !== currentUserId) {
+              soundEffects.playReceived();
+              const authorName = data.payload?.author_name || "Bir kullanıcı";
+              const caption = data.payload?.caption ? `: "${data.payload.caption}"` : "";
+              notificationManager.notify(
+                `${authorName} yeni bir hikaye paylaştı! 📸`,
+                `Hikayeyi görmek için tıklayın${caption}`
+              );
+              notificationManager.flashTitle(1);
+
+              import("./useStoryStore").then(({ useStoryStore }) => {
+                useStoryStore.getState().loadStories();
+              });
+            }
+            break;
+          }
+
           case "incoming_call":
             soundEffects.startRingtone();
             import("./useCallStore").then(({ useCallStore }) => {

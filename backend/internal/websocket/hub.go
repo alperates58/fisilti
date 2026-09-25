@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -262,3 +263,67 @@ func (h *Hub) SendWebPushToUser(userID uuid.UUID, title, body, icon, url string)
 		}
 	}()
 }
+
+func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorAvatar, caption string) {
+	// 1. WebSocket Broadcast to all active clients
+	payload := map[string]interface{}{
+		"action": "new_story",
+		"payload": map[string]interface{}{
+			"user_id":       authorID,
+			"author_name":   authorName,
+			"author_avatar": authorAvatar,
+			"caption":       caption,
+		},
+	}
+	jsonBytes, err := json.Marshal(payload)
+	if err == nil {
+		h.BroadcastToAll(jsonBytes)
+	}
+
+	// 2. Web Push Notification to all users except author
+	if h.pushRepo == nil || h.vapidService == nil {
+		return
+	}
+
+	go func() {
+		ctx := context.Background()
+		subs, err := h.pushRepo.GetAllSubscriptionsExceptUser(ctx, authorID)
+		if err != nil || len(subs) == 0 {
+			return
+		}
+
+		title := authorName
+		body := "Yeni bir hikaye paylaştı 📸"
+		if len(caption) > 0 {
+			body = fmt.Sprintf("Yeni bir hikaye paylaştı: \"%s\"", caption)
+		}
+		icon := authorAvatar
+		if icon == "" {
+			icon = "/favicon.ico"
+		}
+		url := "/?tab=stories"
+
+		for _, sub := range subs {
+			silent := false
+			if h.settingsRepo != nil {
+				notifSettings := h.settingsRepo.GetNotificationSettings(ctx)
+				if !notifSettings.EnableSoundAlerts {
+					silent = true
+				}
+			}
+			if h.userRepo != nil {
+				user, _ := h.userRepo.GetUserByID(ctx, sub.UserID)
+				if user != nil && len(user.PrivacySettings) > 0 {
+					var ps models.PrivacySettings
+					if err := json.Unmarshal(user.PrivacySettings, &ps); err == nil {
+						if !ps.SoundAlerts {
+							silent = true
+						}
+					}
+				}
+			}
+			_ = h.vapidService.SendPushWithTag(sub, title, body, icon, url, "aura-story", silent)
+		}
+	}()
+}
+

@@ -65,3 +65,26 @@ func (r *PushRepository) GetSubscriptionsForUser(ctx context.Context, userID uui
 	}
 	return subs, nil
 }
+
+func (r *PushRepository) GetAllSubscriptionsExceptUser(ctx context.Context, excludeUserID uuid.UUID) ([]PushSubscription, error) {
+	query := `
+		SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at
+		FROM push_subscriptions
+		WHERE user_id != $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, excludeUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []PushSubscription
+	for rows.Next() {
+		var s PushSubscription
+		if err := rows.Scan(&s.ID, &s.UserID, &s.Endpoint, &s.P256dh, &s.Auth, &s.UserAgent, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		subs = append(subs, s)
+	}
+	return subs, nil
+}

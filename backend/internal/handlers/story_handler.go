@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"fisilti/internal/database"
 	"fisilti/internal/models"
+	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -17,12 +19,14 @@ import (
 type StoryHandler struct {
 	storyRepo *database.StoryRepository
 	userRepo  *database.UserRepository
+	hub       *fisiltiws.Hub
 }
 
-func NewStoryHandler(storyRepo *database.StoryRepository, userRepo *database.UserRepository) *StoryHandler {
+func NewStoryHandler(storyRepo *database.StoryRepository, userRepo *database.UserRepository, hub *fisiltiws.Hub) *StoryHandler {
 	return &StoryHandler{
 		storyRepo: storyRepo,
 		userRepo:  userRepo,
+		hub:       hub,
 	}
 }
 
@@ -76,6 +80,25 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 
 	if err := h.storyRepo.CreateStory(c.Context(), story); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Yeni hikaye bildirimini WebSocket ve Web Push ile tüm kullanıcılara dağıt
+	if h.hub != nil {
+		go func() {
+			ctx := context.Background()
+			author, err := h.userRepo.GetUserByID(ctx, userID)
+			authorName := "Birisi"
+			authorAvatar := ""
+			if err == nil && author != nil {
+				if author.DisplayName != "" {
+					authorName = author.DisplayName
+				} else {
+					authorName = author.Username
+				}
+				authorAvatar = author.AvatarURL
+			}
+			h.hub.BroadcastStoryNotification(userID, authorName, authorAvatar, story.Caption)
+		}()
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(story)

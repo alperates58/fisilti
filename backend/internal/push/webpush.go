@@ -49,15 +49,21 @@ type PushPayload struct {
 	Body   string                 `json:"body"`
 	Icon   string                 `json:"icon,omitempty"`
 	Silent bool                   `json:"silent"`
+	Tag    string                 `json:"tag,omitempty"`
 	Data   map[string]interface{} `json:"data,omitempty"`
 }
 
 func (s *VAPIDService) SendPush(sub database.PushSubscription, title, body, icon, url string, silent bool) error {
+	return s.SendPushWithTag(sub, title, body, icon, url, "aura-message", silent)
+}
+
+func (s *VAPIDService) SendPushWithTag(sub database.PushSubscription, title, body, icon, url, tag string, silent bool) error {
 	payload := PushPayload{
 		Title:  title,
 		Body:   body,
 		Icon:   icon,
 		Silent: silent,
+		Tag:    tag,
 		Data: map[string]interface{}{
 			"url": url,
 		},

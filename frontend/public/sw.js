@@ -130,7 +130,7 @@ self.addEventListener('push', (event) => {
       badge: data.badge || `${appScope}favicon.ico`,
       data: { url: data.url || appScope },
       silent: isSilent,
-      tag: 'aura-message',
+      tag: data.tag || 'aura-message',
       renotify: !isSilent,
     };
     if (!isSilent) {

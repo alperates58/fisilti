@@ -360,7 +360,11 @@ export default function MessageBubble({
 
       {/* Mesaj Balonu ve Yan Menüsü */}
       <div
-        className={`relative flex items-end gap-1.5 max-w-[85%] sm:max-w-[70%] md:max-w-[60%] min-w-0 ${
+        className={`relative flex items-end gap-1.5 ${
+          isEditing
+            ? "w-full max-w-[96%] sm:max-w-[85%] md:max-w-[75%] min-w-[280px]"
+            : "max-w-[85%] sm:max-w-[70%] md:max-w-[60%] min-w-0"
+        } ${
           message.is_mine ? "flex-row-reverse" : "flex-row"
         }`}
       >
@@ -393,7 +397,9 @@ export default function MessageBubble({
             borderColor: message.is_mine ? "transparent" : "var(--border, #1E2333)",
             color: message.is_mine ? "var(--outgoing-text, #ffffff)" : undefined,
           }}
-          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none max-w-full min-w-0 overflow-hidden break-words ${
+          className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none ${
+            isEditing ? "w-full min-w-[280px]" : "max-w-full min-w-0"
+          } overflow-hidden break-words ${
             isHighlightedMatch
               ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-950 shadow-2xl shadow-amber-400/40 scale-[1.02]"
               : ""
@@ -635,27 +641,43 @@ export default function MessageBubble({
               </div>
             </div>
           ) : isEditing ? (
-            <form onSubmit={handleEditSubmit} className="mt-1 flex items-center gap-1.5">
-              <input
-                type="text"
+            <form onSubmit={handleEditSubmit} className="mt-1 flex flex-col gap-2 w-full min-w-0">
+              <div className="text-[11px] font-semibold opacity-85 flex items-center gap-1.5">
+                <Pencil className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+                <span>Mesajı Düzenle</span>
+              </div>
+              <textarea
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                className="flex-1 bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-lg border border-grupo-accent focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleEditSubmit(e);
+                  } else if (e.key === "Escape") {
+                    setIsEditing(false);
+                  }
+                }}
+                rows={Math.max(2, Math.min(editText.split("\n").length, 5))}
+                className="w-full min-w-0 bg-black/40 text-white text-xs px-3 py-2 rounded-xl border border-white/20 focus:border-white/60 focus:outline-none resize-none leading-relaxed shadow-inner"
                 autoFocus
               />
-              <button
-                type="submit"
-                className="px-2 py-1 bg-emerald-500 text-white text-xs rounded-lg font-bold"
-              >
-                Kaydet
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="p-1 text-slate-300 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 rounded-lg bg-black/25 hover:bg-black/45 text-white/80 hover:text-white text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer flex-shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>İptal</span>
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Kaydet</span>
+                </button>
+              </div>
             </form>
           ) : (
             message.content && (
