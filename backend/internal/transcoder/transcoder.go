@@ -3,12 +3,13 @@ package transcoder
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 // IsAvailable sistemde ffmpeg binary'sinin bulunup bulunmadığını kontrol eder.
@@ -19,12 +20,13 @@ func IsAvailable() bool {
 
 // ConvertAudioToMP3 gelen herhangi bir ses dosyasını (WebM Opus, OGG, WAV, M4A vb.)
 // iOS ve Android dahil tüm tarayıcılarla %100 uyumlu standart MP3 formatına dönüştürür.
+// Her işlem için benzersiz UUID temp dosyası kullanılır, race condition oluşmaz.
 func ConvertAudioToMP3(inputPath string) (string, float64, error) {
 	if !IsAvailable() {
 		return "", 0, fmt.Errorf("ffmpeg sistemde yüklü değil")
 	}
 
-	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("converted_%d.mp3", os.Getpid()))
+	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("aura_audio_%s.mp3", uuid.New().String()))
 
 	// -y: Üzerine yaz, -i: Girdi, -vn: Video yok, -acodec libmp3lame: MP3 codec,
 	// -b:a 128k: 128kbps ses kalitesi, -ar 44100: 44.1kHz, -ac 2: Stereo
@@ -56,12 +58,13 @@ func ConvertAudioToMP3(inputPath string) (string, float64, error) {
 // ConvertVideoToUniversalMP4 gelen videoyu (WebM, MOV, AVI, MKV vb.)
 // iOS WebKit ve Android Chrome'un sorunsuz oynatabileceği H.264 Baseline + AAC MP4 formatına dönüştürür.
 // -movflags +faststart ile 'moov' atomu dosyanın başına alınır (iOS anında akış için zorunludur).
+// Eşzamanlı işlemlerde çakışma olmaması için benzersiz UUID temp dosyası kullanılır.
 func ConvertVideoToUniversalMP4(inputPath string) (string, error) {
 	if !IsAvailable() {
 		return "", fmt.Errorf("ffmpeg sistemde yüklü değil")
 	}
 
-	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("converted_video_%d.mp4", os.Getpid()))
+	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("aura_video_%s.mp4", uuid.New().String()))
 
 	// Eğer dosya zaten mp4 ise ve sadece streamable (faststart) yapılması gerekiyorsa
 	// önce hızlı remuxing dene:
@@ -112,7 +115,7 @@ func ConvertImageToJPEG(inputPath string) (string, error) {
 		return "", fmt.Errorf("ffmpeg sistemde yüklü değil")
 	}
 
-	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("converted_img_%d.jpg", os.Getpid()))
+	outputPath := filepath.Join(os.TempDir(), fmt.Sprintf("aura_img_%s.jpg", uuid.New().String()))
 
 	cmd := exec.Command("ffmpeg",
 		"-y",
@@ -145,15 +148,5 @@ func extractDurationFromStderr(stderr string) float64 {
 	minutes, _ := strconv.ParseFloat(matches[2], 64)
 	seconds, _ := strconv.ParseFloat(matches[3], 64)
 
-	totalSeconds := hours*3600 + minutes*60 + seconds
-	return totalSeconds
-}
-
-// LogStatus ffmpeg kullanılabilirliğini loglar.
-func LogStatus() {
-	if IsAvailable() {
-		log.Println("🎬 [Transcoder] FFmpeg tespit edildi. iOS/Android evrensel medya dönüştürücü aktif.")
-	} else {
-		log.Println("⚠️ [Transcoder] FFmpeg bulunamadı. Medyalar dönüştürülmeden yüklenecek.")
-	}
+	return (hours * 3600) + (minutes * 60) + seconds
 }

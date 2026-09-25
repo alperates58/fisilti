@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -90,7 +91,7 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 	var contentType string
 
 	// Gelen dosyayı geçici bir dosyaya yaz (FFmpeg dönüştürme ve boyut kontrolü için)
-	tmpIn, err := os.CreateTemp("", "fisilti_upload_*"+ext)
+	tmpIn, err := os.CreateTemp("", "aura_upload_*"+ext)
 	if err != nil {
 		return nil, fmt.Errorf("geçici dosya oluşturulamadı: %w", err)
 	}
@@ -106,13 +107,30 @@ func (s *StorageService) UploadMedia(ctx context.Context, userID uuid.UUID, file
 	var uploadDuration float64 = 0
 
 	// Dosya uzantısına göre kategoriyi otomatik doğrula (frontend yanlış göndermiş olsa bile):
+	// NOT: .svg uzantısı XSS vektörü (stored script execution) barındırabildiğinden görsel değil dosya olarak ele alınır.
 	switch ext {
 	case ".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv", ".3gp":
 		mediaCategory = "video"
 	case ".mp3", ".m4a", ".aac", ".wav", ".ogg", ".opus", ".weba":
 		mediaCategory = "voice"
-	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".svg", ".bmp":
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".bmp":
 		mediaCategory = "image"
+	}
+
+	// Güvenlik doğrulaması: Görsel kategorisindeki dosyaların ilk 512 baytını kokla (content sniffing)
+	if mediaCategory == "image" {
+		fCheck, err := os.Open(uploadFilePath)
+		if err == nil {
+			buf := make([]byte, 512)
+			n, _ := fCheck.Read(buf)
+			_ = fCheck.Close()
+			if n > 0 {
+				detected := strings.ToLower(http.DetectContentType(buf[:n]))
+				if strings.Contains(detected, "html") || strings.Contains(detected, "javascript") || strings.Contains(detected, "xml") {
+					return nil, errors.New("geçersiz veya zararlı görsel formatı tespit edildi")
+				}
+			}
+		}
 	}
 
 	switch mediaCategory {

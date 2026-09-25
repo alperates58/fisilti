@@ -227,7 +227,7 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp3ObjectName); statErr == nil {
 			objectName = mp3ObjectName
 		} else {
-			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_%d.webm", os.Getpid()))
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_%s.webm", uuid.New().String()))
 			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
 				if convertedPath, _, err := transcoder.ConvertAudioToMP3(tmpIn); err == nil {
 					_, _ = h.storage.FPutObject(c.Context(), bucket, mp3ObjectName, convertedPath, minio.PutObjectOptions{
@@ -247,7 +247,7 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp4ObjectName); statErr == nil {
 			objectName = mp4ObjectName
 		} else {
-			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%d.webm", os.Getpid()))
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%s.webm", uuid.New().String()))
 			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
 				if convertedPath, err := transcoder.ConvertVideoToUniversalMP4(tmpIn); err == nil {
 					_, _ = h.storage.FPutObject(c.Context(), bucket, mp4ObjectName, convertedPath, minio.PutObjectOptions{
@@ -267,7 +267,7 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 		if _, statErr := h.storage.StatObject(c.Context(), bucket, mp4ObjectName); statErr == nil {
 			objectName = mp4ObjectName
 		} else {
-			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%d.mov", os.Getpid()))
+			tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("src_vid_%s.mov", uuid.New().String()))
 			if err := h.storage.FGetObject(c.Context(), bucket, objectName, tmpIn, minio.GetObjectOptions{}); err == nil {
 				if convertedPath, err := transcoder.ConvertVideoToUniversalMP4(tmpIn); err == nil {
 					_, _ = h.storage.FPutObject(c.Context(), bucket, mp4ObjectName, convertedPath, minio.PutObjectOptions{
@@ -351,11 +351,17 @@ func (h *MediaHandler) GetMediaFile(c *fiber.Ctx) error {
 	}
 
 	c.Set("Content-Type", contentType)
+	c.Set("X-Content-Type-Options", "nosniff")
 	c.Set("Accept-Ranges", "bytes")
 	c.Set("Access-Control-Allow-Origin", "*")
 	c.Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
 	c.Set("Access-Control-Allow-Headers", "Range, Accept, Content-Type")
 	c.Set("Cache-Control", "public, max-age=31536000, immutable")
+
+	// Güvenlik: files bucket'ındaki belgeler veya genel/bilinmeyen dosyalar inline çalıştırılmasın, attachment olarak indirilsin
+	if bucket == "files" || contentType == "application/octet-stream" || strings.Contains(contentType, "html") || strings.Contains(contentType, "xml") || strings.Contains(contentType, "svg") {
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(objectName)))
+	}
 
 	if start >= 0 {
 		actualEnd := info.Size - 1
