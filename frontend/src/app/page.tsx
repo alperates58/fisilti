@@ -177,7 +177,12 @@ export default function HomePage() {
     if (typeof window === "undefined") return;
     if (window.visualViewport) {
       setViewportHeight(window.visualViewport.height);
-      setViewportTop(window.visualViewport.offsetTop || 0);
+      const hasActiveInput =
+        typeof document !== "undefined" &&
+        document.activeElement &&
+        (document.activeElement.tagName === "INPUT" ||
+          document.activeElement.tagName === "TEXTAREA");
+      setViewportTop(hasActiveInput ? (window.visualViewport.offsetTop || 0) : 0);
     } else {
       setViewportHeight(window.innerHeight);
       setViewportTop(0);
@@ -193,10 +198,16 @@ export default function HomePage() {
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     if (messagesContainerRef.current) {
       const el = messagesContainerRef.current;
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior,
-      });
+      const isHidden = typeof document !== "undefined" && document.hidden;
+      // Ekran kilitli veya sekme arka plandaysa rAF durduğu için kesinlikle doğrudan ve "auto" kaydır
+      if (isHidden || behavior === "auto") {
+        el.scrollTop = el.scrollHeight;
+      } else {
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: "smooth",
+        });
+      }
     }
   }, []);
 
@@ -273,7 +284,16 @@ export default function HomePage() {
       return;
     }
 
-    scrollToBottom("smooth");
+    const isHidden = typeof document !== "undefined" && document.hidden;
+    if (isHidden) {
+      // Ekran kilitliyken veya arka plandayken anında en alta sabitle
+      scrollToBottom("auto");
+    } else {
+      scrollToBottom("smooth");
+      // Asenkron görsel/avatar veya reflow gecikmelerine karşı kesin emniyet zamanlayıcısı
+      const timer = setTimeout(() => scrollToBottom("auto"), 100);
+      return () => clearTimeout(timer);
+    }
   }, [messages, activeConversationId, scrollToBottom]);
 
   // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve konuşmaları yükle
@@ -287,7 +307,10 @@ export default function HomePage() {
       if (isVisible) {
         notificationManager.stopFlash();
 
+        // Kilit ekranı geçiş animasyonunu karşılamak için aşamalı metrik güncellemesi
         updateViewportMetrics();
+        setTimeout(updateViewportMetrics, 100);
+        setTimeout(updateViewportMetrics, 300);
 
         // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
         if (typeof window !== "undefined") {
@@ -297,7 +320,8 @@ export default function HomePage() {
         }
         scrollToBottom("auto");
         setTimeout(() => scrollToBottom("auto"), 60);
-        setTimeout(() => scrollToBottom("auto"), 200);
+        setTimeout(() => scrollToBottom("auto"), 150);
+        setTimeout(() => scrollToBottom("auto"), 350);
 
         // 1. WebSocket kopmuşsa yeniden bağla (eğer CONNECTING aşamasındaysa tekrar açma)
         const socketState = useSocketStore.getState();
@@ -312,9 +336,19 @@ export default function HomePage() {
         // 2. Kilit açıldığında güncel konuşmaları ve okunmamış sayılarını çek
         loadConversations();
 
-        // 3. Eğer açık bir sohbet varsa mesajları tazele ve read_ack gönder
+        // 3. Eğer açık bir sohbet varsa mesajları tazele ve işlem tamamlandığında kesin tabana kaydır
         if (activeConversationId) {
-          useChatStore.getState().loadMessages(activeConversationId);
+          useChatStore
+            .getState()
+            .loadMessages(activeConversationId)
+            .then(() => {
+              // API'den mesajlar çekilip state güncellendikten sonra tabana sabitle
+              scrollToBottom("auto");
+              setTimeout(() => scrollToBottom("auto"), 50);
+              setTimeout(() => scrollToBottom("auto"), 150);
+            })
+            .catch(() => {});
+
           const convMessages = messages[activeConversationId] || [];
           const unreadIds = convMessages
             .filter((m) => !m.is_mine && !m.read_at)
@@ -1077,7 +1111,7 @@ export default function HomePage() {
             <div
               ref={messagesContainerRef}
               className="flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto overflow-x-hidden overscroll-contain"
-              style={{ scrollBehavior: "auto" }}
+              style={{ scrollBehavior: "auto", overflowAnchor: "none" }}
             >
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
@@ -1120,7 +1154,7 @@ export default function HomePage() {
                   );
                 })
               )}
-              <div ref={messagesEndRef} className="h-1 flex-shrink-0" />
+              <div ref={messagesEndRef} className="h-1 flex-shrink-0" style={{ overflowAnchor: "auto" }} />
             </div>
 
             {/* Mesaj Giriş Barı & Alıntılama & Medya Menüsü */}
