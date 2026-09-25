@@ -133,42 +133,25 @@ export default function HomePage() {
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [viewportTop, setViewportTop] = useState<number>(0);
 
-  const updateViewportHeight = useCallback(() => {
+  const updateViewportMetrics = useCallback(() => {
     if (typeof window === "undefined") return;
     if (window.visualViewport) {
       setViewportHeight(window.visualViewport.height);
+      setViewportTop(window.visualViewport.offsetTop || 0);
     } else {
       setViewportHeight(window.innerHeight);
+      setViewportTop(0);
     }
   }, []);
-
-  useEffect(() => {
-    updateViewportHeight();
-    if (typeof window !== "undefined" && window.visualViewport) {
-      window.visualViewport.addEventListener("resize", updateViewportHeight);
-    }
-    window.addEventListener("resize", updateViewportHeight);
-
-    return () => {
-      if (typeof window !== "undefined" && window.visualViewport) {
-        window.visualViewport.removeEventListener("resize", updateViewportHeight);
-      }
-      window.removeEventListener("resize", updateViewportHeight);
-    };
-  }, [updateViewportHeight]);
-
-  const isKeyboardOpen =
-    typeof window !== "undefined" && viewportHeight
-      ? viewportHeight < window.innerHeight * 0.82
-      : false;
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstLoadRef = useRef<Record<string, boolean>>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Akıllı ve güvenli en alta kaydırma fonksiyonu (Sadece mesaj konteynerini kaydırır, pencereyi bozmaz)
+  // Akıllı ve güvenli en alta kaydırma fonksiyonu (Sadece mesaj konteynerini kaydırır, tarayıcı penceresini/document'ı kaydırmaz)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     if (messagesContainerRef.current) {
       const el = messagesContainerRef.current;
@@ -176,10 +159,46 @@ export default function HomePage() {
         top: el.scrollHeight,
         behavior,
       });
-    } else if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior, block: "end" });
     }
   }, []);
+
+  useEffect(() => {
+    updateViewportMetrics();
+
+    const handleViewportChange = () => {
+      updateViewportMetrics();
+      scrollToBottom("auto");
+    };
+
+    const handleWindowScroll = () => {
+      if (typeof window !== "undefined" && window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
+
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (vv) {
+      vv.addEventListener("resize", handleViewportChange);
+      vv.addEventListener("scroll", handleViewportChange);
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleWindowScroll);
+      if (vv) {
+        vv.removeEventListener("resize", handleViewportChange);
+        vv.removeEventListener("scroll", handleViewportChange);
+      }
+    };
+  }, [updateViewportMetrics, scrollToBottom]);
+
+  const isKeyboardOpen =
+    typeof window !== "undefined" && viewportHeight
+      ? viewportHeight < window.innerHeight * 0.82
+      : false;
 
   // 1. Oturum Kontrolü & Kullanıcı Temasını Uygula
   useEffect(() => {
@@ -235,7 +254,7 @@ export default function HomePage() {
       if (isVisible) {
         notificationManager.stopFlash();
 
-        updateViewportHeight();
+        updateViewportMetrics();
 
         // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
         if (typeof window !== "undefined") {
@@ -286,26 +305,7 @@ export default function HomePage() {
       window.removeEventListener("focus", handleVisibilityOrFocus);
       window.removeEventListener("online", handleVisibilityOrFocus);
     };
-  }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportHeight]);
-
-  // 3c. Ekran boyutu değiştiğinde veya klavye açılıp kapandığında tabana kaydır
-  useEffect(() => {
-    const handleViewportChange = () => {
-      updateViewportHeight();
-      scrollToBottom("auto");
-    };
-
-    window.addEventListener("resize", handleViewportChange);
-    if (typeof window !== "undefined" && window.visualViewport) {
-      window.visualViewport.addEventListener("resize", handleViewportChange);
-    }
-    return () => {
-      window.removeEventListener("resize", handleViewportChange);
-      if (typeof window !== "undefined" && window.visualViewport) {
-        window.visualViewport.removeEventListener("resize", handleViewportChange);
-      }
-    };
-  }, [updateViewportHeight, scrollToBottom]);
+  }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportMetrics]);
 
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
@@ -486,8 +486,9 @@ export default function HomePage() {
 
   return (
     <div
-      className="flex h-full w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
+      className="fixed inset-x-0 flex w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
       style={{
+        top: `${viewportTop}px`,
         height: viewportHeight ? `${viewportHeight}px` : "100%",
         maxHeight: viewportHeight ? `${viewportHeight}px` : "100%",
       }}
@@ -1119,11 +1120,21 @@ export default function HomePage() {
                       onChange={handleInputChange}
                       onFocus={() => {
                         setIsInputFocused(true);
-                        setTimeout(() => scrollToBottom("auto"), 100);
+                        setTimeout(() => {
+                          updateViewportMetrics();
+                          scrollToBottom("auto");
+                        }, 100);
+                        setTimeout(() => {
+                          updateViewportMetrics();
+                          scrollToBottom("auto");
+                        }, 300);
                       }}
                       onBlur={() => {
                         setIsInputFocused(false);
-                        setTimeout(() => scrollToBottom("auto"), 60);
+                        setTimeout(() => {
+                          updateViewportMetrics();
+                          scrollToBottom("auto");
+                        }, 60);
                       }}
                       placeholder="Bir mesaj yazın..."
                       style={{
@@ -1135,7 +1146,7 @@ export default function HomePage() {
                           ? "0 0 0 1px var(--accent, #E91E63)"
                           : undefined,
                       }}
-                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
+                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
                     />
 
                     {inputMessage.trim() ? (
