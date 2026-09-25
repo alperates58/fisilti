@@ -42,6 +42,9 @@ export default function StoryViewerModal() {
 
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [isMediaLoaded, setIsMediaLoaded] = useState(false);
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [viewersModalOpen, setViewersModalOpen] = useState(false);
   const [viewersList, setViewersList] = useState<StoryAuthor[]>([]);
@@ -56,16 +59,18 @@ export default function StoryViewerModal() {
   const currentStory = activeViewerGroup?.stories[activeViewerStoryIndex];
   const isOwnStory = activeViewerGroup?.user.id === user?.id;
 
-  // Hikaye süresi: Özel duration_seconds ayarlanmışsa o süre (ms), değilse 10 saniye
+  // Hikaye süresi: Video için gerçek video süresi varsa o (maksimum 60s), yoksa duration_seconds (varsayılan 10s)
   const storyDuration =
-    ((currentStory?.duration_seconds && currentStory.duration_seconds > 0
-      ? currentStory.duration_seconds
-      : 10)) * 1000;
+    currentStory?.media_type === "video" && videoDurationMs && videoDurationMs > 1000
+      ? Math.min(60000, videoDurationMs)
+      : ((currentStory?.duration_seconds && currentStory.duration_seconds > 0
+          ? currentStory.duration_seconds
+          : 10)) * 1000;
 
   const ytVideoId = currentStory?.music_url ? extractYouTubeVideoId(currentStory.music_url) : null;
   const hasMusic = Boolean(currentStory?.music_url || currentStory?.music_title || ytVideoId);
   const startSec = Math.max(0, currentStory?.music_start || 0);
-  const storyDur = Math.max(5, currentStory?.duration_seconds || 10);
+  const storyDur = Math.max(5, Math.round(storyDuration / 1000));
   const endSec =
     currentStory?.music_end && currentStory.music_end > startSec
       ? currentStory.music_end
@@ -176,17 +181,38 @@ export default function StoryViewerModal() {
     }
   }, [activeViewerGroup, activeViewerStoryIndex, storyGroups, setViewerStoryIndex, openViewer]);
 
-  // Hikaye değiştiğinde görüldü olarak işaretle
+  // Hikaye değiştiğinde state sıfırla
   useEffect(() => {
-    if (currentStory && !isOwnStory && !currentStory.has_viewed) {
+    setProgress(0);
+    setIsBuffering(false);
+    setVideoDurationMs(null);
+    if (!currentStory) return;
+
+    if (currentStory.media_type === "text" || currentStory.media_type === "audio") {
+      setIsMediaLoaded(true);
+    } else {
+      setIsMediaLoaded(false);
+    }
+
+    if (!isOwnStory && !currentStory.has_viewed) {
       markStoryViewed(currentStory.id);
     }
-    setProgress(0);
-  }, [currentStory, isOwnStory, markStoryViewed]);
+  }, [currentStory?.id, currentStory?.media_type, isOwnStory, markStoryViewed]);
 
-  // Otomatik ilerleme zamanlayıcısı
+  // Video elementinin duraklatma ve oynatma senkronizasyonu
   useEffect(() => {
-    if (!currentStory || isPaused || viewersModalOpen) return;
+    if (videoRef.current) {
+      if (isPaused || isBuffering || viewersModalOpen) {
+        videoRef.current.pause();
+      } else if (isMediaLoaded) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isPaused, isBuffering, isMediaLoaded, viewersModalOpen]);
+
+  // Otomatik ilerleme zamanlayıcısı (Medya yüklenmeden ve buffering varken durur)
+  useEffect(() => {
+    if (!currentStory || isPaused || viewersModalOpen || isBuffering || !isMediaLoaded) return;
 
     const interval = 50; // 50ms adım
     const step = (interval / storyDuration) * 100;
@@ -202,25 +228,25 @@ export default function StoryViewerModal() {
     }, interval);
 
     return () => clearInterval(timer);
-  }, [currentStory, isPaused, viewersModalOpen, storyDuration, handleNext]);
+  }, [currentStory, isPaused, viewersModalOpen, isBuffering, isMediaLoaded, storyDuration, handleNext]);
 
   // Normal HTML5 ses oynatma kontrolü (eğer YouTube değilse)
   useEffect(() => {
     if (!ytVideoId && currentStory?.music_url && audioRef.current) {
-      if (isPaused) {
+      if (isPaused || isBuffering || viewersModalOpen) {
         audioRef.current.pause();
-      } else {
+      } else if (isMediaLoaded) {
         audioRef.current.play().catch(() => {});
       }
     }
-  }, [currentStory, isPaused, ytVideoId]);
+  }, [currentStory, isPaused, isBuffering, isMediaLoaded, viewersModalOpen, ytVideoId]);
 
   // YouTube Iframe oynatma kontrolü (duraklat / devam et)
   useEffect(() => {
     if (ytVideoId) {
-      sendYtCommand(isPaused ? "pauseVideo" : "playVideo", []);
+      sendYtCommand(isPaused || isBuffering || viewersModalOpen ? "pauseVideo" : "playVideo", []);
     }
-  }, [isPaused, ytVideoId, sendYtCommand]);
+  }, [isPaused, isBuffering, viewersModalOpen, ytVideoId, sendYtCommand]);
 
   // YouTube Iframe sessize alma kontrolü
   useEffect(() => {
@@ -437,12 +463,28 @@ export default function StoryViewerModal() {
 
         {/* 2. MERKEZ MEDYA ALANI */}
         <div className="relative flex-1 w-full h-full flex items-center justify-center overflow-hidden">
+          {/* Yükleniyor / Ara Belleğe Alınıyor (Buffering) Göstergesi */}
+          {(!isMediaLoaded || isBuffering) && currentStory.media_type !== "text" && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-xs pointer-events-none animate-in fade-in duration-150">
+              <div className="w-9 h-9 rounded-full border-2 border-pink-500/30 border-t-pink-500 animate-spin" />
+              <span className="text-[11px] text-white/80 font-medium mt-2 drop-shadow">Yükleniyor...</span>
+            </div>
+          )}
+
           {/* Görsel Hikaye */}
           {currentStory.media_type === "image" && resolvedMediaUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={resolvedMediaUrl}
               alt="Story"
+              onLoad={() => {
+                setIsMediaLoaded(true);
+                setIsBuffering(false);
+              }}
+              onError={() => {
+                setIsMediaLoaded(true);
+                setIsBuffering(false);
+              }}
               className="w-full h-full object-contain pointer-events-none"
             />
           )}
@@ -455,6 +497,20 @@ export default function StoryViewerModal() {
               autoPlay
               playsInline
               muted={isMuted}
+              onLoadedMetadata={(e) => {
+                const dur = e.currentTarget.duration;
+                if (dur && !isNaN(dur) && dur > 0) {
+                  setVideoDurationMs(Math.round(dur * 1000));
+                }
+              }}
+              onCanPlay={() => {
+                setIsBuffering(false);
+                setIsMediaLoaded(true);
+              }}
+              onWaiting={() => setIsBuffering(true)}
+              onStalled={() => setIsBuffering(true)}
+              onPlaying={() => setIsBuffering(false)}
+              onEnded={() => handleNext()}
               className="w-full h-full object-contain pointer-events-none"
             />
           )}

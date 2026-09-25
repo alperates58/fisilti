@@ -162,11 +162,35 @@ export default function StoryCreatorModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // createObjectURL bellek sızıntısını (memory leak) önlemek için güvenli URL takipçisi
+  const activeObjectUrlsRef = useRef<string[]>([]);
+  const safeCreateObjectURL = (file: Blob | File): string => {
+    const url = URL.createObjectURL(file);
+    activeObjectUrlsRef.current.push(url);
+    return url;
+  };
+
+  const revokeAllObjectUrls = () => {
+    activeObjectUrlsRef.current.forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    });
+    activeObjectUrlsRef.current = [];
+  };
+
+  useEffect(() => {
+    return () => {
+      revokeAllObjectUrls();
+    };
+  }, []);
+
   const extractedVideoId = extractYouTubeVideoId(musicUrl);
 
   // Modal açıldığında veya editingStory değiştiğinde state doldur / temizle
   useEffect(() => {
     if (!isCreatorOpen) {
+      revokeAllObjectUrls();
       setTextStickers([]);
       setEmojiStickers([]);
       setIsTextEditorOpen(false);
@@ -406,6 +430,13 @@ export default function StoryCreatorModal() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Önceki blob URL'i varsa temizle
+    if (mediaPreview && (mediaPreview.startsWith("blob:") || mediaPreview.startsWith("data:"))) {
+      try {
+        URL.revokeObjectURL(mediaPreview);
+      } catch {}
+    }
+
     const isVid = file.type.startsWith("video/");
     setMediaType(isVid ? "video" : "image");
 
@@ -414,12 +445,27 @@ export default function StoryCreatorModal() {
         alert("Video boyutu maksimum 80 MB olabilir.");
         return;
       }
+      const previewUrl = safeCreateObjectURL(file);
       setMediaFile(file);
-      setMediaPreview(URL.createObjectURL(file));
+      setMediaPreview(previewUrl);
+
+      // Gerçek video süresini oku ve hikaye süresine otomatik eşitle (maksimum 60s)
+      const tempVideo = document.createElement("video");
+      tempVideo.preload = "metadata";
+      tempVideo.onloadedmetadata = () => {
+        const dur = Math.round(tempVideo.duration);
+        if (dur > 0) {
+          const clamped = Math.min(60, Math.max(5, dur));
+          setDurationSeconds(clamped);
+          setMusicEnd(musicStart + clamped);
+        }
+      };
+      tempVideo.src = previewUrl;
     } else {
       const compressed = await compressImage(file, 1600, 0.85);
+      const previewUrl = safeCreateObjectURL(compressed);
       setMediaFile(compressed);
-      setMediaPreview(URL.createObjectURL(compressed));
+      setMediaPreview(previewUrl);
     }
     setMode("media");
   };
