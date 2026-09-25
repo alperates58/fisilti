@@ -252,6 +252,25 @@ func (r *SettingsRepository) GetThemeSettings(ctx context.Context) models.ThemeS
 	return res
 }
 
+func (r *SettingsRepository) GetNotificationSettings(ctx context.Context) models.NotificationSettings {
+	defaults := models.NotificationSettings{
+		EnableWebPush:     true,
+		EnableSoundAlerts: true,
+		VapidPublicKey:    "",
+	}
+
+	raw, err := r.GetSetting(ctx, "notification_settings")
+	if err != nil || len(raw) == 0 {
+		return defaults
+	}
+
+	var res models.NotificationSettings
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return defaults
+	}
+	return res
+}
+
 func (r *SettingsRepository) GetPublicSettings(ctx context.Context) models.PublicSettingsResponse {
 	return models.PublicSettingsResponse{
 		SiteInfo:      r.GetSiteInfo(ctx),

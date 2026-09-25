@@ -315,6 +315,10 @@ export default function MessageBubble({
           style={{
             transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined,
             transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28)",
+            backgroundColor: message.is_mine
+              ? "var(--outgoing-bubble, #BE185D)"
+              : "var(--incoming-bubble, #1E232B)",
+            borderColor: message.is_mine ? "transparent" : "var(--border, #1E293B)",
           }}
           className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none max-w-full min-w-0 overflow-hidden break-words ${
             isHighlightedMatch
@@ -322,8 +326,8 @@ export default function MessageBubble({
               : ""
           } ${
             message.is_mine
-              ? "bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-br-xs"
-              : "bg-grupo-dark-card border border-grupo-dark-border text-slate-100 rounded-bl-xs"
+              ? "text-white rounded-br-xs"
+              : "border text-slate-100 rounded-bl-xs"
           } ${message.is_deleted_for_all ? "opacity-60 italic" : ""}`}
         >
           {/* WhatsApp Tarzı Alıntılanan Mesaj (Reply Preview) */}

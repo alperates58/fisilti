@@ -100,10 +100,11 @@ func (h *PushHandler) TestNotification(c *fiber.Ctx) error {
 	for _, sub := range subs {
 		if err := h.vapidService.SendPush(
 			sub,
-			"Fısıltı Test Bildirimi",
+			"Aura Test Bildirimi",
 			"Tebrikler! Web Push bildirimleri başarıyla çalışıyor.",
 			"/icon-192.png",
 			"/",
+			false,
 		); err == nil {
 			sentCount++
 		}

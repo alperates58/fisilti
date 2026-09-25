@@ -117,17 +117,20 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// 7. Push Bildirimleri Yakalayıcı (Mevcut davranış aynen korunur)
+// 7. Push Bildirimleri Yakalayıcı (Android sessiz bildirim desteği ile)
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
     const data = event.data.json();
     const title = data.title || 'Aura';
+    const isSilent = data.silent === true || data.sound === false || data.silent === 'true';
     const options = {
       body: data.body || 'Yeni bir mesajınız var.',
       icon: data.icon || `${appScope}favicon.ico`,
       badge: data.badge || `${appScope}favicon.ico`,
       data: { url: data.url || appScope },
+      silent: isSilent,
+      vibrate: isSilent ? [] : [200, 100, 200],
     };
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {

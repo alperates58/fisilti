@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ type Hub struct {
 	vapidService    *push.VAPIDService
 	presenceService *fisiltiredis.PresenceService
 	typingService   *fisiltiredis.TypingService
+	settingsRepo    *database.SettingsRepository
 }
 
 func NewHub(
@@ -34,6 +36,7 @@ func NewHub(
 	vapidService *push.VAPIDService,
 	presenceService *fisiltiredis.PresenceService,
 	typingService *fisiltiredis.TypingService,
+	settingsRepo *database.SettingsRepository,
 ) *Hub {
 	return &Hub{
 		clients:         make(map[*Client]bool),
@@ -47,6 +50,7 @@ func NewHub(
 		vapidService:    vapidService,
 		presenceService: presenceService,
 		typingService:   typingService,
+		settingsRepo:    settingsRepo,
 	}
 }
 
@@ -232,8 +236,30 @@ func (h *Hub) SendWebPushToUser(userID uuid.UUID, title, body, icon, url string)
 			return
 		}
 
+		silent := false
+		if h.settingsRepo != nil {
+			notifSettings := h.settingsRepo.GetNotificationSettings(ctx)
+			if !notifSettings.EnableSoundAlerts {
+				silent = true
+			}
+		}
+
+		if h.userRepo != nil {
+			user, _ := h.userRepo.GetUserByID(ctx, userID)
+			if user != nil && len(user.PrivacySettings) > 0 {
+				var p map[string]interface{}
+				if err := json.Unmarshal(user.PrivacySettings, &p); err == nil {
+					if snd, exists := p["sound_alerts"]; exists {
+						if sndBool, ok := snd.(bool); ok && !sndBool {
+							silent = true
+						}
+					}
+				}
+			}
+		}
+
 		for _, sub := range subs {
-			_ = h.vapidService.SendPush(sub, title, body, icon, url)
+			_ = h.vapidService.SendPush(sub, title, body, icon, url, silent)
 		}
 	}()
 }

@@ -45,17 +45,19 @@ func NewVAPIDService() *VAPIDService {
 }
 
 type PushPayload struct {
-	Title string                 `json:"title"`
-	Body  string                 `json:"body"`
-	Icon  string                 `json:"icon,omitempty"`
-	Data  map[string]interface{} `json:"data,omitempty"`
+	Title  string                 `json:"title"`
+	Body   string                 `json:"body"`
+	Icon   string                 `json:"icon,omitempty"`
+	Silent bool                   `json:"silent"`
+	Data   map[string]interface{} `json:"data,omitempty"`
 }
 
-func (s *VAPIDService) SendPush(sub database.PushSubscription, title, body, icon, url string) error {
+func (s *VAPIDService) SendPush(sub database.PushSubscription, title, body, icon, url string, silent bool) error {
 	payload := PushPayload{
-		Title: title,
-		Body:  body,
-		Icon:  icon,
+		Title:  title,
+		Body:   body,
+		Icon:   icon,
+		Silent: silent,
 		Data: map[string]interface{}{
 			"url": url,
 		},

@@ -422,19 +422,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const list = state.messages[convId] || [];
       const isCurrentActive = state.activeConversationId === convId;
 
+      const alreadyExists = list.some((m) => m.id === msg.id);
+      const updatedList = alreadyExists
+        ? list.map((m) => (m.id === msg.id ? { ...m, ...msg } : m))
+        : [...list, msg];
+
       const updatedConvs = state.conversations.map((c) => {
         if (c.id === convId) {
           return {
             ...c,
             last_message: msg,
-            unread_count: isCurrentActive ? 0 : c.unread_count + 1,
+            unread_count: isCurrentActive
+              ? 0
+              : alreadyExists
+              ? c.unread_count
+              : c.unread_count + 1,
           };
         }
         return c;
       });
 
       return {
-        messages: { ...state.messages, [convId]: [...list, msg] },
+        messages: { ...state.messages, [convId]: updatedList },
         conversations: updatedConvs,
       };
     });

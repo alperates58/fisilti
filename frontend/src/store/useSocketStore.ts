@@ -13,6 +13,8 @@ interface SocketState {
   sendAction: (action: string, payload: any) => void;
 }
 
+let activeWs: WebSocket | null = null;
+
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   isConnected: false,
@@ -25,8 +27,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       return;
     }
 
-    const currentWs = get().socket;
-    if (currentWs && (currentWs.readyState === WebSocket.OPEN || currentWs.readyState === WebSocket.CONNECTING)) {
+    if (activeWs && (activeWs.readyState === WebSocket.OPEN || activeWs.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
@@ -69,23 +70,40 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     }
     const url = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
 
+    if (activeWs) {
+      try {
+        activeWs.onopen = null;
+        activeWs.onclose = null;
+        activeWs.onerror = null;
+        activeWs.onmessage = null;
+        activeWs.close();
+      } catch (e) {}
+      activeWs = null;
+    }
+
     const ws = new WebSocket(url);
+    activeWs = ws;
+    set({ socket: ws, isConnected: false });
 
     ws.onopen = () => {
+      if (activeWs !== ws) return;
       console.log("⚡ [WS] WebSocket bağlantısı kuruldu.");
       set({ socket: ws, isConnected: true });
     };
 
     ws.onclose = () => {
-      console.log("🔌 [WS] WebSocket bağlantısı kapandı.");
-      set({ socket: null, isConnected: false });
-      // Eğer kullanıcı çıkış yapmadıysa ve hala giriş yapmış durumdaysa yeniden bağlan
-      if (!get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
-        setTimeout(() => {
-          if (!get().socket && !get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
-            get().connect(token);
-          }
-        }, 3000);
+      if (activeWs === ws) {
+        console.log("🔌 [WS] WebSocket bağlantısı kapandı.");
+        activeWs = null;
+        set({ socket: null, isConnected: false });
+        // Eğer kullanıcı çıkış yapmadıysa ve hala giriş yapmış durumdaysa yeniden bağlan
+        if (!get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
+          setTimeout(() => {
+            if (!activeWs && !get().isManualDisconnect && useAuthStore.getState().isAuthenticated) {
+              get().connect(token);
+            }
+          }, 3000);
+        }
       }
     };
 
@@ -108,9 +126,17 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             chatStore.onMessageSent(data.payload.temp_id, data.payload.message);
             break;
 
-          case "new_message":
-            soundEffects.playReceived();
+          case "new_message": {
+            const currentList = chatStore.messages[data.payload.conversation_id] || [];
+            const isDuplicate = currentList.some((m) => m.id === data.payload.id);
+
             chatStore.onNewMessage(data.payload);
+
+            // Sadece ilk kez alındığında ses çal
+            if (!isDuplicate) {
+              soundEffects.playReceived();
+            }
+
             // Mesajın ulaştığını onayla
             get().sendAction("delivered_ack", { message_ids: [data.payload.id] });
 
@@ -132,12 +158,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                 conversation_id: data.payload.conversation_id,
                 message_ids: [data.payload.id],
               });
-            } else {
+            } else if (!isDuplicate) {
               // Kullanıcı başka sohbette veya tarayıcı arka planda / telefon kilitli
               notificationManager.notify("Aura - Yeni Mesaj", data.payload.content || "Yeni bir mesaj aldınız.");
               notificationManager.flashTitle(1);
             }
             break;
+          }
 
           case "message_delivered":
             chatStore.onMessageDelivered(data.payload.message_ids, data.payload.delivered_at);
@@ -220,14 +247,18 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   },
 
   disconnect: () => {
-    const ws = get().socket;
     set({ isManualDisconnect: true, socket: null, isConnected: false });
-    if (ws) {
+    if (activeWs) {
       try {
-        ws.close(1000, "User logged out");
+        activeWs.onopen = null;
+        activeWs.onclose = null;
+        activeWs.onerror = null;
+        activeWs.onmessage = null;
+        activeWs.close(1000, "User logged out");
       } catch (e) {
         console.error("Soket kapatılırken hata:", e);
       }
+      activeWs = null;
     }
   },
 

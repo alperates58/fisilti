@@ -109,6 +109,9 @@ export const applyThemeToDocument = (theme: Partial<PublicSettings["theme_settin
   if (theme.incoming_bubble) {
     root.style.setProperty("--incoming-bubble", theme.incoming_bubble);
   }
+  if (theme.main_bg) {
+    root.style.setProperty("--background", theme.main_bg);
+  }
 };
 
 interface SettingsStore {
@@ -131,8 +134,18 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       const res = await axios.get<PublicSettings>(url, { withCredentials: true, timeout: 5000 });
       if (res.data && res.data.site_info) {
         set({ settings: res.data, isLoaded: true, isLoading: false });
-        if (res.data.theme_settings) {
-          applyThemeToDocument(res.data.theme_settings);
+        let appliedTheme = res.data.theme_settings;
+        if (typeof window !== "undefined") {
+          const userThemeStr = localStorage.getItem("aura_user_theme");
+          if (userThemeStr) {
+            try {
+              const userTheme = JSON.parse(userThemeStr);
+              appliedTheme = { ...appliedTheme, ...userTheme };
+            } catch (e) {}
+          }
+        }
+        if (appliedTheme) {
+          applyThemeToDocument(appliedTheme);
         }
         if (res.data.site_info.site_name && typeof document !== "undefined") {
           document.title = res.data.site_info.site_name;

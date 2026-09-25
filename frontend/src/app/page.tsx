@@ -154,9 +154,13 @@ export default function HomePage() {
       if (isVisible) {
         notificationManager.stopFlash();
 
-        // 1. WebSocket kopmuşsa yeniden bağla
+        // 1. WebSocket kopmuşsa yeniden bağla (eğer CONNECTING aşamasındaysa tekrar açma)
         const socketState = useSocketStore.getState();
-        if (!socketState.socket || socketState.socket.readyState !== WebSocket.OPEN) {
+        if (
+          !socketState.socket ||
+          (socketState.socket.readyState !== WebSocket.OPEN &&
+            socketState.socket.readyState !== WebSocket.CONNECTING)
+        ) {
           socketState.connect();
         }
 

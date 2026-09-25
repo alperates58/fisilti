@@ -18,6 +18,7 @@ export interface User {
     read_receipts: boolean;
     last_seen: boolean;
     allow_calls: boolean;
+    sound_alerts?: boolean;
   };
   created_at: string;
 }

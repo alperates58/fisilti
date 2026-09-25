@@ -8,6 +8,8 @@
   --card: #16191E;
   --border: #1E293B;
   --accent: #E91E63;
+  --outgoing-bubble: #BE185D;
+  --incoming-bubble: #1E232B;
 }
 
 html, body {

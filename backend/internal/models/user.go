@@ -11,6 +11,7 @@ type PrivacySettings struct {
 	ReadReceipts bool `json:"read_receipts"` // Mavi tik açık/kapalı
 	LastSeen     bool `json:"last_seen"`     // Son görülme açık/kapalı
 	AllowCalls   bool `json:"allow_calls"`   // Gelen arama izni
+	SoundAlerts  bool `json:"sound_alerts"`  // Sesli bildirim açık/kapalı
 }
 
 func DefaultPrivacySettings() PrivacySettings {
@@ -18,6 +19,7 @@ func DefaultPrivacySettings() PrivacySettings {
 		ReadReceipts: true,
 		LastSeen:     true,
 		AllowCalls:   true,
+		SoundAlerts:  true,
 	}
 }
 

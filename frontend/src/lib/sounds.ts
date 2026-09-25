@@ -18,8 +18,19 @@ class SoundEffects {
     return this.ctx;
   }
 
+  isSoundEnabled(): boolean {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("aura_sound_alerts") !== "false";
+  }
+
+  setSoundEnabled(enabled: boolean) {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("aura_sound_alerts", enabled ? "true" : "false");
+  }
+
   // 1. Mesaj Gönderildi Sesi (WhatsApp tarzı yumuşak "pop")
   playSent() {
+    if (!this.isSoundEnabled()) return;
     try {
       const ctx = this.getContext();
       if (!ctx) return;
@@ -46,6 +57,7 @@ class SoundEffects {
 
   // 2. Mesaj Alındı Sesi (Yumuşak çift tonlu "ding-dong")
   playReceived() {
+    if (!this.isSoundEnabled()) return;
     try {
       const ctx = this.getContext();
       if (!ctx) return;

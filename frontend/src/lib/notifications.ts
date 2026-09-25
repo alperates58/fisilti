@@ -1,3 +1,5 @@
+import { soundEffects } from "./sounds";
+
 // notifications.ts - Tarayıcı sekme başlığı ve Web Notifications yönetimi
 
 class NotificationManager {
@@ -41,7 +43,7 @@ class NotificationManager {
     return false;
   }
 
-  async notify(title: string, body: string, icon?: string) {
+  async notify(title: string, body: string, icon?: string, silent?: boolean) {
     if (typeof window === "undefined" || !("Notification" in window)) return;
 
     const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -52,6 +54,7 @@ class NotificationManager {
       : "";
     const defaultIcon = basePath ? `${basePath}/favicon.ico` : "/favicon.ico";
     const notifIcon = icon || defaultIcon;
+    const isSilent = silent !== undefined ? silent : !soundEffects.isSoundEnabled();
 
     if (Notification.permission === "granted" && document.hidden) {
       if ("serviceWorker" in navigator) {
@@ -63,6 +66,8 @@ class NotificationManager {
               icon: notifIcon,
               badge: notifIcon,
               tag: "fisilti-message",
+              silent: isSilent,
+              vibrate: isSilent ? [] : [200, 100, 200],
             });
             return;
           }
@@ -76,6 +81,7 @@ class NotificationManager {
           body,
           icon: notifIcon,
           badge: notifIcon,
+          silent: isSilent,
         });
       } catch (e) {
         console.warn("Bildirim gösterilemedi:", e);

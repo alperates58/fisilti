@@ -52,14 +52,16 @@ type TabType =
   | "stats";
 
 const COLOR_PRESETS = [
-  { name: "Aura Pembe", color: "#E91E63", hover: "#D81B60" },
-  { name: "Zümrüt Yeşili", color: "#10B981", hover: "#059669" },
-  { name: "Okyanus Mavisi", color: "#0284C7", hover: "#0369A1" },
-  { name: "Gece Mavisi", color: "#3B82F6", hover: "#2563EB" },
-  { name: "Kraliyet Moru", color: "#8B5CF6", hover: "#7C3AED" },
-  { name: "Gün Batımı", color: "#F59E0B", hover: "#D97706" },
-  { name: "Yakut Kırmızı", color: "#EF4444", hover: "#DC2626" },
-  { name: "Siber Turkuaz", color: "#06B6D4", hover: "#0891B2" },
+  { name: "Aura Pembe", color: "#E91E63", bubble: "#BE185D", card: "#16191E", border: "#1E293B" },
+  { name: "WhatsApp Koyu", color: "#25D366", bubble: "#005C4B", card: "#111B21", border: "#222D34" },
+  { name: "Telegram Gece", color: "#2AABEE", bubble: "#2B5278", card: "#17212B", border: "#242F3D" },
+  { name: "Siber Turkuaz", color: "#06B6D4", bubble: "#0E7490", card: "#0F172A", border: "#1E293B" },
+  { name: "Kraliyet Moru", color: "#8B5CF6", bubble: "#6D28D9", card: "#141026", border: "#261C3D" },
+  { name: "Zümrüt Derinlik", color: "#10B981", bubble: "#047857", card: "#064E3B", border: "#065F46" },
+  { name: "Gün Batımı", color: "#F59E0B", bubble: "#B45309", card: "#1C1917", border: "#292524" },
+  { name: "Ateş Kırmızısı", color: "#EF4444", bubble: "#B91C1C", card: "#1A1114", border: "#2B191F" },
+  { name: "Gece Mavisi", color: "#3B82F6", bubble: "#1D4ED8", card: "#0F172A", border: "#1E293B" },
+  { name: "Gece Yarısı Gri", color: "#94A3B8", bubble: "#334155", card: "#0F1117", border: "#1E222D" },
 ];
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
@@ -105,12 +107,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const applyThemeToDocument = (
     accent: string,
     card: string,
-    border: string
+    border: string,
+    bubble?: string,
+    incoming?: string
   ) => {
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--accent", accent);
+      document.documentElement.style.setProperty("--primary", accent);
       document.documentElement.style.setProperty("--card", card);
       document.documentElement.style.setProperty("--border", border);
+      if (bubble) document.documentElement.style.setProperty("--outgoing-bubble", bubble);
+      if (incoming) document.documentElement.style.setProperty("--incoming-bubble", incoming);
     }
   };
 
@@ -121,16 +128,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const data = await adminApi.getSettings();
       setSettings(data);
       if (data.theme_settings) {
-        setAccentColor(data.theme_settings.primary_color || "#E91E63");
-        setCardBgColor(data.theme_settings.card_bg || "#16191E");
-        setBorderColor(data.theme_settings.border_color || "#1E293B");
-        setOutgoingBubble(data.theme_settings.outgoing_bubble || "#BE185D");
+        const acc = data.theme_settings.primary_color || "#E91E63";
+        const crd = data.theme_settings.card_bg || "#16191E";
+        const brd = data.theme_settings.border_color || "#1E293B";
+        const bbl = data.theme_settings.outgoing_bubble || "#BE185D";
+        const inc = data.theme_settings.incoming_bubble || crd;
+
+        setAccentColor(acc);
+        setCardBgColor(crd);
+        setBorderColor(brd);
+        setOutgoingBubble(bbl);
         setFontFamily(data.theme_settings.font_family || "Inter");
-        applyThemeToDocument(
-          data.theme_settings.primary_color || "#E91E63",
-          data.theme_settings.card_bg || "#16191E",
-          data.theme_settings.border_color || "#1E293B"
-        );
+        applyThemeToDocument(acc, crd, brd, bbl, inc);
       }
     } catch (e: any) {
       console.error("Ayarlar yüklenemedi", e);
@@ -205,7 +214,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       font_family: fontFamily,
       border_radius: "rounded-2xl",
     };
-    applyThemeToDocument(accentColor, cardBgColor, borderColor);
+    applyThemeToDocument(accentColor, cardBgColor, borderColor, outgoingBubble, cardBgColor);
+    useSettingsStore.getState().updateSettingLocally("theme_settings", updatedTheme);
     await handleSaveSetting("theme_settings", updatedTheme);
   };
 
@@ -490,14 +500,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
 
                     {/* Hızlı Renk Paletleri */}
-                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 pt-1">
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 pt-1">
                       {COLOR_PRESETS.map((p) => (
                         <button
-                          key={p.color}
+                          key={p.name}
                           type="button"
                           onClick={() => {
                             setAccentColor(p.color);
-                            applyThemeToDocument(p.color, cardBgColor, borderColor);
+                            setCardBgColor(p.card);
+                            setBorderColor(p.border);
+                            setOutgoingBubble(p.bubble);
+                            applyThemeToDocument(p.color, p.card, p.border, p.bubble, p.card);
                           }}
                           className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer border-2 ${
                             accentColor.toLowerCase() === p.color.toLowerCase()
@@ -505,7 +518,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               : "border-transparent hover:scale-102"
                           }`}
                           style={{ backgroundColor: p.color }}
-                          title={p.name}
+                          title={`${p.name} (Balon: ${p.bubble})`}
                         >
                           {accentColor.toLowerCase() === p.color.toLowerCase() && (
                             <Check className="w-4 h-4 text-white drop-shadow-md" />
@@ -522,7 +535,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           value={accentColor}
                           onChange={(e) => {
                             setAccentColor(e.target.value);
-                            applyThemeToDocument(e.target.value, cardBgColor, borderColor);
+                            applyThemeToDocument(e.target.value, cardBgColor, borderColor, outgoingBubble, cardBgColor);
                           }}
                           placeholder="#E91E63"
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-pink-500"
@@ -533,7 +546,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         value={accentColor.startsWith("#") ? accentColor : "#E91E63"}
                         onChange={(e) => {
                           setAccentColor(e.target.value);
-                          applyThemeToDocument(e.target.value, cardBgColor, borderColor);
+                          applyThemeToDocument(e.target.value, cardBgColor, borderColor, outgoingBubble, cardBgColor);
                         }}
                         className="w-10 h-8 rounded-lg bg-transparent cursor-pointer border-0"
                       />
@@ -555,7 +568,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             value={cardBgColor}
                             onChange={(e) => {
                               setCardBgColor(e.target.value);
-                              applyThemeToDocument(accentColor, e.target.value, borderColor);
+                              applyThemeToDocument(accentColor, e.target.value, borderColor, outgoingBubble, e.target.value);
                             }}
                             className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
                           />
@@ -564,7 +577,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             value={cardBgColor.startsWith("#") ? cardBgColor : "#16191E"}
                             onChange={(e) => {
                               setCardBgColor(e.target.value);
-                              applyThemeToDocument(accentColor, e.target.value, borderColor);
+                              applyThemeToDocument(accentColor, e.target.value, borderColor, outgoingBubble, e.target.value);
                             }}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                           />
@@ -581,7 +594,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             value={borderColor}
                             onChange={(e) => {
                               setBorderColor(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, e.target.value);
+                              applyThemeToDocument(accentColor, cardBgColor, e.target.value, outgoingBubble, cardBgColor);
                             }}
                             className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
                           />
@@ -590,7 +603,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             value={borderColor.startsWith("#") ? borderColor : "#1E293B"}
                             onChange={(e) => {
                               setBorderColor(e.target.value);
-                              applyThemeToDocument(accentColor, cardBgColor, e.target.value);
+                              applyThemeToDocument(accentColor, cardBgColor, e.target.value, outgoingBubble, cardBgColor);
                             }}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                           />
@@ -629,13 +642,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <input
                             type="text"
                             value={outgoingBubble}
-                            onChange={(e) => setOutgoingBubble(e.target.value)}
+                            onChange={(e) => {
+                              setOutgoingBubble(e.target.value);
+                              applyThemeToDocument(accentColor, cardBgColor, borderColor, e.target.value, cardBgColor);
+                            }}
                             className="flex-1 bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
                           />
                           <input
                             type="color"
                             value={outgoingBubble.startsWith("#") ? outgoingBubble : "#BE185D"}
-                            onChange={(e) => setOutgoingBubble(e.target.value)}
+                            onChange={(e) => {
+                              setOutgoingBubble(e.target.value);
+                              applyThemeToDocument(accentColor, cardBgColor, borderColor, e.target.value, cardBgColor);
+                            }}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                           />
                         </div>
@@ -646,9 +665,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   {/* Canlı Önizleme Kartı */}
                   <div className="p-4 rounded-2xl border space-y-3" style={{ backgroundColor: cardBgColor, borderColor: borderColor }}>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Canlı Tema Önizlemesi
+                      Canlı Tema ve Sohbet Önizlemesi
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: borderColor }}>
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white" style={{ backgroundColor: accentColor }}>
                           A
@@ -665,6 +684,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       >
                         Vurgu Butonu
                       </button>
+                    </div>
+
+                    {/* Canlı Mesajlaşma Önizlemesi */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex justify-start">
+                        <div
+                          className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs text-slate-200 border shadow-sm max-w-[80%]"
+                          style={{ backgroundColor: cardBgColor, borderColor: borderColor }}
+                        >
+                          <div>Merhaba! Yeni temayı deniyorum.</div>
+                          <div className="text-[10px] text-slate-400 text-right mt-0.5">14:30</div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <div
+                          className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs text-white shadow-md max-w-[80%]"
+                          style={{ backgroundColor: outgoingBubble }}
+                        >
+                          <div>Giden mesaj balon rengim anında güncellendi! Çok iyi görünüyor.</div>
+                          <div className="text-[10px] text-white/70 text-right mt-0.5">14:31 ✓✓</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

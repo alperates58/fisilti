@@ -110,7 +110,7 @@ func main() {
 	livekitService := livekit.NewLiveKitService(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret, cfg.LiveKitPublicURL)
 
 	// 6. WebSocket Hub Motoru
-	hub := fisiltiws.NewHub(chatRepo, userRepo, pushRepo, vapidService, presenceService, typingService)
+	hub := fisiltiws.NewHub(chatRepo, userRepo, pushRepo, vapidService, presenceService, typingService, settingsRepo)
 	go hub.Run()
 	log.Println("⚡ [WS Hub] Gerçek zamanlı WebSocket Hub motoru başlatıldı.")
 

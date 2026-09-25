@@ -20,6 +20,11 @@ import {
   Bell,
   Send,
   Sliders,
+  Palette,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Save,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -28,6 +33,20 @@ import {
   unsubscribeUserFromPush,
   sendTestPushNotification,
 } from "@/lib/push_notifications";
+import { soundEffects } from "@/lib/sounds";
+
+const THEME_PRESETS = [
+  { name: "Aura Pembe", color: "#E91E63", bubble: "#BE185D" },
+  { name: "WhatsApp Koyu", color: "#25D366", bubble: "#005C4B" },
+  { name: "Telegram Gece", color: "#2AABEE", bubble: "#2B5278" },
+  { name: "Siber Turkuaz", color: "#06B6D4", bubble: "#0E7490" },
+  { name: "Kraliyet Moru", color: "#8B5CF6", bubble: "#6D28D9" },
+  { name: "Zümrüt Derinlik", color: "#10B981", bubble: "#047857" },
+  { name: "Gün Batımı", color: "#F59E0B", bubble: "#B45309" },
+  { name: "Ateş Kırmızısı", color: "#EF4444", bubble: "#B91C1C" },
+  { name: "Gece Mavisi", color: "#3B82F6", bubble: "#1D4ED8" },
+  { name: "Gece Yarısı Gri", color: "#94A3B8", bubble: "#334155" },
+];
 
 interface Props {
   isOpen: boolean;
@@ -39,12 +58,53 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
   const router = useRouter();
   const { user, updateProfile, uploadAvatar, updatePrivacy, logout } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<"profile" | "privacy" | "notifications" | "access_logs">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "privacy" | "theme" | "notifications" | "access_logs">("profile");
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [readReceipts, setReadReceipts] = useState(user?.privacy_settings?.read_receipts ?? true);
   const [lastSeen, setLastSeen] = useState(user?.privacy_settings?.last_seen ?? true);
   const [allowCalls, setAllowCalls] = useState(user?.privacy_settings?.allow_calls ?? true);
+  const [soundAlerts, setSoundAlerts] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("aura_sound_alerts") !== "false";
+    }
+    return true;
+  });
+
+  const [userOutgoingBubble, setUserOutgoingBubble] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("aura_user_theme");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.outgoing_bubble) return parsed.outgoing_bubble;
+        } catch (e) {}
+      }
+    }
+    return "#BE185D";
+  });
+
+  const [userAccentColor, setUserAccentColor] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("aura_user_theme");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.primary_color) return parsed.primary_color;
+        } catch (e) {}
+      }
+    }
+    return "#E91E63";
+  });
+
+  const [themeSuccess, setThemeSuccess] = useState(false);
+
+  useEffect(() => {
+    if (user?.privacy_settings?.sound_alerts !== undefined) {
+      setSoundAlerts(user.privacy_settings.sound_alerts);
+      soundEffects.setSoundEnabled(user.privacy_settings.sound_alerts);
+    }
+  }, [user]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -140,6 +200,41 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     setTimeout(() => setPushStatusMessage(null), 4000);
   };
 
+  const handleToggleSound = async () => {
+    const nextVal = !soundAlerts;
+    setSoundAlerts(nextVal);
+    soundEffects.setSoundEnabled(nextVal);
+    try {
+      await updatePrivacy({ sound_alerts: nextVal });
+    } catch (e) {
+      console.error("Ses ayarı kaydedilemedi:", e);
+    }
+  };
+
+  const handleApplyUserTheme = (accent: string, bubble: string) => {
+    setUserAccentColor(accent);
+    setUserOutgoingBubble(bubble);
+    if (typeof document !== "undefined") {
+      document.documentElement.style.setProperty("--accent", accent);
+      document.documentElement.style.setProperty("--primary", accent);
+      document.documentElement.style.setProperty("--outgoing-bubble", bubble);
+    }
+  };
+
+  const handleSaveUserTheme = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "aura_user_theme",
+        JSON.stringify({ primary_color: userAccentColor, outgoing_bubble: userOutgoingBubble })
+      );
+      document.documentElement.style.setProperty("--accent", userAccentColor);
+      document.documentElement.style.setProperty("--primary", userAccentColor);
+      document.documentElement.style.setProperty("--outgoing-bubble", userOutgoingBubble);
+    }
+    setThemeSuccess(true);
+    setTimeout(() => setThemeSuccess(false), 2500);
+  };
+
   const handleLogout = async () => {
     onClose();
     await logout();
@@ -197,6 +292,18 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
           >
             <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
             <span>Gizlilik</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("theme")}
+            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold border-b-2 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap ${
+              activeTab === "theme"
+                ? "border-grupo-accent text-pink-400"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Tema & Görünüm</span>
+            <span className="sm:hidden">Tema</span>
           </button>
           <button
             onClick={() => setActiveTab("notifications")}
@@ -404,10 +511,187 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 </button>
               </div>
 
+              {/* Bildirim Sesleri Aç / Kapat */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+                    Bildirim Sesleri ve Uyarılar
+                    {soundAlerts ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Sesli
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        Sessiz
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    Telefonunuz seslide olsa dahi bildirimler sessiz iletilir ve mesaj sesi çalmaz.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleSound}
+                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    soundAlerts ? "bg-grupo-accent" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      soundAlerts ? "translate-x-6" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
               <div className="flex items-center gap-2 p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-300">
                 <Lock className="w-4 h-4 flex-shrink-0" />
                 <span>Tüm iletişim ve görüşmeler self-hosted sunucumuzda şifrelenir.</span>
               </div>
+            </div>
+          )}
+
+          {activeTab === "theme" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-grupo-dark-border">
+                <div>
+                  <h4 className="text-sm font-bold text-white">Tema ve Görünüm Kişiselleştirme</h4>
+                  <p className="text-xs text-slate-400">
+                    Sohbette gönderdiğiniz mesaj kutusunun (balonunun) rengini ve vurgu renginizi dilediğiniz gibi özelleştirin.
+                  </p>
+                </div>
+                <Palette className="w-5 h-5 text-pink-400" />
+              </div>
+
+              {themeSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2 animate-fadeIn">
+                  <Check className="w-4 h-4" />
+                  <span>Kişisel tema tercihleriniz başarıyla uygulandı ve kaydedildi!</span>
+                </div>
+              )}
+
+              {/* Hızlı Tema Presetleri */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border space-y-3">
+                <div className="text-xs font-bold text-white flex items-center justify-between">
+                  <span>Popüler Renk Temaları</span>
+                  <span className="text-[11px] text-slate-400">Tek tıkla uygulayın</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {THEME_PRESETS.map((p) => {
+                    const isSelected =
+                      userOutgoingBubble.toLowerCase() === p.bubble.toLowerCase() &&
+                      userAccentColor.toLowerCase() === p.color.toLowerCase();
+                    return (
+                      <button
+                        key={p.name}
+                        type="button"
+                        onClick={() => handleApplyUserTheme(p.color, p.bubble)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                          isSelected
+                            ? "border-white bg-slate-800 shadow-lg scale-102"
+                            : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm"
+                            style={{ backgroundColor: p.bubble }}
+                          />
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-white/20"
+                            style={{ backgroundColor: p.color }}
+                          />
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white ml-auto" />}
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-200 truncate">
+                          {p.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Özel Renk Seçiciler */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border space-y-3">
+                <h5 className="text-xs font-bold text-white">Özel Renk Seçimi (Hex / Renk Paleti)</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Giden Mesaj Balon Rengi
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={userOutgoingBubble}
+                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={userOutgoingBubble.startsWith("#") ? userOutgoingBubble : "#BE185D"}
+                        onChange={(e) => handleApplyUserTheme(userAccentColor, e.target.value)}
+                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Ana Vurgu Rengi (Butonlar & İkonlar)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={userAccentColor}
+                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble)}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={userAccentColor.startsWith("#") ? userAccentColor : "#E91E63"}
+                        onChange={(e) => handleApplyUserTheme(e.target.value, userOutgoingBubble)}
+                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Canlı Sohbet Önizlemesi */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-grupo-dark-border space-y-2.5">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Canlı Sohbet Önizlemesi
+                </div>
+                <div className="flex justify-start">
+                  <div className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs text-slate-200 bg-slate-900 border border-slate-800 max-w-[85%]">
+                    <div>Bu renk nasıl duruyor?</div>
+                    <div className="text-[10px] text-slate-400 text-right mt-0.5">14:30</div>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <div
+                    className="px-3.5 py-2 rounded-2xl rounded-br-xs text-xs text-white shadow-md max-w-[85%]"
+                    style={{ backgroundColor: userOutgoingBubble }}
+                  >
+                    <div>Giden mesajlarım artık tam istediğim renkte!</div>
+                    <div className="text-[10px] text-white/70 text-right mt-0.5">14:31 ✓✓</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kaydet Butonu */}
+              <button
+                type="button"
+                onClick={handleSaveUserTheme}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-pink-600 hover:bg-pink-500 shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>Temayı Kaydet ve Uygula</span>
+              </button>
             </div>
           )}
 
@@ -460,6 +744,42 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                   <span
                     className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
                       isPushSubscribed ? "translate-x-6" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Sesli Bildirim ve Zil Sesi Aç / Kapat */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-grupo-dark-border flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    {soundAlerts ? <Volume2 className="w-4 h-4 text-pink-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+                    Bildirim Sesleri ve Zil Sesi
+                    {soundAlerts ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Sesli
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        Sessiz
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    Telefonunuz seslide olsa dahi bildirimler sessiz iletilir ve mesaj sesi çalmaz.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleSound}
+                  className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    soundAlerts ? "bg-grupo-accent" : "bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      soundAlerts ? "translate-x-6" : "translate-x-0"
                     }`}
                   />
                 </button>
