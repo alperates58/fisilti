@@ -118,9 +118,18 @@ export default function SideNavigation({
           <button
             onClick={() => onTabChange("chats")}
             title="Sohbetler"
+            style={
+              activeTab === "chats"
+                ? {
+                    backgroundColor: "var(--accent, #E91E63)",
+                    color: "var(--accent-text, #ffffff)",
+                    boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                  }
+                : undefined
+            }
             className={`w-full h-11 rounded-xl flex items-center gap-3 px-3 transition-all cursor-pointer ${
               activeTab === "chats"
-                ? "bg-rose-600 text-white shadow-md shadow-rose-950/50 font-semibold"
+                ? "text-white shadow-md font-semibold"
                 : "text-slate-400 hover:text-white hover:bg-[#1E222D]"
             }`}
           >
@@ -148,9 +157,18 @@ export default function SideNavigation({
           <button
             onClick={() => onTabChange("contacts")}
             title="Kişiler ve Kullanıcılar"
+            style={
+              activeTab === "contacts"
+                ? {
+                    backgroundColor: "var(--accent, #E91E63)",
+                    color: "var(--accent-text, #ffffff)",
+                    boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                  }
+                : undefined
+            }
             className={`w-full h-11 rounded-xl flex items-center gap-3 px-3 transition-all cursor-pointer ${
               activeTab === "contacts"
-                ? "bg-rose-600 text-white shadow-md shadow-rose-950/50 font-semibold"
+                ? "text-white shadow-md font-semibold"
                 : "text-slate-400 hover:text-white hover:bg-[#1E222D]"
             }`}
           >
@@ -162,9 +180,18 @@ export default function SideNavigation({
           <button
             onClick={() => onTabChange("starred")}
             title="Yıldızlı Mesajlar"
+            style={
+              activeTab === "starred"
+                ? {
+                    backgroundColor: "var(--accent, #E91E63)",
+                    color: "var(--accent-text, #ffffff)",
+                    boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                  }
+                : undefined
+            }
             className={`w-full h-11 rounded-xl flex items-center gap-3 px-3 transition-all cursor-pointer ${
               activeTab === "starred"
-                ? "bg-rose-600 text-white shadow-md shadow-rose-950/50 font-semibold"
+                ? "text-white shadow-md font-semibold"
                 : "text-slate-400 hover:text-white hover:bg-[#1E222D]"
             }`}
           >
@@ -195,9 +222,18 @@ export default function SideNavigation({
               onOpenSettings();
             }}
             title="Profil & Gizlilik Ayarları"
+            style={
+              activeTab === "settings"
+                ? {
+                    backgroundColor: "var(--accent, #E91E63)",
+                    color: "var(--accent-text, #ffffff)",
+                    boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                  }
+                : undefined
+            }
             className={`w-full h-11 rounded-xl flex items-center gap-3 px-3 transition-all cursor-pointer ${
               activeTab === "settings"
-                ? "bg-rose-600 text-white shadow-md shadow-rose-950/50 font-semibold"
+                ? "text-white shadow-md font-semibold"
                 : "text-slate-400 hover:text-white hover:bg-[#1E222D]"
             }`}
           >

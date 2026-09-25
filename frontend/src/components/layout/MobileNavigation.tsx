@@ -25,8 +25,9 @@ export default function MobileNavigation({
       {/* 1. Sohbetler */}
       <button
         onClick={() => onTabChange("chats")}
+        style={activeTab === "chats" ? { color: "var(--accent, #E91E63)" } : undefined}
         className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors relative cursor-pointer ${
-          activeTab === "chats" ? "text-pink-400 font-bold" : "text-slate-400 hover:text-white"
+          activeTab === "chats" ? "font-bold" : "text-slate-400 hover:text-white"
         }`}
       >
         <MessageSquare className="w-5 h-5" />
@@ -41,8 +42,9 @@ export default function MobileNavigation({
       {/* 2. Kişiler */}
       <button
         onClick={() => onTabChange("contacts")}
+        style={activeTab === "contacts" ? { color: "var(--accent, #E91E63)" } : undefined}
         className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
-          activeTab === "contacts" ? "text-pink-400 font-bold" : "text-slate-400 hover:text-white"
+          activeTab === "contacts" ? "font-bold" : "text-slate-400 hover:text-white"
         }`}
       >
         <Users className="w-5 h-5" />
@@ -52,8 +54,9 @@ export default function MobileNavigation({
       {/* 3. Yıldızlı */}
       <button
         onClick={() => onTabChange("starred")}
+        style={activeTab === "starred" ? { color: "var(--accent, #E91E63)" } : undefined}
         className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors relative cursor-pointer ${
-          activeTab === "starred" ? "text-pink-400 font-bold" : "text-slate-400 hover:text-white"
+          activeTab === "starred" ? "font-bold" : "text-slate-400 hover:text-white"
         }`}
       >
         <Star className="w-5 h-5" />
@@ -71,8 +74,9 @@ export default function MobileNavigation({
           onTabChange("settings");
           onOpenSettings();
         }}
+        style={activeTab === "settings" ? { color: "var(--accent, #E91E63)" } : undefined}
         className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
-          activeTab === "settings" ? "text-pink-400 font-bold" : "text-slate-400 hover:text-white"
+          activeTab === "settings" ? "font-bold" : "text-slate-400 hover:text-white"
         }`}
       >
         <Settings className="w-5 h-5" />

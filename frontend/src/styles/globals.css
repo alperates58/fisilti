@@ -8,10 +8,32 @@
   --card: #16191E;
   --border: #1E293B;
   --accent: #E91E63;
+  --accent-text: #FFFFFF;
+  --accent-shadow: rgba(233, 30, 99, 0.35);
+  --accent-rgb: 233, 30, 99;
+  --accent-hover: #D81B60;
   --outgoing-bubble: #BE185D;
   --outgoing-text: #FFFFFF;
   --outgoing-text-muted: rgba(255, 255, 255, 0.75);
   --incoming-bubble: #1E232B;
+}
+
+@layer utilities {
+  .bg-grupo-accent,
+  .bg-theme-accent {
+    background-color: var(--accent, #E91E63) !important;
+  }
+  .border-grupo-accent,
+  .border-theme-accent {
+    border-color: var(--accent, #E91E63) !important;
+  }
+  .text-grupo-accent,
+  .text-theme-accent {
+    color: var(--accent, #E91E63) !important;
+  }
+  .hover\:bg-grupo-accent-hover:hover {
+    filter: brightness(1.1);
+  }
 }
 
 html, body {

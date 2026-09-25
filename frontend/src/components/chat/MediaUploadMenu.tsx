@@ -225,14 +225,22 @@ export default function MediaUploadMenu({ conversationId, onStartVoice }: Props)
         disabled={isUploading}
         onClick={() => setIsOpen(!isOpen)}
         title="Medya veya Dosya Ekle"
-        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer shadow-md ${
+        style={
           isOpen
-            ? "bg-slate-800 text-pink-400 rotate-[405deg] shadow-pink-500/20"
+            ? {
+                color: "var(--accent, #E91E63)",
+                boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.25))",
+              }
+            : undefined
+        }
+        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer shadow-md flex-shrink-0 ${
+          isOpen
+            ? "bg-slate-800 rotate-[405deg]"
             : "bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-grupo-dark-border"
         }`}
       >
         {isUploading ? (
-          <Loader2 className="w-5 h-5 animate-spin text-grupo-accent" />
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent, #E91E63)" }} />
         ) : (
           <Plus className="w-5 h-5 transition-transform duration-300" />
         )}

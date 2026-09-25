@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSocketStore } from "@/store/useSocketStore";
 import { useCallStore } from "@/store/useCallStore";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { useSettingsStore, applyThemeToDocument } from "@/store/useSettingsStore";
 import IncomingCallModal from "@/components/call/IncomingCallModal";
 import ActiveCallModal from "@/components/call/ActiveCallModal";
 import SideNavigation, { NavTab } from "@/components/layout/SideNavigation";
@@ -99,6 +99,7 @@ export default function HomePage() {
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
   const [inputMessage, setInputMessage] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [contactsList, setContactsList] = useState<any[]>([]);
@@ -108,7 +109,7 @@ export default function HomePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Oturum Kontrolü
+  // 1. Oturum Kontrolü & Kullanıcı Temasını Uygula
   useEffect(() => {
     checkAuth().then((authed) => {
       if (!authed) {
@@ -116,17 +117,15 @@ export default function HomePage() {
       }
     });
 
-    // Kayıtlı sistem temasını yükle ve uygula
-    try {
-      api.get("/admin/settings").then((res) => {
-        if (res.data?.theme_settings) {
-          const t = res.data.theme_settings;
-          if (t.primary_color) document.documentElement.style.setProperty("--accent", t.primary_color);
-          if (t.card_bg) document.documentElement.style.setProperty("--card", t.card_bg);
-          if (t.border_color) document.documentElement.style.setProperty("--border", t.border_color);
-        }
-      }).catch(() => {});
-    } catch {}
+    // Kayıtlı kullanıcı temasını hemen uygula
+    if (typeof window !== "undefined") {
+      const userThemeStr = localStorage.getItem("aura_user_theme");
+      if (userThemeStr) {
+        try {
+          applyThemeToDocument(JSON.parse(userThemeStr));
+        } catch (e) {}
+      }
+    }
   }, [checkAuth, router]);
 
   // 2. WebSocket ve Konuşmaları Yükle
@@ -694,7 +693,10 @@ export default function HomePage() {
                   </h3>
                   <p className="text-[11px] sm:text-xs text-slate-400 truncate leading-tight mt-0.5">
                     {isOtherTyping ? (
-                      <span className="text-pink-400 font-semibold animate-pulse">
+                      <span
+                        style={{ color: "var(--accent, #E91E63)" }}
+                        className="font-semibold animate-pulse"
+                      >
                         yazıyor...
                       </span>
                     ) : activeConv.is_online ? (
@@ -741,9 +743,18 @@ export default function HomePage() {
                   title="Sohbette Ara"
                   className={`hidden sm:flex p-2 sm:p-2.5 rounded-xl transition-colors cursor-pointer ${
                     isChatSearchOpen
-                      ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
+                      ? "text-white shadow-md"
                       : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white"
                   }`}
+                  style={
+                    isChatSearchOpen
+                      ? {
+                          backgroundColor: "var(--accent, #E91E63)",
+                          color: "var(--accent-text, #ffffff)",
+                          boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.3))",
+                        }
+                      : undefined
+                  }
                 >
                   <Search className="w-4 h-4" />
                 </button>
@@ -788,7 +799,7 @@ export default function HomePage() {
                         }}
                         className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
                       >
-                        <Search className="w-3.5 h-3.5 text-pink-400" />
+                        <Search className="w-3.5 h-3.5" style={{ color: "var(--accent, #E91E63)" }} />
                         <span>Sohbette Ara</span>
                       </button>
                       <div className="h-px bg-slate-800 my-1" />
@@ -822,7 +833,7 @@ export default function HomePage() {
             {/* WHATSAPP TARZI SOHBET İÇİ ARAMA BARI */}
             {isChatSearchOpen && (
               <div className="bg-slate-900/95 border-b border-grupo-dark-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-3 shadow-lg z-10 animate-in slide-in-from-top-2 duration-150 flex-shrink-0">
-                <div className="flex-1 flex items-center gap-2 bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-1.5 focus-within:border-pink-500 transition-colors">
+                <div className="flex-1 flex items-center gap-2 bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-1.5 focus-within:border-grupo-accent transition-colors">
                   <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
                   <input
                     type="text"
@@ -948,14 +959,31 @@ export default function HomePage() {
                       type="text"
                       value={inputMessage}
                       onChange={handleInputChange}
+                      onFocus={() => setIsInputFocused(true)}
+                      onBlur={() => setIsInputFocused(false)}
                       placeholder="Bir mesaj yazın..."
-                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
+                      style={{
+                        borderColor:
+                          isInputFocused || inputMessage.trim()
+                            ? "var(--accent, #E91E63)"
+                            : undefined,
+                        boxShadow: isInputFocused
+                          ? "0 0 0 1px var(--accent, #E91E63)"
+                          : undefined,
+                      }}
+                      className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
                     />
 
                     {inputMessage.trim() ? (
                       <button
                         type="submit"
-                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-grupo-accent hover:bg-grupo-accent-hover text-white flex items-center justify-center shadow-lg shadow-pink-500/25 transition-all cursor-pointer flex-shrink-0"
+                        style={{
+                          backgroundColor: "var(--accent, #E91E63)",
+                          color: "var(--accent-text, #ffffff)",
+                          boxShadow:
+                            "0 10px 15px -3px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+                        }}
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl hover:brightness-110 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
                       >
                         <Send className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>

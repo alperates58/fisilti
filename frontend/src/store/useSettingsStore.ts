@@ -92,6 +92,17 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   },
 };
 
+function hexToRgba(hex: string, alpha: number = 1): string {
+  let c = hex.replace("#", "").trim();
+  if (c.length === 3) c = c.split("").map((x) => x + x).join("");
+  const num = parseInt(c, 16);
+  if (isNaN(num) || c.length !== 6) return `rgba(233, 30, 99, ${alpha})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const applyThemeToDocument = (
   theme: Partial<PublicSettings["theme_settings"]> & { outgoing_text?: string }
 ) => {
@@ -100,6 +111,17 @@ export const applyThemeToDocument = (
   if (theme.primary_color) {
     root.style.setProperty("--accent", theme.primary_color);
     root.style.setProperty("--primary", theme.primary_color);
+    root.style.setProperty("--accent-hover", theme.primary_color);
+    
+    // Vurgu rengine göre kontrast metin rengi (beyaz veya siyah)
+    const accentTextColor = getContrastTextColor(theme.primary_color);
+    root.style.setProperty("--accent-text", accentTextColor);
+
+    // Vurgu renginin gölge ve rgb değerleri
+    root.style.setProperty("--accent-shadow", hexToRgba(theme.primary_color, 0.35));
+    const pureRgba = hexToRgba(theme.primary_color, 1);
+    const rgbOnly = pureRgba.replace("rgba(", "").replace(", 1)", "");
+    root.style.setProperty("--accent-rgb", rgbOnly);
   }
   if (theme.card_bg) {
     root.style.setProperty("--card", theme.card_bg);

@@ -14,7 +14,7 @@ export default function ReplyBar() {
   const renderContentPreview = () => {
     if (replyingTo.message_type === "voice") {
       return (
-        <span className="flex items-center gap-1.5 text-pink-400">
+        <span className="flex items-center gap-1.5" style={{ color: "var(--accent, #E91E63)" }}>
           <Mic className="w-3.5 h-3.5" />
           <span>Sesli Mesaj</span>
         </span>
@@ -22,7 +22,7 @@ export default function ReplyBar() {
     }
     if (replyingTo.message_type === "image") {
       return (
-        <span className="flex items-center gap-1.5 text-pink-400">
+        <span className="flex items-center gap-1.5" style={{ color: "var(--accent, #E91E63)" }}>
           <Image className="w-3.5 h-3.5" />
           <span>Fotoğraf</span>
         </span>
@@ -30,7 +30,7 @@ export default function ReplyBar() {
     }
     if (replyingTo.message_type === "video") {
       return (
-        <span className="flex items-center gap-1.5 text-pink-400">
+        <span className="flex items-center gap-1.5" style={{ color: "var(--accent, #E91E63)" }}>
           <Video className="w-3.5 h-3.5" />
           <span>Video</span>
         </span>
@@ -38,7 +38,7 @@ export default function ReplyBar() {
     }
     if (replyingTo.message_type === "file") {
       return (
-        <span className="flex items-center gap-1.5 text-pink-400">
+        <span className="flex items-center gap-1.5" style={{ color: "var(--accent, #E91E63)" }}>
           <FileText className="w-3.5 h-3.5" />
           <span>Belge / Dosya</span>
         </span>
@@ -49,11 +49,11 @@ export default function ReplyBar() {
 
   return (
     <div className="mb-2 rounded-2xl bg-slate-900/95 border border-slate-700/80 overflow-hidden flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <div className="w-1.5 self-stretch bg-pink-500 flex-shrink-0" />
+      <div className="w-1.5 self-stretch flex-shrink-0" style={{ backgroundColor: "var(--accent, #E91E63)" }} />
       <div className="flex items-center gap-2.5 min-w-0 flex-1 p-2.5 pl-3">
-        <CornerUpLeft className="w-4 h-4 text-pink-400 flex-shrink-0" />
+        <CornerUpLeft className="w-4 h-4 flex-shrink-0" style={{ color: "var(--accent, #E91E63)" }} />
         <div className="min-w-0 flex-1 text-xs">
-          <div className="font-bold text-pink-400 truncate">
+          <div className="font-bold truncate" style={{ color: "var(--accent, #E91E63)" }}>
             {replyingTo.is_mine ? "Kendine Yanıt Veriyorsun" : `${otherUserName}'a Yanıt Veriyorsun`}
           </div>
           <div className="text-slate-300 truncate mt-0.5">{renderContentPreview()}</div>

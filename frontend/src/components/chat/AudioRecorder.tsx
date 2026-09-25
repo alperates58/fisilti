@@ -219,7 +219,12 @@ export default function AudioRecorder({ conversationId, onCancel, onComplete }: 
         onClick={handleSend}
         disabled={isUploading}
         title="Sesli Mesajı Gönder"
-        className="w-9 h-9 rounded-xl bg-grupo-accent hover:bg-grupo-accent-hover text-white flex items-center justify-center shadow-md shadow-pink-500/30 transition-all cursor-pointer disabled:opacity-50"
+        style={{
+          backgroundColor: "var(--accent, #E91E63)",
+          color: "var(--accent-text, #ffffff)",
+          boxShadow: "0 4px 12px var(--accent-shadow, rgba(233, 30, 99, 0.35))",
+        }}
+        className="w-9 h-9 rounded-xl hover:brightness-110 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
       >
         {isUploading ? (
           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
