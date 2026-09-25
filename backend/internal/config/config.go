@@ -30,6 +30,8 @@ type Config struct {
 	JWTRefreshSecret     string
 	JWTAccessExpiryMin   int
 	JWTRefreshExpiryDays int
+	StoryCreateRateLimit int
+	StoryCreateRateWindowSec int
 	AppBasePath          string
 	CORSAllowedOrigins   string
 }
@@ -79,6 +81,8 @@ func LoadConfig() Config {
 	}
 	jwtAccessExpiryMin, _ := strconv.Atoi(getEnv("JWT_ACCESS_EXPIRY_MINUTES", "15"))
 	jwtRefreshExpiryDays, _ := strconv.Atoi(getEnv("JWT_REFRESH_EXPIRY_DAYS", "30"))
+	storyCreateLimit, _ := strconv.Atoi(getEnv("STORY_CREATE_RATE_LIMIT", "5"))
+	storyCreateWindowSec, _ := strconv.Atoi(getEnv("STORY_CREATE_RATE_WINDOW_SECONDS", "60"))
 
 	rawBasePath := getEnv("APP_BASE_PATH", getEnv("COOKIE_PATH", "/"))
 	appBasePath := "/"
@@ -114,6 +118,8 @@ func LoadConfig() Config {
 		JWTRefreshSecret:     jwtRefreshSecret,
 		JWTAccessExpiryMin:   jwtAccessExpiryMin,
 		JWTRefreshExpiryDays: jwtRefreshExpiryDays,
+		StoryCreateRateLimit: storyCreateLimit,
+		StoryCreateRateWindowSec: storyCreateWindowSec,
 		AppBasePath:          appBasePath,
 		CORSAllowedOrigins:   corsOrigins,
 	}

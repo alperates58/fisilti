@@ -20,6 +20,7 @@ type Story struct {
 	DurationSeconds int             `json:"duration_seconds"`
 	MusicStart      int             `json:"music_start"`
 	MusicEnd        int             `json:"music_end"`
+	Audience        string          `json:"audience"` // "everyone", "close_friends"
 	Stickers        json.RawMessage `json:"stickers"`
 	Views           []uuid.UUID     `json:"views"`
 	ViewsCount      int             `json:"views_count"`
@@ -29,10 +30,11 @@ type Story struct {
 }
 
 type UserStoriesGroup struct {
-	User        UserStoryAuthor `json:"user"`
-	Stories     []Story         `json:"stories"`
-	HasUnviewed bool            `json:"has_unviewed"`
-	LatestStory time.Time       `json:"latest_story"`
+	User            UserStoryAuthor `json:"user"`
+	Stories         []Story         `json:"stories"`
+	HasUnviewed     bool            `json:"has_unviewed"`
+	HasCloseFriends bool            `json:"has_close_friends"`
+	LatestStory     time.Time       `json:"latest_story"`
 }
 
 type UserStoryAuthor struct {
@@ -40,6 +42,26 @@ type UserStoryAuthor struct {
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   string    `json:"avatar_url"`
+}
+
+type StoryViewerDetail struct {
+	ID          uuid.UUID  `json:"id"`
+	Username    string     `json:"username"`
+	DisplayName string     `json:"display_name"`
+	AvatarURL   string     `json:"avatar_url"`
+	ViewedAt    *time.Time `json:"viewed_at"`
+}
+
+type StoryReaction struct {
+	ID        uuid.UUID `json:"id"`
+	StoryID   uuid.UUID `json:"story_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Reaction  string    `json:"reaction"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type StoryReactionRequest struct {
+	Reaction string `json:"reaction"`
 }
 
 type CreateStoryRequest struct {
@@ -53,5 +75,6 @@ type CreateStoryRequest struct {
 	DurationSeconds int             `json:"duration_seconds"`
 	MusicStart      int             `json:"music_start"`
 	MusicEnd        int             `json:"music_end"`
+	Audience        string          `json:"audience"`
 	Stickers        json.RawMessage `json:"stickers"`
 }

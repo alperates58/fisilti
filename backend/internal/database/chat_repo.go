@@ -641,15 +641,57 @@ func (r *ChatRepository) CanUserAccessMedia(ctx context.Context, userID uuid.UUI
 		return true, nil
 	}
 
-	// 5. Hikayeler (stories) kontrolü: Eğer dosya bir hikayeye aitse giriş yapmış kullanıcılar görebilir
-	var storyExists int
+	// 5. Hikayeler (stories) kontrolü:
+	// Eğer dosya bir hikayeye aitse:
+	// a) Yazar her zaman görebilir
+	// b) Süresi dolmamış olmalı (expires_at > NOW())
+	// c) Kullanıcı ile hikaye sahibi birbirini bloklamamış olmalı
+	// d) Eğer hedef kitle close_friends ise kullanıcı yazar veya yakın arkadaş olmalı
+	var storyAuthorID uuid.UUID
+	var storyExpiresAt time.Time
+	var storyAudience string
 	storyQuery := `
-		SELECT 1 FROM stories
+		SELECT user_id, expires_at, COALESCE(audience, 'everyone')
+		FROM stories
 		WHERE media_url LIKE '%' || $1 || '%'
+		ORDER BY created_at DESC
 		LIMIT 1
 	`
-	_ = r.db.QueryRowContext(ctx, storyQuery, baseObj).Scan(&storyExists)
-	if storyExists == 1 {
+	if sErr := r.db.QueryRowContext(ctx, storyQuery, baseObj).Scan(&storyAuthorID, &storyExpiresAt, &storyAudience); sErr == nil {
+		if storyAuthorID == userID {
+			return true, nil
+		}
+		if time.Now().After(storyExpiresAt) {
+			return false, nil
+		}
+
+		// Blok kontrolü: İki kullanıcı arasında bloklu sohbet var mı?
+		var isBlocked bool
+		blockQuery := `
+			SELECT EXISTS(
+				SELECT 1 FROM conversations
+				WHERE ((user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1))
+				  AND is_blocked = TRUE
+			)
+		`
+		if bErr := r.db.QueryRowContext(ctx, blockQuery, userID, storyAuthorID).Scan(&isBlocked); bErr == nil && isBlocked {
+			return false, nil
+		}
+
+		// Close Friends kontrolü:
+		if storyAudience == "close_friends" {
+			var isCloseFriend bool
+			cfQuery := `
+				SELECT EXISTS(
+					SELECT 1 FROM user_close_friends
+					WHERE user_id = $1 AND friend_id = $2
+				)
+			`
+			if cfErr := r.db.QueryRowContext(ctx, cfQuery, storyAuthorID, userID).Scan(&isCloseFriend); cfErr != nil || !isCloseFriend {
+				return false, nil
+			}
+		}
+
 		return true, nil
 	}
 

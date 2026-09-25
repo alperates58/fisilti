@@ -127,7 +127,7 @@ func main() {
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService, userRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb, hub)
 	storyRepo := database.NewStoryRepository(db)
-	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo, hub)
+	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo, storageService, hub)
 
 	// 8. Fiber Web Uygulaması
 	app := fiber.New(fiber.Config{
@@ -207,6 +207,7 @@ func main() {
 	// Hız sınırlayıcılar (Rate Limiters)
 	authLimiter := middleware.NewRateLimiter(rdb, 15, 1*time.Minute)
 	mediaLimiter := middleware.NewRateLimiter(rdb, 20, 1*time.Minute)
+	storyLimiter := middleware.NewRateLimiter(rdb, cfg.StoryCreateRateLimit, time.Duration(cfg.StoryCreateRateWindowSec)*time.Second)
 
 	// Genel ve Açık Sistem Ayarları
 	v1.Get("/public/settings", authHandler.GetPublicSettings)
@@ -229,6 +230,9 @@ func main() {
 	users.Patch("/privacy", userHandler.UpdatePrivacy)
 	users.Get("/search", userHandler.SearchUsers)
 	users.Get("/access-logs", userHandler.GetAccessLogs)
+	users.Get("/close-friends", storyHandler.GetCloseFriends)
+	users.Post("/close-friends/:friendId", storyHandler.AddCloseFriend)
+	users.Delete("/close-friends/:friendId", storyHandler.RemoveCloseFriend)
 
 	// Sohbet ve Mesajlaşma Rotaları
 	v1.Get("/media/file/:bucket/*", mediaHandler.GetMediaFile)
@@ -262,10 +266,11 @@ func main() {
 	stories := v1.Group("/stories", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	stories.Get("/", storyHandler.GetActiveStories)
 	stories.Get("/youtube-info", storyHandler.GetYouTubeInfo)
-	stories.Post("/", storyHandler.CreateStory)
+	stories.Post("/", storyLimiter, storyHandler.CreateStory)
 	stories.Patch("/:id", storyHandler.UpdateStory)
 	stories.Post("/:id/view", storyHandler.MarkStoryViewed)
 	stories.Get("/:id/viewers", storyHandler.GetStoryViewers)
+	stories.Post("/:id/reactions", storyHandler.AddStoryReaction)
 	stories.Delete("/:id", storyHandler.DeleteStory)
 
 	// Web Push Bildirim Rotaları

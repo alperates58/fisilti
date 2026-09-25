@@ -11,6 +11,7 @@ import (
 
 	"fisilti/internal/database"
 	"fisilti/internal/models"
+	"fisilti/internal/storage"
 	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -19,13 +20,15 @@ import (
 type StoryHandler struct {
 	storyRepo *database.StoryRepository
 	userRepo  *database.UserRepository
+	storage   *storage.StorageService
 	hub       *fisiltiws.Hub
 }
 
-func NewStoryHandler(storyRepo *database.StoryRepository, userRepo *database.UserRepository, hub *fisiltiws.Hub) *StoryHandler {
+func NewStoryHandler(storyRepo *database.StoryRepository, userRepo *database.UserRepository, storage *storage.StorageService, hub *fisiltiws.Hub) *StoryHandler {
 	return &StoryHandler{
 		storyRepo: storyRepo,
 		userRepo:  userRepo,
+		storage:   storage,
 		hub:       hub,
 	}
 }
@@ -42,7 +45,7 @@ func (h *StoryHandler) GetActiveStories(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"story_groups": groups})
 }
 
-// CreateStory - Yeni hikaye paylaşır (fotoğraf, video, ses, müzik, çıkartma)
+// CreateStory - Yeni hikaye paylaşır (fotoğraf, video, ses, müzik, çıkartma, hedef kitle)
 func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 
@@ -54,6 +57,15 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 	if req.MediaType == "" {
 		req.MediaType = "image"
 	}
+	allowedTypes := map[string]bool{"image": true, "video": true, "text": true, "audio": true}
+	if !allowedTypes[req.MediaType] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz medya tipi."})
+	}
+
+	if len(req.Caption) > 500 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hikaye başlığı en fazla 500 karakter olabilir."})
+	}
+
 	if req.BackgroundColor == "" {
 		req.BackgroundColor = "from-pink-900 to-slate-950"
 	}
@@ -61,6 +73,21 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 	durationSec := req.DurationSeconds
 	if durationSec <= 0 {
 		durationSec = 10
+	}
+	if durationSec > 60 {
+		durationSec = 60
+	}
+
+	if len(req.MusicURL) > 500 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Müzik adresi çok uzun."})
+	}
+
+	if req.Audience != "close_friends" {
+		req.Audience = "everyone"
+	}
+
+	if len(req.Stickers) > 65536 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Çıkartma verisi izin verilen boyutu aşıyor."})
 	}
 
 	story := &models.Story{
@@ -75,6 +102,7 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 		DurationSeconds: durationSec,
 		MusicStart:      req.MusicStart,
 		MusicEnd:        req.MusicEnd,
+		Audience:        req.Audience,
 		Stickers:        req.Stickers,
 	}
 
@@ -82,7 +110,7 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Yeni hikaye bildirimini WebSocket ve Web Push ile tüm kullanıcılara dağıt
+	// Yeni hikaye bildirimini WebSocket ve Web Push ile dağıt
 	if h.hub != nil {
 		go func() {
 			ctx := context.Background()
@@ -97,7 +125,7 @@ func (h *StoryHandler) CreateStory(c *fiber.Ctx) error {
 				}
 				authorAvatar = author.AvatarURL
 			}
-			h.hub.BroadcastStoryNotification(userID, authorName, authorAvatar, story.Caption)
+			h.hub.BroadcastStoryNotification(userID, authorName, authorAvatar, story.Caption, story.Audience)
 		}()
 	}
 
@@ -115,7 +143,7 @@ func (h *StoryHandler) MarkStoryViewed(c *fiber.Ctx) error {
 	}
 
 	if err := h.storyRepo.MarkStoryViewed(c.Context(), storyID, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{"status": "ok"})
@@ -139,7 +167,7 @@ func (h *StoryHandler) GetStoryViewers(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"viewers": viewers})
 }
 
-// DeleteStory - Hikayeyi siler (Sahibi veya Admin silebilir)
+// DeleteStory - Hikayeyi ve bağlı MinIO medyasını güvenli siler
 func (h *StoryHandler) DeleteStory(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 
@@ -149,23 +177,148 @@ func (h *StoryHandler) DeleteStory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz hikaye ID'si."})
 	}
 
+	mediaURL, authorID, err := h.storyRepo.GetStoryMediaAndAuthor(c.Context(), storyID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Hikaye bulunamadı."})
+	}
+
 	isAdmin := false
 	if u, err := h.userRepo.GetUserByID(c.Context(), userID); err == nil && u != nil {
 		isAdmin = (u.Role == "admin")
+	}
+
+	if !isAdmin && authorID != userID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Bu hikayeyi silme yetkiniz yok."})
 	}
 
 	if err := h.storyRepo.DeleteStory(c.Context(), storyID, userID, isAdmin); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	// MinIO medyasını temizle
+	if mediaURL != "" && h.storage != nil {
+		_ = h.storage.DeleteMedia(c.Context(), mediaURL)
+	}
+
+	// WebSocket ile tüm istemcilere silindiğini bildir
+	if h.hub != nil {
+		h.hub.BroadcastStoryDeleted(storyID, authorID)
+	}
+
 	return c.JSON(fiber.Map{"status": "deleted"})
 }
 
-// GetYouTubeInfo - YouTube / YouTube Music linkinden şarkı ve sanatçı adını çeker
+// AddStoryReaction - Hikayeye emoji reaksiyonu ekler
+func (h *StoryHandler) AddStoryReaction(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	storyIDStr := c.Params("id")
+	storyID, err := uuid.Parse(storyIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz hikaye ID'si."})
+	}
+
+	var req models.StoryReactionRequest
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Reaction) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçerli bir reaksiyon belirtin."})
+	}
+
+	reaction := strings.TrimSpace(req.Reaction)
+	if len(reaction) > 10 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz reaksiyon formatı."})
+	}
+
+	if err := h.storyRepo.AddStoryReaction(c.Context(), storyID, userID, reaction); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if h.hub != nil {
+		go func() {
+			ctx := context.Background()
+			_, authorID, _ := h.storyRepo.GetStoryMediaAndAuthor(ctx, storyID)
+			sender, _ := h.userRepo.GetUserByID(ctx, userID)
+			senderName := "Biri"
+			if sender != nil {
+				if sender.DisplayName != "" {
+					senderName = sender.DisplayName
+				} else {
+					senderName = sender.Username
+				}
+			}
+			h.hub.BroadcastStoryReaction(storyID, authorID, userID, senderName, reaction)
+		}()
+	}
+
+	return c.JSON(fiber.Map{"status": "ok"})
+}
+
+// GetCloseFriends - Yakın arkadaşlar listesini döner
+func (h *StoryHandler) GetCloseFriends(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	friends, err := h.storyRepo.GetCloseFriends(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"friends": friends})
+}
+
+// AddCloseFriend - Yakın arkadaş ekler
+func (h *StoryHandler) AddCloseFriend(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	friendID, err := uuid.Parse(c.Params("friendId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz kullanıcı ID'si."})
+	}
+
+	if err := h.storyRepo.AddCloseFriend(c.Context(), userID, friendID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "added"})
+}
+
+// RemoveCloseFriend - Yakın arkadaş siler
+func (h *StoryHandler) RemoveCloseFriend(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	friendID, err := uuid.Parse(c.Params("friendId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz kullanıcı ID'si."})
+	}
+
+	if err := h.storyRepo.RemoveCloseFriend(c.Context(), userID, friendID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "removed"})
+}
+
+// GetYouTubeInfo - YouTube / YouTube Music linkinden şarkı ve sanatçı adını güvenli host denetimiyle çeker
 func (h *StoryHandler) GetYouTubeInfo(c *fiber.Ctx) error {
-	videoURL := c.Query("url")
+	videoURL := strings.TrimSpace(c.Query("url"))
 	if videoURL == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "url parametresi gerekli"})
+	}
+
+	parsed, err := url.Parse(videoURL)
+	if err != nil || parsed.Hostname() == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz YouTube adresi."})
+	}
+
+	host := strings.ToLower(parsed.Hostname())
+	allowedHosts := map[string]bool{
+		"youtube.com":        true,
+		"www.youtube.com":    true,
+		"m.youtube.com":      true,
+		"youtu.be":           true,
+		"music.youtube.com":  true,
+	}
+
+	if !allowedHosts[host] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Yalnızca YouTube ve YouTube Music bağlantılarına izin verilmektedir."})
 	}
 
 	oembedURL := fmt.Sprintf("https://www.youtube.com/oembed?url=%s&format=json", url.QueryEscape(videoURL))
@@ -218,6 +371,13 @@ func (h *StoryHandler) UpdateStory(c *fiber.Ctx) error {
 	if durSec <= 0 {
 		durSec = 10
 	}
+	if durSec > 60 {
+		durSec = 60
+	}
+
+	if req.Audience != "close_friends" {
+		req.Audience = "everyone"
+	}
 
 	story := &models.Story{
 		ID:              storyID,
@@ -230,6 +390,7 @@ func (h *StoryHandler) UpdateStory(c *fiber.Ctx) error {
 		DurationSeconds: durSec,
 		MusicStart:      req.MusicStart,
 		MusicEnd:        req.MusicEnd,
+		Audience:        req.Audience,
 		Stickers:        stickersJSON,
 	}
 

@@ -264,8 +264,8 @@ func (h *Hub) SendWebPushToUser(userID uuid.UUID, title, body, icon, url string)
 	}()
 }
 
-func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorAvatar, caption string) {
-	// 1. WebSocket Broadcast to all active clients
+func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorAvatar, caption, audience string) {
+	// 1. WebSocket Broadcast to active clients (close_friends ise sadece yazar ve arkadaşlarına ileride filtrelenebilir, genel bildirim güvenli tutulur)
 	payload := map[string]interface{}{
 		"action": "new_story",
 		"payload": map[string]interface{}{
@@ -273,6 +273,7 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 			"author_name":   authorName,
 			"author_avatar": authorAvatar,
 			"caption":       caption,
+			"audience":      audience,
 		},
 	}
 	jsonBytes, err := json.Marshal(payload)
@@ -280,7 +281,11 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 		h.BroadcastToAll(jsonBytes)
 	}
 
-	// 2. Web Push Notification to all users except author
+	// 2. Web Push Notification: close_friends ise genel kitleye push atma
+	if audience == "close_friends" {
+		return
+	}
+
 	if h.pushRepo == nil || h.vapidService == nil {
 		return
 	}
@@ -325,5 +330,36 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 			_ = h.vapidService.SendPushWithTag(sub, title, body, icon, url, "aura-story", silent)
 		}
 	}()
+}
+
+func (h *Hub) BroadcastStoryDeleted(storyID, authorID uuid.UUID) {
+	payload := map[string]interface{}{
+		"action": "story_deleted",
+		"payload": map[string]interface{}{
+			"story_id":  storyID,
+			"author_id": authorID,
+		},
+	}
+	jsonBytes, err := json.Marshal(payload)
+	if err == nil {
+		h.BroadcastToAll(jsonBytes)
+	}
+}
+
+func (h *Hub) BroadcastStoryReaction(storyID, authorID, senderID uuid.UUID, senderName string, reaction string) {
+	payload := map[string]interface{}{
+		"action": "story_reaction",
+		"payload": map[string]interface{}{
+			"story_id":    storyID,
+			"sender_id":   senderID,
+			"sender_name": senderName,
+			"reaction":    reaction,
+		},
+	}
+	jsonBytes, err := json.Marshal(payload)
+	if err == nil {
+		// Yalnızca hikaye sahibine gönder
+		h.SendToUser(authorID, jsonBytes)
+	}
 }
 
