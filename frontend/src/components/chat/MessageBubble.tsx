@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Message, useChatStore } from "@/store/useChatStore";
 import {
   Check,
@@ -116,40 +117,110 @@ export default function MessageBubble({
 
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [menuDirection, setMenuDirection] = useState<"up" | "down">("up");
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const resolvedMediaUrl = resolveMediaUrl(message.media_url);
 
-  // Menü dışına tıklanınca kapat
+  // Menü dışına tıklanınca, kaydırılınca veya pencere boyutu değişince kapat
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+    if (!showMenu) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
         setShowMenu(false);
       }
     };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+
+    const handleScrollOrResize = () => {
+      setShowMenu(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
     };
   }, [showMenu]);
 
   const handleToggleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!showMenu) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      // Ekranın veya scroll konteynerinin üst 240px'i içindeyse aşağı doğru aç
-      if (rect.top < 240) {
-        setMenuDirection("down");
-      } else {
-        setMenuDirection("up");
-      }
+    e.stopPropagation();
+    if (showMenu) {
+      setShowMenu(false);
+      return;
     }
-    setShowMenu(!showMenu);
+
+    setShowReactions(false);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 184;
+    const menuHeight = message.is_mine ? 245 : 175;
+
+    const spaceOnRight = window.innerWidth - rect.right;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Yatay konum: Gelen mesajlarda sağda yeterli alan varsa sağa, yoksa sola doğru aç
+    let left: number;
+    if (!message.is_mine && spaceOnRight >= menuWidth + 10) {
+      left = rect.left;
+    } else {
+      left = rect.right - menuWidth;
+    }
+    // Ekrana taşmayı önle
+    left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, left));
+
+    // Dikey konum: Aşağıda sığmıyorsa ve yukarıda daha çok yer varsa yukarı aç
+    let top: number;
+    if (spaceBelow < menuHeight + 15 && spaceAbove > spaceBelow) {
+      top = rect.top - menuHeight - 6;
+    } else {
+      top = rect.bottom + 6;
+    }
+    top = Math.max(8, Math.min(window.innerHeight - menuHeight - 8, top));
+
+    setMenuPosition({ top, left });
+    setShowMenu(true);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (message.is_deleted_for_all) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setShowReactions(false);
+
+    const menuWidth = 184;
+    const menuHeight = message.is_mine ? 245 : 175;
+
+    let left = e.clientX;
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = window.innerWidth - menuWidth - 8;
+    }
+    left = Math.max(8, left);
+
+    let top = e.clientY;
+    if (top + menuHeight > window.innerHeight - 8) {
+      top = e.clientY - menuHeight;
+    }
+    top = Math.max(8, top);
+
+    setMenuPosition({ top, left });
+    setShowMenu(true);
   };
 
   const socialMediaData =
@@ -312,6 +383,7 @@ export default function MessageBubble({
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onDoubleClick={() => setReplyingTo(message)}
+          onContextMenu={handleContextMenu}
           style={{
             transform: swipeOffset > 0 ? `translateX(${swipeOffset}px)` : undefined,
             transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28)",
@@ -604,10 +676,17 @@ export default function MessageBubble({
 
         {/* Hover / Tıklama Eylem Butonları */}
         {!message.is_deleted_for_all && (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div
+            className={`flex items-center gap-0.5 transition-opacity ${
+              showMenu || showReactions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
             {/* Tepki Ver */}
             <button
-              onClick={() => setShowReactions(!showReactions)}
+              onClick={() => {
+                setShowMenu(false);
+                setShowReactions(!showReactions);
+              }}
               title="Tepki Ver"
               className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
@@ -624,111 +703,117 @@ export default function MessageBubble({
             </button>
 
             {/* Daha Fazla Seçenek Menüsü */}
-            <div ref={menuRef} className="relative">
-              <button
-                onClick={handleToggleMenu}
-                title="Daha Fazla"
-                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
-
-              {showMenu && (
-                <div
-                  className={`absolute ${
-                    menuDirection === "up" ? "bottom-6" : "top-6"
-                  } ${
-                    message.is_mine ? "right-0" : "left-0"
-                  } w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl p-1 z-40 text-xs text-slate-200 animate-in fade-in zoom-in-95`}
-                >
-                  {/* Yanıtla (WhatsApp Style) */}
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      setReplyingTo(message);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer text-slate-200"
-                  >
-                    <CornerUpLeft className="w-3.5 h-3.5 text-pink-400" />
-                    <span>Yanıtla</span>
-                  </button>
-
-                  {/* Mesaj Bilgisi (Sadece benim mesajlarımda) */}
-                  {message.is_mine && (
-                    <button
-                      onClick={() => {
-                        setShowMenu(false);
-                        setSelectedMessageInfo(message);
-                      }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
-                    >
-                      <Info className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Mesaj Bilgisi</span>
-                    </button>
-                  )}
-
-                  {/* Yıldızla / Yıldızı Kaldır */}
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      toggleStar(message.id);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
-                  >
-                    {message.is_starred ? (
-                      <>
-                        <StarOff className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Yıldızı Kaldır</span>
-                      </>
-                    ) : (
-                      <>
-                        <Star className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Yıldızla</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* Düzenle (Sadece benim ve metin mesajlarında) */}
-                  {message.is_mine && message.message_type === "text" && chatSettings?.allow_message_edit !== false && (
-                    <button
-                      onClick={() => {
-                        setShowMenu(false);
-                        setIsEditing(true);
-                      }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Düzenle</span>
-                    </button>
-                  )}
-
-                  <div className="h-px bg-slate-800 my-1" />
-
-                  {/* Benden Sil */}
-                  <button
-                    onClick={() => handleDelete(false)}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 text-left transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Benden Sil</span>
-                  </button>
-
-                  {/* Herkesten Sil (Sadece benim mesajlarımda) */}
-                  {message.is_mine && chatSettings?.allow_delete_for_all !== false && (
-                    <button
-                      onClick={() => handleDelete(true)}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 text-left transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Herkesten Sil</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <button
+              ref={buttonRef}
+              onClick={handleToggleMenu}
+              title="Daha Fazla"
+              className={`p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ${
+                showMenu ? "text-white bg-slate-800" : ""
+              }`}
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </div>
+
+      {/* 3 Nokta / Sağ Tık Seçenekler Menüsü (Portal ile Body'ye render edilir, overflow kesintisini %100 önler) */}
+      {showMenu && menuPosition && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+              zIndex: 50,
+            }}
+            className="w-44 bg-slate-900/98 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-1 text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-100 select-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Yanıtla (WhatsApp Style) */}
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                setReplyingTo(message);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer text-slate-200"
+            >
+              <CornerUpLeft className="w-3.5 h-3.5 text-pink-400" />
+              <span>Yanıtla</span>
+            </button>
+
+            {/* Mesaj Bilgisi (İletilme ve Okunma Zamanları) */}
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                setSelectedMessageInfo(message);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5 text-sky-400" />
+              <span>Mesaj Bilgisi</span>
+            </button>
+
+            {/* Yıldızla / Yıldızı Kaldır */}
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                toggleStar(message.id);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
+            >
+              {message.is_starred ? (
+                <>
+                  <StarOff className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Yıldızı Kaldır</span>
+                </>
+              ) : (
+                <>
+                  <Star className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Yıldızla</span>
+                </>
+              )}
+            </button>
+
+            {/* Düzenle (Sadece benim ve metin mesajlarında) */}
+            {message.is_mine && message.message_type === "text" && chatSettings?.allow_message_edit !== false && (
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  setIsEditing(true);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Düzenle</span>
+              </button>
+            )}
+
+            <div className="h-px bg-slate-800 my-1" />
+
+            {/* Benden Sil */}
+            <button
+              onClick={() => handleDelete(false)}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 text-left transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Benden Sil</span>
+            </button>
+
+            {/* Herkesten Sil (Sadece benim mesajlarımda) */}
+            {message.is_mine && chatSettings?.allow_delete_for_all !== false && (
+              <button
+                onClick={() => handleDelete(true)}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 text-left transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Herkesten Sil</span>
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
 
       {/* Mesaj Altı Reaksiyon Rozetleri */}
       <ReactionBadges

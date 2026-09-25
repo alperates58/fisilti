@@ -68,7 +68,7 @@ class NotificationManager {
               tag: "fisilti-message",
               silent: isSilent,
               vibrate: isSilent ? [] : [200, 100, 200],
-            });
+            } as any);
             return;
           }
         } catch (swErr) {
