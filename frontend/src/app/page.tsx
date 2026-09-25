@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
@@ -55,6 +55,33 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+const isSameCalendarDay = (d1: Date, d2: Date) => {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+};
+
+const formatMessageDateDivider = (dateString?: string) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (isSameCalendarDay(date, today)) return "Bugün";
+  if (isSameCalendarDay(date, yesterday)) return "Dün";
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+  }).format(date);
+};
+
 export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
@@ -106,8 +133,31 @@ export default function HomePage() {
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoadRef = useRef<Record<string, boolean>>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Akıllı ve güvenli en alta kaydırma fonksiyonu (Window kaymasını sıfırlar, konteyneri tam tabana indirir)
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (typeof window !== "undefined" && window.scrollY !== 0) {
+      window.scrollTo(0, 0);
+    }
+    if (typeof document !== "undefined") {
+      if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
+      if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+    }
+
+    if (messagesContainerRef.current) {
+      const el = messagesContainerRef.current;
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior,
+      });
+    } else if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior, block: "end" });
+    }
+  }, []);
 
   // 1. Oturum Kontrolü & Kullanıcı Temasını Uygula
   useEffect(() => {
@@ -139,8 +189,18 @@ export default function HomePage() {
 
   // 3. Mesaj listesi otomatik en alta kaydırma
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeConversationId]);
+    if (!activeConversationId) return;
+
+    if (!isFirstLoadRef.current[activeConversationId]) {
+      isFirstLoadRef.current[activeConversationId] = true;
+      scrollToBottom("auto");
+      setTimeout(() => scrollToBottom("auto"), 50);
+      setTimeout(() => scrollToBottom("auto"), 150);
+      return;
+    }
+
+    scrollToBottom("smooth");
+  }, [messages, activeConversationId, scrollToBottom]);
 
   // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve konuşmaları yükle
   useEffect(() => {
@@ -152,6 +212,16 @@ export default function HomePage() {
 
       if (isVisible) {
         notificationManager.stopFlash();
+
+        // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
+        if (typeof window !== "undefined") {
+          window.scrollTo(0, 0);
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        }
+        scrollToBottom("auto");
+        setTimeout(() => scrollToBottom("auto"), 60);
+        setTimeout(() => scrollToBottom("auto"), 200);
 
         // 1. WebSocket kopmuşsa yeniden bağla (eğer CONNECTING aşamasındaysa tekrar açma)
         const socketState = useSocketStore.getState();
@@ -192,7 +262,31 @@ export default function HomePage() {
       window.removeEventListener("focus", handleVisibilityOrFocus);
       window.removeEventListener("online", handleVisibilityOrFocus);
     };
-  }, [activeConversationId, messages, loadConversations]);
+  }, [activeConversationId, messages, loadConversations, scrollToBottom]);
+
+  // 3c. Ekran kilidi açıldığında, sanal klavye açılıp/kapandığında veya ekran yönü değiştiğinde alta sabitle
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (typeof window !== "undefined") {
+        if (window.scrollY !== 0) window.scrollTo(0, 0);
+        if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+      }
+      scrollToBottom("auto");
+    };
+
+    window.addEventListener("resize", handleViewportChange);
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportChange);
+      window.visualViewport.addEventListener("scroll", handleViewportChange);
+    }
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      if (typeof window !== "undefined" && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportChange);
+        window.visualViewport.removeEventListener("scroll", handleViewportChange);
+      }
+    };
+  }, [scrollToBottom]);
 
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
@@ -323,6 +417,13 @@ export default function HomePage() {
 
     sendMessage(activeConversationId, inputMessage.trim());
     setInputMessage("");
+    setTimeout(() => scrollToBottom("smooth"), 50);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    sendTyping(activeConversationId, false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -648,7 +749,7 @@ export default function HomePage() {
       <main
         className={`${
           activeConversationId ? "flex w-full" : "hidden md:flex"
-        } md:flex-1 flex-col bg-grupo-dark-bg relative h-full`}
+        } md:flex-1 flex-col bg-grupo-dark-bg relative h-full min-h-0 max-h-full overflow-hidden`}
       >
         {activeConv ? (
           <>
@@ -914,7 +1015,11 @@ export default function HomePage() {
             )}
 
             {/* Mesaj Akışı */}
-            <div className="flex-1 p-3 sm:p-6 overflow-y-auto overflow-x-hidden">
+            <div
+              ref={messagesContainerRef}
+              className="flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto overflow-x-hidden overscroll-contain"
+              style={{ scrollBehavior: "auto" }}
+            >
               {activeMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
                   <Sparkles className="w-8 h-8 text-pink-500/50 mb-2" />
@@ -922,19 +1027,41 @@ export default function HomePage() {
                   <p className="text-xs text-slate-600 mt-1">İlk mesajı göndererek başlayın!</p>
                 </div>
               ) : (
-                activeMessages.map((m) => (
-                  <div key={m.id} id={`msg-${m.id}`} className="transition-all duration-300">
-                    <MessageBubble
-                      message={m}
-                      searchQuery={chatSearchQuery}
-                      isHighlightedMatch={m.id === activeMatchedMessageId}
-                      onJumpToMessage={(targetId) => handleJumpToMessage(activeConv.id, targetId)}
-                      otherUserName={activeConv.other_user.display_name}
-                    />
-                  </div>
-                ))
+                activeMessages.map((m, index) => {
+                  const prevMsg = index > 0 ? activeMessages[index - 1] : null;
+                  const currentTimestamp = m.sent_at || m.created_at;
+                  const prevTimestamp = prevMsg?.sent_at || prevMsg?.created_at;
+                  const showDateDivider =
+                    !prevTimestamp ||
+                    (currentTimestamp &&
+                      !isSameCalendarDay(
+                        new Date(currentTimestamp),
+                        new Date(prevTimestamp)
+                      ));
+
+                  return (
+                    <div key={m.id}>
+                      {showDateDivider && currentTimestamp && (
+                        <div className="flex justify-center my-3 sticky top-1 z-10 pointer-events-none">
+                          <span className="px-3.5 py-1 rounded-full text-[11px] font-semibold bg-slate-900/90 backdrop-blur-md text-slate-400 border border-slate-800 shadow-md pointer-events-auto select-none">
+                            {formatMessageDateDivider(currentTimestamp)}
+                          </span>
+                        </div>
+                      )}
+                      <div id={`msg-${m.id}`} className="transition-all duration-300">
+                        <MessageBubble
+                          message={m}
+                          searchQuery={chatSearchQuery}
+                          isHighlightedMatch={m.id === activeMatchedMessageId}
+                          onJumpToMessage={(targetId) => handleJumpToMessage(activeConv.id, targetId)}
+                          otherUserName={activeConv.other_user.display_name}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
               )}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} className="h-1 flex-shrink-0" />
             </div>
 
             {/* Mesaj Giriş Barı & Alıntılama & Medya Menüsü */}
@@ -959,8 +1086,18 @@ export default function HomePage() {
                       type="text"
                       value={inputMessage}
                       onChange={handleInputChange}
-                      onFocus={() => setIsInputFocused(true)}
-                      onBlur={() => setIsInputFocused(false)}
+                      onFocus={() => {
+                        setIsInputFocused(true);
+                        setTimeout(() => scrollToBottom("smooth"), 150);
+                      }}
+                      onBlur={() => {
+                        setIsInputFocused(false);
+                        if (typeof window !== "undefined") {
+                          window.scrollTo(0, 0);
+                          document.body.scrollTop = 0;
+                        }
+                        setTimeout(() => scrollToBottom("auto"), 60);
+                      }}
                       placeholder="Bir mesaj yazın..."
                       style={{
                         borderColor:
