@@ -641,6 +641,12 @@ export default function StoryViewerModal() {
                   <span className="text-xs font-bold text-white drop-shadow-md">
                     {activeViewerGroup.user.display_name}
                   </span>
+                  {currentStory.audience === "close_friends" && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 font-bold flex items-center gap-0.5 shadow-sm">
+                      <span>★</span>
+                      <span>Yakın Arkadaşlar</span>
+                    </span>
+                  )}
                   {isOwnStory && (
                     <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-pink-500/80 text-white font-semibold">
                       Sen

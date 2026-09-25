@@ -39,7 +39,9 @@ export default function StoriesBar() {
               }}
               className={`w-14 h-14 rounded-full flex items-center justify-center p-0.5 transition-transform group-hover:scale-105 ${
                 ownGroup && ownGroup.stories.length > 0
-                  ? "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400"
+                  ? ownGroup.has_close_friends
+                    ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/20"
+                    : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400"
                   : "bg-slate-800 border-2 border-dashed border-slate-600 hover:border-pink-500"
               }`}
             >
@@ -78,36 +80,57 @@ export default function StoriesBar() {
         {/* 2. DİĞER KULLANICILARIN HİKAYELERİ */}
         {otherGroups.map((group) => {
           const hasUnviewed = group.has_unviewed;
+          const isCloseFriends = group.has_close_friends;
           return (
             <button
               key={group.user.id}
               onClick={() => openViewer(group)}
               className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer group"
             >
-              <div
-                className={`w-14 h-14 rounded-full flex items-center justify-center p-0.5 transition-transform group-hover:scale-105 ${
-                  hasUnviewed
-                    ? "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 animate-in fade-in"
-                    : "border-2 border-slate-700"
-                }`}
-              >
-                <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center font-bold text-xs text-pink-400 border-2 border-grupo-dark-card">
-                  {group.user.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={resolveMediaUrl(group.user.avatar_url)}
-                      alt={group.user.display_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    group.user.display_name?.charAt(0).toUpperCase() || "U"
-                  )}
+              <div className="relative">
+                <div
+                  className={`w-14 h-14 rounded-full flex items-center justify-center p-0.5 transition-transform group-hover:scale-105 ${
+                    hasUnviewed
+                      ? isCloseFriends
+                        ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/30 animate-in fade-in"
+                        : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 animate-in fade-in"
+                      : isCloseFriends
+                      ? "border-2 border-emerald-500/70"
+                      : "border-2 border-slate-700"
+                  }`}
+                >
+                  <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center font-bold text-xs text-pink-400 border-2 border-grupo-dark-card">
+                    {group.user.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveMediaUrl(group.user.avatar_url)}
+                        alt={group.user.display_name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      group.user.display_name?.charAt(0).toUpperCase() || "U"
+                    )}
+                  </div>
                 </div>
+
+                {/* Yakın Arkadaşlar Yeşil Yıldız Rozeti */}
+                {isCloseFriends && (
+                  <div
+                    title="Yakın Arkadaşlar Hikayesi"
+                    className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-black border-2 border-slate-950 shadow-md"
+                  >
+                    ★
+                  </div>
+                )}
               </div>
 
               <span
                 className={`text-[11px] max-w-[62px] truncate transition-colors ${
-                  hasUnviewed ? "font-semibold text-white" : "font-normal text-slate-400"
+                  hasUnviewed
+                    ? isCloseFriends
+                      ? "font-semibold text-emerald-400"
+                      : "font-semibold text-white"
+                    : "font-normal text-slate-400"
                 }`}
               >
                 {group.user.display_name.split(" ")[0]}

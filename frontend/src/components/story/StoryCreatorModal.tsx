@@ -18,6 +18,14 @@ import {
   Clock,
   Sliders,
   Pencil,
+  Camera,
+  Video,
+  RotateCw,
+  Maximize2,
+  Grid,
+  Users,
+  Star,
+  FlipHorizontal,
 } from "lucide-react";
 
 export function extractYouTubeVideoId(url: string): string | null {
@@ -162,6 +170,27 @@ export default function StoryCreatorModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Hedef Kitle (Audience)
+  const [audience, setAudience] = useState<"everyone" | "close_friends">("everyone");
+
+  // Medya Düzenleme & Kırpma Araçları (Transforms)
+  const [rotation, setRotation] = useState<number>(0);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [showCropGrid, setShowCropGrid] = useState<boolean>(false);
+
+  // Uygulama İçi Kamera & Video Kaydedici
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const [cameraCaptureMode, setCameraCaptureMode] = useState<"photo" | "video">("photo");
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // createObjectURL bellek sızıntısını (memory leak) önlemek için güvenli URL takipçisi
   const activeObjectUrlsRef = useRef<string[]>([]);
   const safeCreateObjectURL = (file: Blob | File): string => {
@@ -179,8 +208,159 @@ export default function StoryCreatorModal() {
     activeObjectUrlsRef.current = [];
   };
 
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsCameraActive(false);
+    setIsRecordingVideo(false);
+    setRecordingSeconds(0);
+  };
+
+  const startCamera = async (facing: "user" | "environment" = cameraFacing) => {
+    stopCamera();
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: facing,
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+        },
+        audio: true,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      mediaStreamRef.current = stream;
+      setIsCameraActive(true);
+      setCameraFacing(facing);
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+        cameraVideoRef.current.play().catch(() => {});
+      }
+    } catch (err) {
+      console.error("Kamera açılamadı:", err);
+      alert("Kamera ve mikrofon erişimine izin verilmedi veya cihaz desteklemiyor.");
+    }
+  };
+
+  const flipCamera = () => {
+    const nextFacing = cameraFacing === "user" ? "environment" : "user";
+    startCamera(nextFacing);
+  };
+
+  const takePhotoSnapshot = () => {
+    if (!cameraVideoRef.current) return;
+    const video = cameraVideoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 1080;
+    canvas.height = video.videoHeight || 1920;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if (cameraFacing === "user") {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const file = new File([blob], `story_camera_${Date.now()}.jpg`, { type: "image/jpeg" });
+          setMediaFile(file);
+          const previewUrl = safeCreateObjectURL(file);
+          setMediaPreview(previewUrl);
+          setMediaType("image");
+          setMode("media");
+          stopCamera();
+        }
+      },
+      "image/jpeg",
+      0.9
+    );
+  };
+
+  const startVideoRecording = () => {
+    if (!mediaStreamRef.current) return;
+    recordedChunksRef.current = [];
+    const mimeTypes = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+      "video/mp4",
+    ];
+    let selectedMime = "";
+    for (const m of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(m)) {
+        selectedMime = m;
+        break;
+      }
+    }
+
+    try {
+      const recorder = new MediaRecorder(mediaStreamRef.current, selectedMime ? { mimeType: selectedMime } : undefined);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mime = selectedMime || "video/webm";
+        const ext = mime.includes("mp4") ? "mp4" : "webm";
+        const blob = new Blob(recordedChunksRef.current, { type: mime });
+        const file = new File([blob], `story_video_${Date.now()}.${ext}`, { type: mime });
+        setMediaFile(file);
+        const previewUrl = safeCreateObjectURL(file);
+        setMediaPreview(previewUrl);
+        setMediaType("video");
+        setMode("media");
+        const dur = Math.max(5, Math.min(60, recordingSeconds));
+        setDurationSeconds(dur);
+        setMusicEnd(musicStart + dur);
+        stopCamera();
+      };
+
+      recorder.start(100);
+      setIsRecordingVideo(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => {
+          if (prev >= 59) {
+            stopVideoRecording();
+            return 60;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error("Video kaydı başlatılamadı:", err);
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsRecordingVideo(false);
+  };
+
   useEffect(() => {
     return () => {
+      stopCamera();
       revokeAllObjectUrls();
     };
   }, []);
@@ -190,6 +370,7 @@ export default function StoryCreatorModal() {
   // Modal açıldığında veya editingStory değiştiğinde state doldur / temizle
   useEffect(() => {
     if (!isCreatorOpen) {
+      stopCamera();
       revokeAllObjectUrls();
       setTextStickers([]);
       setEmojiStickers([]);
@@ -205,10 +386,15 @@ export default function StoryCreatorModal() {
       setMusicUrl("");
       setMusicBadgePos({ x: 30, y: 15 });
       setDragState(null);
+      setRotation(0);
+      setZoomScale(1);
+      setShowCropGrid(false);
+      setAudience("everyone");
       return;
     }
 
     if (editingStory) {
+      setAudience(editingStory.audience === "close_friends" ? "close_friends" : "everyone");
       // Düzenleme modundayız: mevcut hikaye bilgilerini doldur
       if (editingStory.media_type === "image" || editingStory.media_type === "video") {
         setMode("media");
@@ -539,6 +725,7 @@ export default function StoryCreatorModal() {
         music_start: musicStart,
         music_end: musicEnd,
         stickers,
+        audience,
       };
 
       if (editingStory) {
@@ -605,13 +792,135 @@ export default function StoryCreatorModal() {
           onPointerCancel={handlePointerUp}
           className="relative flex-1 w-full flex items-center justify-center overflow-hidden touch-none"
         >
-          {mode === "media" && mediaPreview ? (
-            <>
+          {isCameraActive ? (
+            /* CANLI KAMERA VİDEO VE ÇEKİM ALANI */
+            <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+              <video
+                ref={cameraVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${cameraFacing === "user" ? "-scale-x-100" : ""}`}
+              />
+
+              {/* Kamera Kılavuz Çizgileri */}
+              <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-25">
+                <div className="border-r border-b border-white" />
+                <div className="border-r border-b border-white" />
+                <div className="border-b border-white" />
+                <div className="border-r border-b border-white" />
+                <div className="border-r border-b border-white" />
+                <div className="border-b border-white" />
+                <div className="border-r border-white" />
+                <div className="border-r border-white" />
+                <div className="" />
+              </div>
+
+              {/* Kamera Üst Butonları */}
+              <div className="absolute top-3 inset-x-3 flex items-center justify-between z-30">
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={flipCamera}
+                  className="p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
+                  title="Kamerayı Çevir"
+                >
+                  <FlipHorizontal className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Kamera Alt Çekim Alanı */}
+              <div className="absolute bottom-5 inset-x-0 flex flex-col items-center gap-3 z-30">
+                {/* Foto / Video Mod Seçici */}
+                <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full p-1 border border-white/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isRecordingVideo) setCameraCaptureMode("photo");
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      cameraCaptureMode === "photo" ? "bg-white text-black" : "text-white/70"
+                    }`}
+                  >
+                    Fotoğraf
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isRecordingVideo) setCameraCaptureMode("video");
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      cameraCaptureMode === "video" ? "bg-rose-600 text-white" : "text-white/70"
+                    }`}
+                  >
+                    Video
+                  </button>
+                </div>
+
+                {/* Deklanşör */}
+                {cameraCaptureMode === "photo" ? (
+                  <button
+                    type="button"
+                    onClick={takePhotoSnapshot}
+                    className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center p-1 bg-white/20 hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-2xl"
+                    title="Fotoğraf Çek"
+                  >
+                    <div className="w-full h-full rounded-full bg-white" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording}
+                    className="w-16 h-16 rounded-full border-4 border-rose-500 flex items-center justify-center p-1 bg-rose-500/20 hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-2xl"
+                    title={isRecordingVideo ? "Kaydı Durdur" : "Kayda Başla"}
+                  >
+                    <div
+                      className={`transition-all ${
+                        isRecordingVideo ? "w-6 h-6 rounded-md bg-rose-500 animate-pulse" : "w-full h-full rounded-full bg-rose-600"
+                      }`}
+                    />
+                  </button>
+                )}
+
+                {isRecordingVideo && (
+                  <div className="text-xs font-mono font-bold text-rose-400 bg-black/70 px-3 py-1 rounded-full border border-rose-500/30">
+                    00:{recordingSeconds.toString().padStart(2, "0")} / 01:00
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : mode === "media" && mediaPreview ? (
+            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+              {/* 9:16 Kılavuz Çizgileri */}
+              {showCropGrid && (
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-30 z-20">
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="border-b border-pink-400 border-dashed" />
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="border-b border-pink-400 border-dashed" />
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="border-r border-b border-pink-400 border-dashed" />
+                  <div className="" />
+                </div>
+              )}
+
               {mediaType === "image" ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={mediaPreview}
                   alt="Önizleme"
+                  style={{
+                    transform: `rotate(${rotation}deg) scale(${zoomScale})`,
+                    transition: "transform 0.2s ease",
+                  }}
                   className="w-full h-full object-contain pointer-events-none select-none"
                 />
               ) : (
@@ -621,10 +930,14 @@ export default function StoryCreatorModal() {
                   loop
                   muted
                   playsInline
+                  style={{
+                    transform: `rotate(${rotation}deg) scale(${zoomScale})`,
+                    transition: "transform 0.2s ease",
+                  }}
                   className="w-full h-full object-contain pointer-events-none select-none"
                 />
               )}
-            </>
+            </div>
           ) : (
             /* Metin Modu veya Medya Seçilmemişse */
             <div
@@ -1045,9 +1358,9 @@ export default function StoryCreatorModal() {
           )}
 
           {/* Araç İkonları */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              {/* Fotoğraf / Video Seç */}
+          <div className="flex items-center justify-between px-1 gap-1 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5">
+              {/* Fotoğraf / Video Dosyası Seç */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1063,9 +1376,25 @@ export default function StoryCreatorModal() {
                     ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
+                title="Galeriden Seç"
               >
                 <ImageIcon className="w-4 h-4" />
-                <span>Fotoğraf/Video</span>
+                <span className="hidden sm:inline">Galeri</span>
+              </button>
+
+              {/* Kamera ile Çek */}
+              <button
+                type="button"
+                onClick={() => startCamera("user")}
+                title="Kamera ile Çek"
+                className={`p-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                  isCameraActive
+                    ? "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                    : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
+                }`}
+              >
+                <Camera className="w-4 h-4" />
+                <span className="hidden sm:inline">Kamera</span>
               </button>
 
               {/* Yazı Ekle Butonu */}
@@ -1080,13 +1409,14 @@ export default function StoryCreatorModal() {
                 }`}
               >
                 <Type className="w-4 h-4" />
-                <span>Yazı Ekle</span>
+                <span className="hidden sm:inline">Yazı</span>
               </button>
 
               {/* Renkli Zemin Modu */}
               <button
                 type="button"
                 onClick={() => {
+                  stopCamera();
                   setMode("text");
                   setMediaFile(null);
                   setMediaPreview("");
@@ -1096,13 +1426,52 @@ export default function StoryCreatorModal() {
                     ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
                     : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"
                 }`}
+                title="Renkli Zemin"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Renkli Zemin</span>
+                <span className="hidden sm:inline">Zemin</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {/* Medya Düzenleme Araçları (Döndür, Boyutlandır, Izgara) */}
+              {mode === "media" && mediaPreview && !isCameraActive && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setRotation((prev) => (prev + 90) % 360)}
+                    title="90° Döndür"
+                    className="p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomScale((prev) => (prev === 1 ? 1.25 : prev === 1.25 ? 1.5 : prev === 1.5 ? 2 : 1))}
+                    title={`Yakınlaştır (${zoomScale}x)`}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      zoomScale > 1
+                        ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
+                        : "border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCropGrid((prev) => !prev)}
+                    title="9:16 Kılavuz Çizgileri"
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      showCropGrid
+                        ? "bg-pink-500/20 text-pink-400 border-pink-500/40"
+                        : "border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    <Grid className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+
               {/* Müzik Ekle (YouTube Music) */}
               <button
                 type="button"
@@ -1117,7 +1486,7 @@ export default function StoryCreatorModal() {
                 <Music className="w-4 h-4" />
               </button>
 
-              {/* Çıkartma & Emoji Ekle (Instagram Modu) */}
+              {/* Çıkartma & Emoji Ekle */}
               <button
                 type="button"
                 onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
@@ -1162,6 +1531,37 @@ export default function StoryCreatorModal() {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 transition-colors"
             />
           )}
+
+          {/* Hedef Kitle Seçimi: Herkes vs Yakın Arkadaşlar */}
+          <div className="flex items-center justify-between px-1 py-0.5">
+            <span className="text-[11px] text-slate-400 font-medium">Hedef Kitle:</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAudience("everyone")}
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  audience === "everyone"
+                    ? "bg-slate-700 text-white ring-1 ring-white/30"
+                    : "bg-slate-900/60 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-pink-400" />
+                <span>Herkes</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudience("close_friends")}
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  audience === "close_friends"
+                    ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/50"
+                    : "bg-slate-900/60 text-slate-400 hover:text-emerald-400"
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
+                <span>Yakın Arkadaşlar</span>
+              </button>
+            </div>
+          </div>
 
           {/* 4. PAYLAŞ VEYA GÜNCELLE BUTONU */}
           <button
