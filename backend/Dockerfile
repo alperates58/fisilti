@@ -1,5 +1,5 @@
 # ==========================================
-# FISILTI - Go Backend Multi-Stage Dockerfile
+# AURA - Go Backend Multi-Stage Dockerfile
 # ==========================================
 
 # 1. Aşama: Derleme (Builder)
@@ -25,9 +25,17 @@ RUN apk add --no-cache ca-certificates tzdata curl ffmpeg
 
 WORKDIR /app
 
+# Güvenlik: Non-root kullanıcı ve grup oluştur
+RUN addgroup -S -g 10001 appgroup && \
+    adduser -S -u 10001 -G appgroup appuser && \
+    mkdir -p /app /tmp && \
+    chmod 1777 /tmp
+
 # Derlenen binary ve migration dosyalarını kopyala
-COPY --from=builder /app/server /app/server
-COPY --from=builder /app/internal/database/migrations /app/internal/database/migrations
+COPY --from=builder --chown=appuser:appgroup /app/server /app/server
+COPY --from=builder --chown=appuser:appgroup /app/internal/database/migrations /app/internal/database/migrations
+
+USER appuser
 
 ENV PORT=8080
 EXPOSE 8080

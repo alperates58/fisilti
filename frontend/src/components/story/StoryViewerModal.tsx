@@ -67,7 +67,7 @@ export default function StoryViewerModal() {
 
   // Modalı güvenli kapat (Tarayıcı geçmişiyle senkronize)
   const handleSafeClose = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.state?.fisilti_story_viewer) {
+    if (typeof window !== "undefined" && (window.history.state?.aura_story_viewer || window.history.state?.fisilti_story_viewer)) {
       window.history.back();
     } else {
       closeViewer();
@@ -199,7 +199,7 @@ export default function StoryViewerModal() {
   useEffect(() => {
     if (!activeViewerGroup) return;
 
-    window.history.pushState({ fisilti_story_viewer: true }, "");
+    window.history.pushState({ aura_story_viewer: true }, "");
 
     const handlePopState = () => {
       closeViewer();
@@ -538,8 +538,8 @@ export default function StoryViewerModal() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Fısıltı Hikayesi",
-          text: currentStory.caption || "Fısıltı'da paylaşılan hikayeye göz atın!",
+          title: "Aura Hikayesi",
+          text: currentStory.caption || "Aura'da paylaşılan hikayeye göz atın!",
           url: shareUrl,
         });
       } catch (err) {

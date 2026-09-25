@@ -45,9 +45,9 @@ export function useBackNavigation(options: BackNavigationOptions) {
     if (typeof window === "undefined") return;
 
     try {
-      if (!window.history.state || window.history.state.fisilti !== "home") {
-        window.history.replaceState({ fisilti: "root" }, "");
-        window.history.pushState({ fisilti: "home" }, "");
+      if (!window.history.state || (window.history.state.aura !== "home" && window.history.state.fisilti !== "home")) {
+        window.history.replaceState({ aura: "root" }, "");
+        window.history.pushState({ aura: "home" }, "");
       }
     } catch (e) {
       console.warn("History API erişim uyarısı:", e);
@@ -62,19 +62,19 @@ export function useBackNavigation(options: BackNavigationOptions) {
       if (!isChatPushedRef.current) {
         isChatPushedRef.current = true;
         window.history.pushState(
-          { fisilti: "chat", convId: options.activeConversationId },
+          { aura: "chat", convId: options.activeConversationId },
           ""
         );
       } else {
         window.history.replaceState(
-          { fisilti: "chat", convId: options.activeConversationId },
+          { aura: "chat", convId: options.activeConversationId },
           ""
         );
       }
     } else {
       if (isChatPushedRef.current) {
         isChatPushedRef.current = false;
-        if (window.history.state?.fisilti === "chat") {
+        if (window.history.state?.aura === "chat" || window.history.state?.fisilti === "chat") {
           window.history.back();
         }
       }
@@ -93,11 +93,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onClosePreviewMedia();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -107,11 +107,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseStoryViewer();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -121,11 +121,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseStoryCreator();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -135,11 +135,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseMessageInfo();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -149,11 +149,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseConfirmCallType();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -163,11 +163,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseActiveDeleteConfirm();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -177,11 +177,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseContactDrawer();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -191,11 +191,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseChatSearch();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -205,11 +205,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseSettings();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -219,11 +219,11 @@ export function useBackNavigation(options: BackNavigationOptions) {
         opts.onCloseAdminPanel();
         if (opts.activeConversationId) {
           window.history.pushState(
-            { fisilti: "chat", convId: opts.activeConversationId },
+            { aura: "chat", convId: opts.activeConversationId },
             ""
           );
         } else {
-          window.history.pushState({ fisilti: "home" }, "");
+          window.history.pushState({ aura: "home" }, "");
         }
         return;
       }
@@ -251,7 +251,7 @@ export function useBackNavigation(options: BackNavigationOptions) {
 
       // İlk basışta geri yönlendirmeyi tut ve toast göster
       lastExitPressRef.current = now;
-      window.history.pushState({ fisilti: "home" }, "");
+      window.history.pushState({ aura: "home" }, "");
       setShowExitToast(true);
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       toastTimeoutRef.current = setTimeout(() => {
