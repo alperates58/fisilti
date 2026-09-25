@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useStoryStore, StoryAuthor } from "@/store/useStoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
+import { useSocketStore } from "@/store/useSocketStore";
 import {
   X,
   Plus,
@@ -46,6 +47,7 @@ export default function StoryViewerModal() {
   const [viewersList, setViewersList] = useState<StoryAuthor[]>([]);
   const [replyText, setReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -260,22 +262,27 @@ export default function StoryViewerModal() {
       // 2. Mesaj metnini hazırla
       const storyContext = `📸 [Hikaye Yanıtı]: ${currentStory.caption || "Hikaye"}\n${replyText.trim()}`;
 
-      // 3. REST API üzerinden mesaj gönder (POST /conversations/:id/messages)
-      await api.post(`/conversations/${conversationId}/messages`, {
-        content: storyContext,
-        message_type: "text",
-      });
-
-      // 4. Sohbet durumunu anında güncelle
-      try {
+      // 3. Tek bir kanal üzerinden mesaj gönder (WebSocket bağlıysa soketten, değilse HTTP Fallback - ASLA ikisi birden değil)
+      const isSocketConnected = useSocketStore.getState().isConnected;
+      if (isSocketConnected) {
         useChatStore.getState().sendMessage(conversationId, storyContext);
-      } catch {}
+      } else {
+        await api.post(`/conversations/${conversationId}/messages`, {
+          content: storyContext,
+          message_type: "text",
+        });
+      }
+
+      // 4. Konuşma listesini arka planda tazele
+      useChatStore.getState().loadConversations();
 
       setReplyText("");
-      alert("Yanıtınız mesaj olarak iletildi!");
+      setReplyFeedback("Yanıtınız mesaj olarak iletildi! ✨");
+      setTimeout(() => setReplyFeedback(null), 3000);
     } catch (err) {
       console.error("Yanıt gönderilemedi:", err);
-      alert("Yanıt iletilemedi.");
+      setReplyFeedback("Yanıt iletilemedi.");
+      setTimeout(() => setReplyFeedback(null), 3000);
     } finally {
       setIsSendingReply(false);
     }
@@ -636,22 +643,29 @@ export default function StoryViewerModal() {
             </button>
           ) : (
             /* Başkası ise: Hikayeye Yanıt Gönder Kutusu */
-            <form onSubmit={handleSendReply} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Hikayeye yanıt ver..."
-                className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-3.5 py-2 text-xs text-white placeholder-white/60 backdrop-blur-md focus:outline-none focus:border-pink-500 transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!replyText.trim() || isSendingReply}
-                className="p-2 rounded-2xl bg-pink-500 hover:bg-pink-400 disabled:opacity-40 text-white transition-all cursor-pointer flex-shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+            <div className="flex flex-col gap-1.5 w-full">
+              {replyFeedback && (
+                <div className="self-center bg-emerald-600/90 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  {replyFeedback}
+                </div>
+              )}
+              <form onSubmit={handleSendReply} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Hikayeye yanıt ver..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-3.5 py-2 text-xs text-white placeholder-white/60 backdrop-blur-md focus:outline-none focus:border-pink-500 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!replyText.trim() || isSendingReply}
+                  className="p-2 rounded-2xl bg-pink-500 hover:bg-pink-400 disabled:opacity-40 text-white transition-all cursor-pointer flex-shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           )}
         </div>
 
