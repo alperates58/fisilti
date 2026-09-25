@@ -681,9 +681,33 @@ export default function MessageBubble({
             </form>
           ) : (
             message.content && (
-              <p className="whitespace-pre-wrap break-words leading-relaxed">
-                {renderFormattedContent(message.content)}
-              </p>
+              <div>
+                {message.content.startsWith("📸 [Hikaye") ? (
+                  (() => {
+                    const lines = message.content.split("\n");
+                    const headerLine = lines[0];
+                    const bodyText = lines.slice(1).join("\n");
+                    return (
+                      <>
+                        <div className="mb-2 p-2 rounded-xl bg-black/20 border-l-2 border-pink-500 text-[11px] backdrop-blur-xs">
+                          <span className="font-semibold text-pink-400">
+                            {headerLine}
+                          </span>
+                        </div>
+                        {bodyText && (
+                          <p className="whitespace-pre-wrap break-words leading-relaxed">
+                            {renderFormattedContent(bodyText)}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">
+                    {renderFormattedContent(message.content)}
+                  </p>
+                )}
+              </div>
             )
           )}
 

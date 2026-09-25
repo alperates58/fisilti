@@ -15,6 +15,8 @@ export interface Story {
   music_start?: number;
   music_end?: number;
   stickers: any[];
+  audience?: "everyone" | "close_friends";
+  reactions?: Record<string, string[]>;
   views: string[];
   views_count: number;
   has_viewed: boolean;
@@ -27,12 +29,14 @@ export interface StoryAuthor {
   username: string;
   display_name: string;
   avatar_url: string;
+  viewed_at?: string;
 }
 
 export interface UserStoriesGroup {
   user: StoryAuthor;
   stories: Story[];
   has_unviewed: boolean;
+  has_close_friends?: boolean;
   latest_story: string;
 }
 
@@ -56,10 +60,16 @@ interface StoryStoreState {
     music_start?: number;
     music_end?: number;
     stickers?: any[];
+    audience?: "everyone" | "close_friends";
   }) => Promise<void>;
   markStoryViewed: (storyId: string) => Promise<void>;
   deleteStory: (storyId: string) => Promise<void>;
+  removeStoryById: (storyId: string, authorId?: string) => void;
   getStoryViewers: (storyId: string) => Promise<StoryAuthor[]>;
+  sendReaction: (storyId: string, reaction: string) => Promise<void>;
+  getCloseFriends: () => Promise<StoryAuthor[]>;
+  addCloseFriend: (friendId: string) => Promise<void>;
+  removeCloseFriend: (friendId: string) => Promise<void>;
 
   openViewer: (group: UserStoriesGroup, initialIndex?: number) => void;
   closeViewer: () => void;
@@ -79,6 +89,7 @@ interface StoryStoreState {
       music_start?: number;
       music_end?: number;
       stickers?: any[];
+      audience?: "everyone" | "close_friends";
     }
   ) => Promise<void>;
 }
@@ -152,6 +163,44 @@ export const useStoryStore = create<StoryStoreState>((set, get) => ({
     }
   },
 
+  removeStoryById: (storyId: string, authorId?: string) => {
+    set((state) => {
+      const updatedGroups = state.storyGroups
+        .map((group) => {
+          if (authorId && group.user.id !== authorId) return group;
+          const remaining = group.stories.filter((s) => s.id !== storyId);
+          return {
+            ...group,
+            stories: remaining,
+            has_unviewed: remaining.some((s) => !s.has_viewed),
+          };
+        })
+        .filter((group) => group.stories.length > 0);
+
+      let activeViewerGroup = state.activeViewerGroup;
+      let activeViewerStoryIndex = state.activeViewerStoryIndex;
+
+      if (activeViewerGroup && activeViewerGroup.stories.some((s) => s.id === storyId)) {
+        const remaining = activeViewerGroup.stories.filter((s) => s.id !== storyId);
+        if (remaining.length === 0) {
+          activeViewerGroup = null;
+          activeViewerStoryIndex = 0;
+        } else {
+          activeViewerGroup = { ...activeViewerGroup, stories: remaining };
+          if (activeViewerStoryIndex >= remaining.length) {
+            activeViewerStoryIndex = Math.max(0, remaining.length - 1);
+          }
+        }
+      }
+
+      return {
+        storyGroups: updatedGroups,
+        activeViewerGroup,
+        activeViewerStoryIndex,
+      };
+    });
+  },
+
   getStoryViewers: async (storyId: string) => {
     try {
       const res = await api.get<{ viewers: StoryAuthor[] }>(`/stories/${storyId}/viewers`);
@@ -159,6 +208,43 @@ export const useStoryStore = create<StoryStoreState>((set, get) => ({
     } catch (err) {
       console.error("Görüntüleyenler alınamadı:", err);
       return [];
+    }
+  },
+
+  sendReaction: async (storyId: string, reaction: string) => {
+    try {
+      await api.post(`/stories/${storyId}/reactions`, { reaction });
+    } catch (err) {
+      console.error("Hikaye tepkisi gönderilemedi:", err);
+      throw err;
+    }
+  },
+
+  getCloseFriends: async () => {
+    try {
+      const res = await api.get<{ close_friends: StoryAuthor[] }>("/users/me/close-friends");
+      return res.data.close_friends || [];
+    } catch (err) {
+      console.error("Yakın arkadaşlar alınamadı:", err);
+      return [];
+    }
+  },
+
+  addCloseFriend: async (friendId: string) => {
+    try {
+      await api.post(`/users/me/close-friends/${friendId}`);
+    } catch (err) {
+      console.error("Yakın arkadaş eklenemedi:", err);
+      throw err;
+    }
+  },
+
+  removeCloseFriend: async (friendId: string) => {
+    try {
+      await api.delete(`/users/me/close-friends/${friendId}`);
+    } catch (err) {
+      console.error("Yakın arkadaş çıkarılamadı:", err);
+      throw err;
     }
   },
 

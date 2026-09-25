@@ -15,6 +15,8 @@ import {
   VolumeX,
   Send,
   Pencil,
+  Share2,
+  Heart,
 } from "lucide-react";
 import { formatStoryTime } from "@/lib/utils";
 import { api, resolveMediaUrl } from "@/lib/api";
@@ -51,13 +53,26 @@ export default function StoryViewerModal() {
   const [replyText, setReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
 
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const currentStory = activeViewerGroup?.stories[activeViewerStoryIndex];
   const isOwnStory = activeViewerGroup?.user.id === user?.id;
+
+  // Modalı güvenli kapat (Tarayıcı geçmişiyle senkronize)
+  const handleSafeClose = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.state?.fisilti_story_viewer) {
+      window.history.back();
+    } else {
+      closeViewer();
+    }
+  }, [closeViewer]);
 
   // Hikaye süresi: Video için gerçek video süresi varsa o (maksimum 60s), yoksa duration_seconds (varsayılan 10s)
   const storyDuration =
@@ -109,7 +124,6 @@ export default function StoryViewerModal() {
       sendYtCommand("playVideo", []);
     }
 
-    // Staggered retries: YouTube JS motoru hazır olduğunda hemen yakalasın
     const retries = [150, 400, 800, 1400];
     retries.forEach((delay) => {
       setTimeout(() => {
@@ -157,10 +171,10 @@ export default function StoryViewerModal() {
         openViewer(storyGroups[currentIndex + 1], 0);
         setProgress(0);
       } else {
-        closeViewer();
+        handleSafeClose();
       }
     }
-  }, [activeViewerGroup, activeViewerStoryIndex, storyGroups, setViewerStoryIndex, openViewer, closeViewer]);
+  }, [activeViewerGroup, activeViewerStoryIndex, storyGroups, setViewerStoryIndex, openViewer, handleSafeClose]);
 
   // Geri git
   const handlePrev = useCallback(() => {
@@ -181,6 +195,92 @@ export default function StoryViewerModal() {
     }
   }, [activeViewerGroup, activeViewerStoryIndex, storyGroups, setViewerStoryIndex, openViewer]);
 
+  // Tarayıcı / Android Geri Butonu Yönetimi (popstate)
+  useEffect(() => {
+    if (!activeViewerGroup) return;
+
+    window.history.pushState({ fisilti_story_viewer: true }, "");
+
+    const handlePopState = () => {
+      closeViewer();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [activeViewerGroup, closeViewer]);
+
+  // Klavye Kontrolleri (Escape, Sol/Sağ Ok, Boşluk, M)
+  useEffect(() => {
+    if (!activeViewerGroup) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      switch (e.key) {
+        case "Escape":
+          handleSafeClose();
+          break;
+        case "ArrowRight":
+          handleNext();
+          break;
+        case "ArrowLeft":
+          handlePrev();
+          break;
+        case " ":
+          e.preventDefault();
+          setIsPaused((prev) => !prev);
+          break;
+        case "m":
+        case "M":
+          toggleMute();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeViewerGroup, handleSafeClose, handleNext, handlePrev, toggleMute]);
+
+  // Sonraki hikaye medyasını önceden yükle (Preload next story)
+  useEffect(() => {
+    if (!activeViewerGroup) return;
+    let nextMediaUrl: string | null = null;
+    let nextMediaType: string | null = null;
+
+    if (activeViewerStoryIndex < activeViewerGroup.stories.length - 1) {
+      const nextStory = activeViewerGroup.stories[activeViewerStoryIndex + 1];
+      nextMediaUrl = nextStory.media_url;
+      nextMediaType = nextStory.media_type;
+    } else {
+      const currentGroupIdx = storyGroups.findIndex(
+        (g) => g.user.id === activeViewerGroup.user.id
+      );
+      if (currentGroupIdx !== -1 && currentGroupIdx < storyGroups.length - 1) {
+        const nextGroup = storyGroups[currentGroupIdx + 1];
+        if (nextGroup.stories.length > 0) {
+          nextMediaUrl = nextGroup.stories[0].media_url;
+          nextMediaType = nextGroup.stories[0].media_type;
+        }
+      }
+    }
+
+    if (nextMediaUrl) {
+      const resolved = resolveMediaUrl(nextMediaUrl);
+      if (nextMediaType === "image") {
+        const img = new Image();
+        img.src = resolved;
+      } else if (nextMediaType === "video") {
+        const dummyVideo = document.createElement("video");
+        dummyVideo.preload = "auto";
+        dummyVideo.src = resolved;
+      }
+    }
+  }, [activeViewerGroup, activeViewerStoryIndex, storyGroups]);
+
   // Hikaye değiştiğinde state sıfırla
   useEffect(() => {
     setProgress(0);
@@ -193,11 +293,17 @@ export default function StoryViewerModal() {
     } else {
       setIsMediaLoaded(false);
     }
+  }, [currentStory?.id, currentStory?.media_type]);
 
-    if (!isOwnStory && !currentStory.has_viewed) {
+  // 1.5s aktif görüntüleme eşiği (Hemen geçilen hikayeler görüldü sayılmaz)
+  useEffect(() => {
+    if (!currentStory || isOwnStory || currentStory.has_viewed) return;
+    const viewTimer = setTimeout(() => {
       markStoryViewed(currentStory.id);
-    }
-  }, [currentStory?.id, currentStory?.media_type, isOwnStory, markStoryViewed]);
+    }, 1500);
+
+    return () => clearTimeout(viewTimer);
+  }, [currentStory?.id, isOwnStory, currentStory?.has_viewed, markStoryViewed]);
 
   // Video elementinin duraklatma ve oynatma senkronizasyonu
   useEffect(() => {
@@ -314,6 +420,143 @@ export default function StoryViewerModal() {
     }
   };
 
+  // Dokunmatik ve Fare Sürükleme Hareketleri (Aşağı kaydırarak kapatma & Yatay geçiş)
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    touchStartRef.current = { x: clientX, y: clientY, time: Date.now() };
+    setIsPaused(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!touchStartRef.current) return;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const deltaY = clientY - touchStartRef.current.y;
+    const deltaX = clientX - touchStartRef.current.x;
+
+    // Aşağı sürükleme (Swipe-down to close)
+    if (deltaY > 10 && deltaY > Math.abs(deltaX)) {
+      setIsDragging(true);
+      setDragOffset(deltaY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!viewersModalOpen) {
+      setIsPaused(false);
+    }
+    if (!touchStartRef.current) {
+      setDragOffset(0);
+      setIsDragging(false);
+      return;
+    }
+
+    const clientX = "changedTouches" in e ? e.changedTouches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = "changedTouches" in e ? e.changedTouches[0].clientY : (e as React.MouseEvent).clientY;
+    const deltaY = clientY - touchStartRef.current.y;
+    const deltaX = clientX - touchStartRef.current.x;
+    const deltaTime = Date.now() - touchStartRef.current.time;
+
+    // Aşağı kaydırarak kapatma eşiği (100px veya hızlı çekiş)
+    if (isDragging) {
+      if (deltaY > 100 || (deltaY > 50 && deltaTime < 250)) {
+        handleSafeClose();
+      }
+      setDragOffset(0);
+      setIsDragging(false);
+      touchStartRef.current = null;
+      return;
+    }
+
+    // Yatay kaydırma ile kullanıcı hikaye grupları arası geçiş
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (deltaX < 0) {
+        // Sola kaydır -> Sonraki kullanıcı grubu
+        const currentIndex = storyGroups.findIndex(
+          (g) => g.user.id === activeViewerGroup?.user.id
+        );
+        if (currentIndex !== -1 && currentIndex < storyGroups.length - 1) {
+          openViewer(storyGroups[currentIndex + 1], 0);
+        } else {
+          handleSafeClose();
+        }
+      } else {
+        // Sağa kaydır -> Önceki kullanıcı grubu
+        const currentIndex = storyGroups.findIndex(
+          (g) => g.user.id === activeViewerGroup?.user.id
+        );
+        if (currentIndex > 0) {
+          const prevGroup = storyGroups[currentIndex - 1];
+          openViewer(prevGroup, 0);
+        }
+      }
+    }
+
+    touchStartRef.current = null;
+    setDragOffset(0);
+    setIsDragging(false);
+  };
+
+  // Instagram Tarzı Hızlı Emoji Tepkisi
+  const handleQuickReaction = async (emoji: string) => {
+    if (!currentStory || !activeViewerGroup) return;
+    setBurstEmoji(emoji);
+    setTimeout(() => setBurstEmoji(null), 1800);
+
+    try {
+      // 1. Hikaye tepkisi API'si
+      await useStoryStore.getState().sendReaction(currentStory.id, emoji);
+
+      // 2. DM sohbetine zengin hikaye yanıtı
+      const convRes = await api.post("/conversations", {
+        recipient_id: activeViewerGroup.user.id,
+      });
+      const conversationId = convRes.data.id;
+      const reactionContext = `📸 [Hikaye Tepkisi]: ${emoji}`;
+
+      const isSocketConnected = useSocketStore.getState().isConnected;
+      if (isSocketConnected) {
+        useChatStore.getState().sendMessage(conversationId, reactionContext);
+      } else {
+        await api.post(`/conversations/${conversationId}/messages`, {
+          content: reactionContext,
+          message_type: "text",
+        });
+      }
+      setReplyFeedback(`${emoji} Tepkiniz gönderildi!`);
+      setTimeout(() => setReplyFeedback(null), 2500);
+    } catch (err) {
+      console.error("Tepki gönderilemedi:", err);
+    }
+  };
+
+  // Hikayeyi Paylaş (Web Share API & Pano Kopyalama)
+  const handleShareStory = async () => {
+    if (!currentStory) return;
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Fısıltı Hikayesi",
+          text: currentStory.caption || "Fısıltı'da paylaşılan hikayeye göz atın!",
+          url: shareUrl,
+        });
+      } catch (err) {
+        // Kullanıcı iptal etti
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setReplyFeedback("Bağlantı kopyalandı! 📋");
+        setTimeout(() => setReplyFeedback(null), 2500);
+      } catch {
+        setReplyFeedback("Bağlantı kopyalanamadı.");
+        setTimeout(() => setReplyFeedback(null), 2500);
+      }
+    }
+  };
+
   const resolvedMediaUrl = resolveMediaUrl(currentStory.media_url);
 
   // Müzik rozetinin kaydedilmiş koordinatları
@@ -324,15 +567,36 @@ export default function StoryViewerModal() {
   const badgeY = musicBadgeSticker?.y ?? 15;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center select-none animate-in fade-in duration-200">
-      {/* HİKAYE KARTI KAPSAYICISI (9:16 Mobil Oranı) */}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Hikaye Görüntüleyici"
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center select-none animate-in fade-in duration-200"
+    >
+      {/* HİKAYE KARTI KAPSAYICISI (9:16 Mobil Oranı & Safe Area) */}
       <div
-        className="relative w-full max-w-md h-[100dvh] sm:h-[88vh] sm:max-h-[820px] bg-slate-950 sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl border border-slate-800"
-        onMouseDown={() => setIsPaused(true)}
-        onMouseUp={() => !viewersModalOpen && setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => !viewersModalOpen && setIsPaused(false)}
+        className="relative w-full max-w-md h-[100dvh] sm:h-[88vh] sm:max-h-[820px] bg-slate-950 sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl border border-slate-800 pt-[calc(env(safe-area-inset-top)+6px)] pb-[calc(env(safe-area-inset-bottom)+8px)] touch-none"
+        style={{
+          transform: dragOffset > 0 ? `translateY(${dragOffset}px) scale(${Math.max(0.88, 1 - dragOffset / 1200)})` : undefined,
+          opacity: dragOffset > 0 ? Math.max(0.4, 1 - dragOffset / 450) : 1,
+          transition: isDragging ? "none" : "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease",
+        }}
+        onMouseDown={handleTouchStart}
+        onMouseMove={handleTouchMove}
+        onMouseUp={handleTouchEnd}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
+        {/* Yüzen Tepki Patlaması (Emoji Burst) */}
+        {burstEmoji && (
+          <div className="absolute inset-0 pointer-events-none z-40 flex items-center justify-center">
+            <div className="text-7xl animate-bounce drop-shadow-[0_12px_24px_rgba(0,0,0,0.9)] duration-500 scale-125 transition-transform">
+              {burstEmoji}
+            </div>
+          </div>
+        )}
+
         {/* 1. ÜST BAR: Progress Barlar & Yazar Bilgisi */}
         <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
           {/* Çoklu Parçalı Progress Barlar */}
@@ -391,9 +655,9 @@ export default function StoryViewerModal() {
               </div>
             </div>
 
-            {/* Sağ Üst Kontroller (Ses Aç/Kapat, Sil, Kapat) */}
+            {/* Sağ Üst Kontroller (Ses Aç/Kapat, Paylaş, Sil, Kapat) */}
             <div className="flex items-center gap-1.5">
-              {/* SES AÇMA / KAPAMA BUTONU (Instagram Tarzı Her Zaman Erişilebilir) */}
+              {/* SES AÇMA / KAPAMA BUTONU */}
               {(hasMusic || currentStory.media_type === "video") && (
                 <button
                   onClick={(e) => {
@@ -411,12 +675,24 @@ export default function StoryViewerModal() {
                 </button>
               )}
 
+              {/* PAYLAŞ BUTONU */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShareStory();
+                }}
+                title="Hikayeyi Paylaş"
+                className="p-2 text-white/80 hover:text-white rounded-full bg-black/40 hover:bg-black/60 border border-white/20 transition-all cursor-pointer"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+
               {isOwnStory && (
                 <>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      closeViewer();
+                      handleSafeClose();
                       openCreator(currentStory);
                     }}
                     title="Hikayeyi Düzenle (Süre, Müzik, Yazı)"
@@ -427,7 +703,7 @@ export default function StoryViewerModal() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      closeViewer();
+                      handleSafeClose();
                       openCreator();
                     }}
                     title="Yeni Hikaye Ekle"
@@ -451,9 +727,10 @@ export default function StoryViewerModal() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  closeViewer();
+                  handleSafeClose();
                 }}
-                className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                title="Kapat"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -698,17 +975,39 @@ export default function StoryViewerModal() {
               </span>
             </button>
           ) : (
-            /* Başkası ise: Hikayeye Yanıt Gönder Kutusu */
-            <div className="flex flex-col gap-1.5 w-full">
+            /* Başkası ise: Hızlı Tepkiler ve Hikayeye Yanıt Gönder Kutusu */
+            <div className="flex flex-col gap-2 w-full">
               {replyFeedback && (
                 <div className="self-center bg-emerald-600/90 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
                   {replyFeedback}
                 </div>
               )}
-              <form onSubmit={handleSendReply} className="flex items-center gap-2">
+
+              {/* Instagram Tarzı Hızlı Emoji Tepkileri */}
+              <div className="flex items-center justify-around py-1 px-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10">
+                {["❤️", "😂", "🔥", "😮", "😢", "👏"].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleQuickReaction(emoji);
+                    }}
+                    className="text-xl hover:scale-135 active:scale-95 transition-transform p-1 cursor-pointer"
+                    title={`${emoji} Tepki Ver`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Yanıt Gönderme Formu */}
+              <form onSubmit={handleSendReply} className="flex items-center gap-1.5">
                 <input
                   type="text"
                   value={replyText}
+                  onFocus={() => setIsPaused(true)}
+                  onBlur={() => !viewersModalOpen && setIsPaused(false)}
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder="Hikayeye yanıt ver..."
                   className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-3.5 py-2 text-xs text-white placeholder-white/60 backdrop-blur-md focus:outline-none focus:border-pink-500 transition-colors"
@@ -717,8 +1016,20 @@ export default function StoryViewerModal() {
                   type="submit"
                   disabled={!replyText.trim() || isSendingReply}
                   className="p-2 rounded-2xl bg-pink-500 hover:bg-pink-400 disabled:opacity-40 text-white transition-all cursor-pointer flex-shrink-0"
+                  title="Yanıt Gönder"
                 >
                   <Send className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShareStory();
+                  }}
+                  className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex-shrink-0"
+                  title="Hikayeyi Paylaş"
+                >
+                  <Share2 className="w-4 h-4" />
                 </button>
               </form>
             </div>
@@ -798,7 +1109,7 @@ export default function StoryViewerModal() {
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium flex-shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                         <Eye className="w-3 h-3" />
-                        <span>Gördü</span>
+                        <span>{viewer.viewed_at ? formatStoryTime(viewer.viewed_at) : "Gördü"}</span>
                       </div>
                     </div>
                   ))
