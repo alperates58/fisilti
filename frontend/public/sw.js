@@ -1,5 +1,5 @@
-// Aura PWA Service Worker (v2.0.0)
-const CACHE_NAME = 'aura-cache-v2';
+// Aura PWA Service Worker (v3.0.0)
+const CACHE_NAME = 'aura-cache-v3';
 
 // Scope URL'sinden dinamik basePath ve varlık kökü tespiti
 const getScopePath = () => {
@@ -130,8 +130,12 @@ self.addEventListener('push', (event) => {
       badge: data.badge || `${appScope}favicon.ico`,
       data: { url: data.url || appScope },
       silent: isSilent,
-      vibrate: isSilent ? [] : [200, 100, 200],
+      tag: 'aura-message',
+      renotify: !isSilent,
     };
+    if (!isSilent) {
+      options.vibrate = [200, 100, 200];
+    }
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {
     console.error('Service Worker Push Hatası:', err);

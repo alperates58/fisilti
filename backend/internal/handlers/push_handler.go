@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 
 	"fisilti/internal/database"
+	"fisilti/internal/models"
 	"fisilti/internal/push"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -12,12 +14,14 @@ import (
 type PushHandler struct {
 	pushRepo     *database.PushRepository
 	vapidService *push.VAPIDService
+	userRepo     *database.UserRepository
 }
 
-func NewPushHandler(pushRepo *database.PushRepository, vapidService *push.VAPIDService) *PushHandler {
+func NewPushHandler(pushRepo *database.PushRepository, vapidService *push.VAPIDService, userRepo *database.UserRepository) *PushHandler {
 	return &PushHandler{
 		pushRepo:     pushRepo,
 		vapidService: vapidService,
+		userRepo:     userRepo,
 	}
 }
 
@@ -96,6 +100,19 @@ func (h *PushHandler) TestNotification(c *fiber.Ctx) error {
 		})
 	}
 
+	silent := false
+	if h.userRepo != nil {
+		user, _ := h.userRepo.GetUserByID(c.Context(), userID)
+		if user != nil && len(user.PrivacySettings) > 0 {
+			var ps models.PrivacySettings
+			if err := json.Unmarshal(user.PrivacySettings, &ps); err == nil {
+				if !ps.SoundAlerts {
+					silent = true
+				}
+			}
+		}
+	}
+
 	sentCount := 0
 	for _, sub := range subs {
 		if err := h.vapidService.SendPush(
@@ -104,7 +121,7 @@ func (h *PushHandler) TestNotification(c *fiber.Ctx) error {
 			"Tebrikler! Web Push bildirimleri başarıyla çalışıyor.",
 			"/icon-192.png",
 			"/",
-			false,
+			silent,
 		); err == nil {
 			sentCount++
 		}

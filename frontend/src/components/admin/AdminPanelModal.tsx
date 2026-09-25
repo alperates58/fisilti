@@ -293,8 +293,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
       {/* AURA SOL ÇEKMECE PANELİ (Left Sidebar Drawer - Tamamen Responsive) */}
       <div className="fixed inset-y-0 left-0 max-w-full flex z-[100]">
-        <div className="w-screen max-w-full md:max-w-3xl lg:max-w-4xl h-[100dvh] bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200">
-          
+        <div className="w-screen max-w-full md:max-w-3xl lg:max-w-4xl h-[100dvh] bg-[#0D0F14] border-r border-[#222631] shadow-2xl flex flex-col animate-in slide-in-from-left duration-250 text-slate-200 relative">
+          {/* Ayarlar Kaydedildi Kayan Toast Bildirimi */}
+          {saveSuccess && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-emerald-600/95 text-white text-xs font-bold shadow-2xl shadow-emerald-950/80 border border-emerald-400/30 flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-300 pointer-events-none backdrop-blur-md whitespace-nowrap">
+              <CheckCircle2 className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+              <span>{saveSuccess}</span>
+            </div>
+          )}
+
           {/* Çekmece Üst Başlığı (Header) */}
           <div className="flex items-center justify-between px-3.5 sm:px-5 py-3 sm:py-4 border-b border-[#222631] bg-[#12151C] flex-shrink-0">
             <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">

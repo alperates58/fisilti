@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
 import { compressAvatar } from "@/lib/compression";
+import { soundEffects } from "@/lib/sounds";
 
 export interface User {
   id: string;
@@ -45,7 +46,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       const res = await api.get<User>("/auth/me");
-      set({ user: res.data, isAuthenticated: true, isLoading: false });
+      const user = res.data;
+      if (user?.privacy_settings?.sound_alerts !== undefined) {
+        soundEffects.setSoundEnabled(user.privacy_settings.sound_alerts);
+      }
+      set({ user, isAuthenticated: true, isLoading: false });
       return true;
     } catch {
       set({ user: null, isAuthenticated: false, isLoading: false });
@@ -55,7 +60,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (login, password) => {
     const res = await api.post<{ user: User }>("/auth/login", { login, password });
-    set({ user: res.data.user, isAuthenticated: true });
+    const user = res.data.user;
+    if (user?.privacy_settings?.sound_alerts !== undefined) {
+      soundEffects.setSoundEnabled(user.privacy_settings.sound_alerts);
+    }
+    set({ user, isAuthenticated: true });
   },
 
   register: async (username, displayName, email, password) => {
@@ -65,7 +74,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email,
       password,
     });
-    set({ user: res.data.user, isAuthenticated: true });
+    const user = res.data.user;
+    if (user?.privacy_settings?.sound_alerts !== undefined) {
+      soundEffects.setSoundEnabled(user.privacy_settings.sound_alerts);
+    }
+    set({ user, isAuthenticated: true });
   },
 
   logout: async () => {
@@ -111,6 +124,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updatePrivacy: async (settings) => {
+    if (settings.sound_alerts !== undefined) {
+      soundEffects.setSoundEnabled(settings.sound_alerts);
+    }
     const res = await api.patch<{ privacy_settings: User["privacy_settings"] }>("/users/privacy", settings);
     const currentUser = get().user;
     if (currentUser) {

@@ -61,14 +61,18 @@ class NotificationManager {
         try {
           const reg = await navigator.serviceWorker.ready;
           if (reg && reg.showNotification) {
-            await reg.showNotification(title, {
+            const options: any = {
               body,
               icon: notifIcon,
               badge: notifIcon,
-              tag: "fisilti-message",
+              tag: "aura-message",
               silent: isSilent,
-              vibrate: isSilent ? [] : [200, 100, 200],
-            } as any);
+              renotify: !isSilent,
+            };
+            if (!isSilent) {
+              options.vibrate = [200, 100, 200];
+            }
+            await reg.showNotification(title, options);
             return;
           }
         } catch (swErr) {

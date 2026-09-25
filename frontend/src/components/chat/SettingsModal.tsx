@@ -25,6 +25,7 @@ import {
   VolumeX,
   Sparkles,
   Save,
+  CheckCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -136,9 +137,15 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [accessLogs, setAccessLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  const showToast = (msg: string = "Ayarlar başarıyla kaydedildi!") => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   // Push notifications state
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
@@ -170,6 +177,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     try {
       await updateProfile(displayName, bio);
       setSaveSuccess(true);
+      showToast("Profil ayarları başarıyla kaydedildi!");
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
       alert("Profil güncellenemedi.");
@@ -185,6 +193,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
 
     try {
       await updatePrivacy({ [key]: val });
+      showToast("Gizlilik tercihleri kaydedildi!");
     } catch (err) {
       console.error("Gizlilik güncellenemedi:", err);
     }
@@ -197,6 +206,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     setIsUploadingAvatar(true);
     try {
       await uploadAvatar(file);
+      showToast("Profil fotoğrafı güncellendi!");
     } catch (err) {
       alert("Profil resmi yüklenemedi.");
     } finally {
@@ -211,10 +221,12 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
       const res = await unsubscribeUserFromPush();
       setIsPushSubscribed(false);
       setPushStatusMessage(res.message);
+      showToast(res.message);
     } else {
       const res = await subscribeUserToPush();
       setIsPushSubscribed(res.success);
       setPushStatusMessage(res.message);
+      showToast(res.message);
     }
     setIsPushLoading(false);
     setTimeout(() => setPushStatusMessage(null), 4000);
@@ -237,6 +249,11 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
     }
     try {
       await updatePrivacy({ sound_alerts: nextVal });
+      showToast(
+        nextVal
+          ? "Bildirim sesleri açıldı (Sesli mod)"
+          : "Bildirim sesleri kapatıldı (Sessiz mod)"
+      );
     } catch (e) {
       console.error("Ses ayarı kaydedilemedi:", e);
     }
@@ -274,6 +291,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
       });
     }
     setThemeSuccess(true);
+    showToast("Tema ayarları başarıyla kaydedildi ve uygulandı!");
     setTimeout(() => setThemeSuccess(false), 2500);
   };
 
@@ -290,7 +308,15 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
       }}
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in select-none"
     >
-      <div className="w-full max-w-lg bg-grupo-dark-card border border-grupo-dark-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
+      <div className="w-full max-w-lg bg-grupo-dark-card border border-grupo-dark-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] relative">
+        {/* Ayarlar Kaydedildi Kayan Toast Bildirimi */}
+        {toastMessage && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-emerald-600/95 text-white text-xs font-bold shadow-2xl shadow-emerald-950/80 border border-emerald-400/30 flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-300 pointer-events-none backdrop-blur-md whitespace-nowrap">
+            <CheckCircle className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
         {/* Başlık Barı */}
         <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-grupo-dark-border flex items-center justify-between bg-slate-900/60">
           <div className="flex items-center gap-2.5">
@@ -808,6 +834,13 @@ export default function SettingsModal({ isOpen, onClose, onOpenAdmin }: Props) {
                 <Save className="w-4 h-4" />
                 <span>Temayı Kaydet ve Uygula</span>
               </button>
+
+              {themeSuccess && (
+                <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-400 font-semibold py-1 animate-in fade-in">
+                  <Check className="w-4 h-4" />
+                  <span>Tema ayarları başarıyla kaydedildi!</span>
+                </div>
+              )}
             </div>
           )}
 

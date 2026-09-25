@@ -124,7 +124,7 @@ func main() {
 	mediaHandler := handlers.NewMediaHandler(storageService, previewService, chatRepo, userRepo, settingsRepo, cfg.JWTAccessSecret)
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb, settingsRepo)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
-	pushHandler := handlers.NewPushHandler(pushRepo, vapidService)
+	pushHandler := handlers.NewPushHandler(pushRepo, vapidService, userRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb, hub)
 	storyRepo := database.NewStoryRepository(db)
 	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo)

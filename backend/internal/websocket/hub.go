@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fisilti/internal/database"
+	"fisilti/internal/models"
 	"fisilti/internal/push"
 	fisiltiredis "fisilti/internal/redis"
 	"github.com/google/uuid"
@@ -247,12 +248,10 @@ func (h *Hub) SendWebPushToUser(userID uuid.UUID, title, body, icon, url string)
 		if h.userRepo != nil {
 			user, _ := h.userRepo.GetUserByID(ctx, userID)
 			if user != nil && len(user.PrivacySettings) > 0 {
-				var p map[string]interface{}
-				if err := json.Unmarshal(user.PrivacySettings, &p); err == nil {
-					if snd, exists := p["sound_alerts"]; exists {
-						if sndBool, ok := snd.(bool); ok && !sndBool {
-							silent = true
-						}
+				var ps models.PrivacySettings
+				if err := json.Unmarshal(user.PrivacySettings, &ps); err == nil {
+					if !ps.SoundAlerts {
+						silent = true
 					}
 				}
 			}
