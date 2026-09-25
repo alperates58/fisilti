@@ -3,6 +3,7 @@ package transcoder
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,15 @@ import (
 func IsAvailable() bool {
 	_, err := exec.LookPath("ffmpeg")
 	return err == nil
+}
+
+// LogStatus FFmpeg sistem durumunu loglar.
+func LogStatus() {
+	if IsAvailable() {
+		log.Println("🎬 [Transcoder] FFmpeg sistemi hazır ve aktif.")
+	} else {
+		log.Println("⚠️ [Transcoder] FFmpeg sistemde bulunamadı, medya dönüştürme devre dışı.")
+	}
 }
 
 // ConvertAudioToMP3 gelen herhangi bir ses dosyasını (WebM Opus, OGG, WAV, M4A vb.)

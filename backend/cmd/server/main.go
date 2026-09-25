@@ -30,7 +30,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-	log.Printf("🚀 Fısıltı Backend başlatılıyor... Ortam: %s, Port: %s", cfg.Environment, cfg.Port)
+	log.Printf("🚀 Aura Backend başlatılıyor... Ortam: %s, Port: %s", cfg.Environment, cfg.Port)
 	transcoder.LogStatus()
 
 	// 1. PostgreSQL 16 Bağlantısı ve Migration
