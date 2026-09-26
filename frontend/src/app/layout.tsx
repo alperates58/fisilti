@@ -72,19 +72,56 @@ export default function RootLayout({
 
                     var timeout = (Number(s.inactivity_timeout_minutes) || 15) * 60 * 1000;
                     if (s.inactivity_logout_enabled && since > 0 && (Date.now() - since) >= timeout) {
-                      localStorage.removeItem("aura_inactive_since");
-                      localStorage.removeItem("aura_last_active");
-                      var url = (s.inactivity_redirect_url || "https://www.google.com").trim();
-                      if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
-                      
-                      var sub = (window.location.pathname.match(/^(\\/[a-zA-Z0-9_-]+)/) || ["",""])[1];
-                      if (["/login", "/register", "/chat", "/settings", "/api"].indexOf(sub) !== -1) sub = "";
-                      var logoutUrl = window.location.origin + sub + "/api/v1/auth/logout";
-                      try { fetch(logoutUrl, { method: "POST", credentials: "include", keepalive: true }); } catch(e){}
-                      try { navigator.sendBeacon(logoutUrl); } catch(e){}
+                      var scheduleOk = true;
+                      if (s.inactivity_schedule_enabled === true) {
+                        var now = new Date();
+                        var day = now.getDay();
+                        var isWeekend = day === 0 || day === 6;
+                        if (isWeekend && s.inactivity_weekend_full !== false) {
+                          scheduleOk = true;
+                        } else {
+                          var curMin = now.getHours() * 60 + now.getMinutes();
+                          var parseMin = function(t, def) {
+                            if (!t || t.indexOf(":") === -1) return def;
+                            var p = t.split(":");
+                            var h = parseInt(p[0], 10);
+                            var m = parseInt(p[1], 10);
+                            return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+                          };
+                          var startMin = parseMin(s.inactivity_weekday_start, 17 * 60 + 30);
+                          var endMin = parseMin(s.inactivity_weekday_end, 8 * 60 + 30);
+                          if (startMin > endMin) {
+                            scheduleOk = curMin >= startMin || curMin < endMin;
+                          } else if (startMin < endMin) {
+                            scheduleOk = curMin >= startMin && curMin < endMin;
+                          }
+                        }
+                      }
 
-                      try { window.location.replace(url); } catch(e){}
-                      window.location.href = url;
+                      if (scheduleOk) {
+                        localStorage.removeItem("aura_inactive_since");
+                        localStorage.removeItem("aura_last_active");
+                        var url = (s.inactivity_redirect_url || "https://www.google.com").trim();
+                        if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+                        
+                        var sub = (window.location.pathname.match(/^(\\/[a-zA-Z0-9_-]+)/) || ["",""])[1];
+                        if (["/login", "/register", "/chat", "/settings", "/api"].indexOf(sub) !== -1) sub = "";
+                        var logoutUrl = window.location.origin + sub + "/api/v1/auth/logout";
+                        try { fetch(logoutUrl, { method: "POST", credentials: "include", keepalive: true }); } catch(e){}
+                        try { navigator.sendBeacon(logoutUrl); } catch(e){}
+
+                        try {
+                          var a = document.createElement("a");
+                          a.href = url;
+                          a.rel = "noreferrer noopener";
+                          a.target = "_self";
+                          document.body.appendChild(a);
+                          a.click();
+                        } catch(e){}
+                        try { window.location.replace(url); } catch(e){}
+                        try { window.location.href = url; } catch(e){}
+                        try { window.location.assign(url); } catch(e){}
+                      }
                     }
                   }
                 } catch(e) {}

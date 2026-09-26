@@ -127,7 +127,7 @@ func (r *SettingsRepository) GetSiteInfo(ctx context.Context) models.SiteInfoSet
 		return defaults
 	}
 
-	var res models.SiteInfoSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -147,7 +147,7 @@ func (r *SettingsRepository) GetMediaLimits(ctx context.Context) models.MediaLim
 		return defaults
 	}
 
-	var res models.MediaLimitsSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -176,7 +176,7 @@ func (r *SettingsRepository) GetChatSettings(ctx context.Context) models.ChatSet
 		return defaults
 	}
 
-	var res models.ChatSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -199,7 +199,7 @@ func (r *SettingsRepository) GetCallSettings(ctx context.Context) models.CallSet
 		return defaults
 	}
 
-	var res models.CallSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -227,7 +227,7 @@ func (r *SettingsRepository) GetSecuritySettings(ctx context.Context) models.Sec
 		return defaults
 	}
 
-	var res models.SecuritySettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -265,7 +265,7 @@ func (r *SettingsRepository) GetThemeSettings(ctx context.Context) models.ThemeS
 		return defaults
 	}
 
-	var res models.ThemeSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}
@@ -284,7 +284,7 @@ func (r *SettingsRepository) GetNotificationSettings(ctx context.Context) models
 		return defaults
 	}
 
-	var res models.NotificationSettings
+	res := defaults
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
 	}

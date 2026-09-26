@@ -547,12 +547,11 @@ export default function HomePage() {
       const day = now.getDay(); // 0: Pazar, 6: Cumartesi
       const isWeekend = day === 0 || day === 6;
 
-      if (isWeekend) {
-        // Hafta sonu tam gün seçeneği: varsayılan true kabul edilir (false olmadığı sürece true)
-        return sec.inactivity_weekend_full !== false;
+      if (isWeekend && sec.inactivity_weekend_full !== false) {
+        return true;
       }
 
-      // Hafta içi saat kontrolü
+      // Saat kontrolü (hafta içi veya hafta sonu tam gün kapalıysa belirlenen saat aralığı)
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
       const parseTimeToMinutes = (t?: string, defaultMin: number = 0) => {
@@ -663,26 +662,47 @@ export default function HomePage() {
           }
         } catch (e) {}
 
-        // 3. Hedef siteye ANINDA yönlendir
+        // 3. Hedef siteye ANINDA ve ASLA TAKILMAYACAK ŞEKİLDE yönlendir (Mobil Chrome kısıtlamalarını aşacak çoklu yöntem)
         let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
           targetUrl = "https://" + targetUrl;
         }
 
-        // Hem replace hem href ile tetikle (Mobil Chrome uyku kısıtlamalarını aşmak için)
-        try {
-          window.location.replace(targetUrl);
-        } catch (e) {}
-        try {
-          window.location.href = targetUrl;
-        } catch (e) {}
+        const forceNavigate = () => {
+          try {
+            const link = document.createElement("a");
+            link.href = targetUrl;
+            link.rel = "noreferrer noopener";
+            link.target = "_self";
+            document.body.appendChild(link);
+            link.click();
+          } catch (e) {}
 
-        setTimeout(() => {
           try {
             window.location.replace(targetUrl);
           } catch (e) {}
-          window.location.href = targetUrl;
-        }, 80);
+          try {
+            window.location.href = targetUrl;
+          } catch (e) {}
+          try {
+            window.location.assign(targetUrl);
+          } catch (e) {}
+        };
+
+        // Hemen yönlendirmeyi başlat
+        forceNavigate();
+
+        // Mobil tarayıcılarda render döngüsü takılmalarına karşı aşamalı tetikleme
+        setTimeout(forceNavigate, 30);
+        setTimeout(forceNavigate, 100);
+        setTimeout(forceNavigate, 300);
+
+        // Kullanıcı ekrana dokunduğu anda anında kullanıcı etkileşimiyle fırlat (popup/navigation guard aşımı)
+        if (typeof window !== "undefined") {
+          window.addEventListener("touchstart", forceNavigate, { capture: true, once: true });
+          window.addEventListener("pointerdown", forceNavigate, { capture: true, once: true });
+          window.addEventListener("click", forceNavigate, { capture: true, once: true });
+        }
 
         return true;
       }
@@ -699,15 +719,17 @@ export default function HomePage() {
     const markUserActive = (force = false) => {
       if (typeof window !== "undefined") {
         const now = Date.now();
-        if (force || now - lastActiveSaved >= 4000) {
+        if (force || now - lastActiveSaved >= 3000) {
           lastActiveSaved = now;
           localStorage.setItem("aura_last_active", now.toString());
         }
       }
     };
 
-    // Başlangıçta aktif damgasını vur
-    markUserActive(true);
+    // İlk kez açılıyorsa başlangıç damgasını vur
+    if (typeof window !== "undefined" && !localStorage.getItem("aura_last_active")) {
+      markUserActive(true);
+    }
 
     const handleGoingToBackground = () => {
       // Eğer zaten yönlendirme sürecindeysek hiçbir şey yapma
@@ -818,38 +840,50 @@ export default function HomePage() {
     };
 
     const handleUserInteraction = () => {
+      // ÖNCE inaktivite süresi dolmuş mu denetle!
+      // Eğer süre dolduysa kullanıcının dokunuşu süreyi sıfırlayamaz, anında dışarı fırlatır!
+      if (checkInactivityAndRedirect()) {
+        return;
+      }
       markUserActive();
     };
 
-    // keydown kaldırıldı: mesaj yazarken gereksiz CPU ve localStorage I/O yükünü engeller
-    const activityEvents = ["touchstart", "touchmove", "touchend", "mousedown", "scroll"];
+    const activityEvents = [
+      "touchstart",
+      "touchmove",
+      "touchend",
+      "mousedown",
+      "scroll",
+      "keydown",
+    ];
     activityEvents.forEach((ev) => {
-      window.addEventListener(ev, handleUserInteraction, { passive: true });
+      window.addEventListener(ev, handleUserInteraction, { passive: true, capture: true });
     });
 
-    const heartbeat = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
-        markUserActive();
-      }
-    }, 4000);
+    // Kullanıcı ekran açıkken uyuyakaldığında veya dokunmadığında süresi dolunca anında yakala
+    const idleCheckInterval = setInterval(() => {
+      checkInactivityAndRedirect();
+    }, 1000);
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handleGoingToBackground);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("focus", handleComingToForeground);
+    window.addEventListener("blur", handleGoingToBackground);
     window.addEventListener("freeze", handleGoingToBackground);
     window.addEventListener("resume", handleComingToForeground);
     window.addEventListener("online", handleComingToForeground);
 
     return () => {
-      clearInterval(heartbeat);
+      clearInterval(idleCheckInterval);
       activityEvents.forEach((ev) => {
-        window.removeEventListener(ev, handleUserInteraction);
+        window.removeEventListener(ev, handleUserInteraction, { capture: true } as any);
       });
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handleGoingToBackground);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("focus", handleComingToForeground);
+      window.removeEventListener("blur", handleGoingToBackground);
       window.removeEventListener("freeze", handleGoingToBackground);
       window.removeEventListener("resume", handleComingToForeground);
       window.removeEventListener("online", handleComingToForeground);
@@ -1361,7 +1395,21 @@ export default function HomePage() {
 
   if (isRedirecting || isLoading || !isAuthenticated) {
     return (
-      <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
+      <div
+        onClick={() => {
+          if (isRedirecting) {
+            try {
+              const cached = typeof window !== "undefined" ? localStorage.getItem("aura_security_settings") : null;
+              const s = cached ? JSON.parse(cached) : null;
+              let url = s?.inactivity_redirect_url?.trim() || "https://www.google.com";
+              if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+              window.location.replace(url);
+              window.location.href = url;
+            } catch (e) {}
+          }
+        }}
+        className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white cursor-pointer select-none"
+      >
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-grupo-accent border-t-transparent rounded-full animate-spin"></div>
           <p className="text-sm text-slate-400 font-medium">Aura yükleniyor...</p>
@@ -1375,7 +1423,19 @@ export default function HomePage() {
       {/* GİZLİLİK KALKANI: Tuş kilidi kapatıldığında veya inaktivite yönlendirmesinde sohbeti sıfır sızıntıyla örter */}
       <div
         id="aura-privacy-curtain"
-        className="fixed inset-0 z-[9999999] bg-[#090A0F] flex flex-col items-center justify-center pointer-events-auto select-none transition-none"
+        onClick={() => {
+          if (isRedirecting) {
+            try {
+              const cached = typeof window !== "undefined" ? localStorage.getItem("aura_security_settings") : null;
+              const s = cached ? JSON.parse(cached) : null;
+              let url = s?.inactivity_redirect_url?.trim() || "https://www.google.com";
+              if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+              window.location.replace(url);
+              window.location.href = url;
+            } catch (e) {}
+          }
+        }}
+        className="fixed inset-0 z-[9999999] bg-[#090A0F] flex flex-col items-center justify-center pointer-events-auto select-none transition-none cursor-pointer"
         style={{
           display: isPrivacyCurtainActive ? "flex" : "none",
           backgroundColor: "var(--background, #090A0F)",
