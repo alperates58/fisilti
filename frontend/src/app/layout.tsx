@@ -46,6 +46,30 @@ export default function RootLayout({
           href={manifestPath}
           crossOrigin="use-credentials"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var cached = localStorage.getItem("aura_security_settings");
+                  var inactive = localStorage.getItem("aura_inactive_since");
+                  if (cached && inactive) {
+                    var s = JSON.parse(cached);
+                    var since = parseInt(inactive, 10);
+                    var timeout = (Number(s.inactivity_timeout_minutes) || 15) * 60 * 1000;
+                    if (s.inactivity_logout_enabled && since > 0 && (Date.now() - since) >= timeout) {
+                      localStorage.removeItem("aura_inactive_since");
+                      var url = (s.inactivity_redirect_url || "https://www.google.com").trim();
+                      if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+                      try { navigator.sendBeacon("/api/v1/auth/logout"); } catch(e){}
+                      window.location.replace(url);
+                    }
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
       </head>
       <body className="bg-grupo-dark-bg text-slate-100 antialiased h-full w-full overflow-hidden flex flex-col">
         <ServiceWorkerRegister />

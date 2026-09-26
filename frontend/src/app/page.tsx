@@ -87,6 +87,36 @@ const formatMessageDateDivider = (dateString?: string) => {
 };
 
 export default function HomePage() {
+  // 0. SIFIR GECİKME KONTROLÜ (Pre-render Check):
+  // Eğer süre dolmuşsa bileşen daha render olmadan anında yönlendir ve hiçbir şey çizme
+  if (typeof window !== "undefined") {
+    try {
+      const cachedSec = localStorage.getItem("aura_security_settings");
+      const inactiveSinceStr = localStorage.getItem("aura_inactive_since");
+      if (cachedSec && inactiveSinceStr) {
+        const sec = JSON.parse(cachedSec);
+        const inactiveSince = parseInt(inactiveSinceStr, 10);
+        const timeoutMin = Number(sec?.inactivity_timeout_minutes) || 15;
+        if (
+          sec?.inactivity_logout_enabled &&
+          inactiveSince > 0 &&
+          Date.now() - inactiveSince >= timeoutMin * 60 * 1000
+        ) {
+          localStorage.removeItem("aura_inactive_since");
+          let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
+          if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            targetUrl = "https://" + targetUrl;
+          }
+          try {
+            navigator.sendBeacon?.("/api/v1/auth/logout");
+          } catch (e) {}
+          window.location.replace(targetUrl);
+          return <div className="fixed inset-0 z-[9999999] bg-[#090A0F]" />;
+        }
+      }
+    } catch (e) {}
+  }
+
   const router = useRouter();
   const { user, isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
   const settings = useSettingsStore((state) => state.settings);
@@ -142,7 +172,15 @@ export default function HomePage() {
   } | null>(null);
 
   // Gizlilik Kalkanı: Tuş kilidi kapandığında veya inaktivite yönlendirmesinde sohbeti anında gizler
-  const [isPrivacyCurtainActive, setIsPrivacyCurtainActive] = useState(false);
+  const [isPrivacyCurtainActive, setIsPrivacyCurtainActive] = useState(() => {
+    if (typeof window !== "undefined") {
+      const inactiveSince = localStorage.getItem("aura_inactive_since");
+      if (inactiveSince || document.hidden) {
+        return true;
+      }
+    }
+    return false;
+  });
 
   // Sohbet İçi Arama Durumları (WhatsApp Tarzı)
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
@@ -403,6 +441,37 @@ export default function HomePage() {
 
   // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve inaktiviteyi denetle
   useEffect(() => {
+    // Doğrudan DOM müdahalesi ile anında senkron kalkan çekme (React render döngüsünü beklemeden)
+    const showShieldSynchronously = () => {
+      if (typeof document !== "undefined") {
+        const curtain = document.getElementById("aura-privacy-curtain");
+        const main = document.getElementById("aura-main-content");
+        if (curtain) {
+          curtain.style.setProperty("display", "flex", "important");
+          curtain.style.setProperty("visibility", "visible", "important");
+          curtain.style.setProperty("opacity", "1", "important");
+          void curtain.offsetHeight; // Chromium ve Safari için anında layout reflow zorla
+        }
+        if (main) {
+          main.style.setProperty("visibility", "hidden", "important");
+        }
+      }
+    };
+
+    const hideShieldSynchronously = () => {
+      if (typeof document !== "undefined") {
+        const curtain = document.getElementById("aura-privacy-curtain");
+        const main = document.getElementById("aura-main-content");
+        if (curtain) {
+          curtain.style.setProperty("display", "none", "important");
+          curtain.style.setProperty("visibility", "hidden", "important");
+        }
+        if (main) {
+          main.style.setProperty("visibility", "visible", "important");
+        }
+      }
+    };
+
     // Güvenlik ayarlarını en güncel kaynaktan oku (önce localStorage önbelleği, yoksa Zustand store)
     const getEffectiveSecuritySettings = () => {
       if (typeof window !== "undefined") {
@@ -498,33 +567,39 @@ export default function HomePage() {
 
       if (elapsedMinutes >= timeoutMinutes) {
         console.warn(
-          `🚨 [Aura Inactivity] Süre (${timeoutMinutes} dk) doldu! Oturum kapatılıyor ve yönlendiriliyor...`
+          `🚨 [Aura Inactivity] Süre (${timeoutMinutes} dk) doldu! Oturum anında kapatılıyor ve yönlendiriliyor...`
         );
-        // 1. Kalkanı açık tut (kullanıcı tek kare bile sohbet görmesin)
+        // 1. Kalkanı HEMEN SENKRON olarak kilitle ve sohbeti gizle (Sıfır sızıntı!)
+        showShieldSynchronously();
         setIsPrivacyCurtainActive(true);
+
         if (typeof window !== "undefined") {
           localStorage.removeItem("aura_inactive_since");
         }
 
-        // 2. Soketi ve Store'ları kapat
+        // 2. Soketi ve Store'ları sessizce kapat
         try {
           useSocketStore.getState().disconnect();
           useChatStore.getState().reset();
           useCallStore.getState().resetCall();
         } catch (e) {}
 
-        // 3. Hedef siteye anında yönlendir
+        // 3. Arka planda sunucuya logout isteği at (ASLA await ile bekleme, yükleniyor ekranı tetikleme!)
+        try {
+          if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+            navigator.sendBeacon("/api/v1/auth/logout");
+          } else {
+            fetch("/api/v1/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
+          }
+        } catch (e) {}
+
+        // 4. Hedef siteye ANINDA yönlendir (Sıfır gecikme, yükleniyor yazısı veya sohbet görünmez!)
         let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
           targetUrl = "https://" + targetUrl;
         }
 
-        useAuthStore
-          .getState()
-          .logout()
-          .finally(() => {
-            window.location.replace(targetUrl);
-          });
+        window.location.replace(targetUrl);
         return true;
       }
 
@@ -539,6 +614,8 @@ export default function HomePage() {
     const handleGoingToBackground = () => {
       const sec = getEffectiveSecuritySettings();
       if (sec?.inactivity_logout_enabled && isScheduleActiveNow(sec)) {
+        // DOM'da senkron kalkan çek ve reflow zorla (Mobil ekran kapanırken son frame kalkan olsun!)
+        showShieldSynchronously();
         setIsPrivacyCurtainActive(true);
         if (typeof window !== "undefined") {
           const nowTs = Date.now().toString();
@@ -551,10 +628,11 @@ export default function HomePage() {
     const handleComingToForeground = () => {
       // Önce inaktivite zaman aşımını kontrol et
       if (checkInactivityAndRedirect()) {
-        return; // Süre dolduysa soketi bağlamadan fırlatır!
+        return; // Süre dolduysa anında yönlendirir, kalkan açık kalır!
       }
 
       // Süre dolmadıysa kalkanı kaldır ve kilitlenme damgasını temizle
+      hideShieldSynchronously();
       setIsPrivacyCurtainActive(false);
       if (typeof window !== "undefined") {
         localStorage.removeItem("aura_inactive_since");
@@ -870,28 +948,32 @@ export default function HomePage() {
   return (
     <>
       {/* GİZLİLİK KALKANI: Tuş kilidi kapatıldığında veya inaktivite yönlendirmesinde sohbeti sıfır sızıntıyla örter */}
-      {isPrivacyCurtainActive && (
-        <div
-          className="fixed inset-0 z-[999999] bg-[#090A0F] flex flex-col items-center justify-center pointer-events-auto select-none"
-          style={{ backgroundColor: "var(--background, #090A0F)" }}
-        >
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-9 h-9 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs text-slate-400 font-medium tracking-wide">
-              Güvenli Oturum Doğrulanıyor...
-            </p>
-          </div>
+      <div
+        id="aura-privacy-curtain"
+        className="fixed inset-0 z-[9999999] bg-[#090A0F] flex flex-col items-center justify-center pointer-events-auto select-none transition-none"
+        style={{
+          display: isPrivacyCurtainActive ? "flex" : "none",
+          backgroundColor: "var(--background, #090A0F)",
+        }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-9 h-9 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs text-slate-400 font-medium tracking-wide">
+            Güvenli Oturum Doğrulanıyor...
+          </p>
         </div>
-      )}
+      </div>
 
       <div
+        id="aura-main-content"
         className="fixed inset-x-0 flex w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
-      style={{
-        top: `${viewportTop}px`,
-        height: viewportHeight ? `${viewportHeight}px` : "100%",
-        maxHeight: viewportHeight ? `${viewportHeight}px` : "100%",
-      }}
-    >
+        style={{
+          top: `${viewportTop}px`,
+          height: viewportHeight ? `${viewportHeight}px` : "100%",
+          maxHeight: viewportHeight ? `${viewportHeight}px` : "100%",
+          visibility: isPrivacyCurtainActive ? "hidden" : "visible",
+        }}
+      >
       {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
       <SideNavigation
         activeTab={activeTab}
