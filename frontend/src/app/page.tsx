@@ -119,6 +119,8 @@ export default function HomePage() {
     toggleStar,
     selectedMessageInfo,
     setSelectedMessageInfo,
+    replyingTo,
+    setReplyingTo,
     hasMoreMessages,
     loadingOlderMessages,
     loadOlderMessages,
@@ -131,8 +133,10 @@ export default function HomePage() {
     startSelectionMode,
     selectAllMessages,
     clearSelection,
+    editingMessageId,
+    setEditingMessageId,
   } = useChatStore();
-  const { connect, isConnected } = useSocketStore();
+  const { connect, isConnected, isReconnecting, pendingQueueCount } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
   const {
     activeViewerGroup,
@@ -236,6 +240,7 @@ export default function HomePage() {
   const [viewportTop, setViewportTop] = useState<number>(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const updateViewportMetrics = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -1082,6 +1087,83 @@ export default function HomePage() {
     );
   };
 
+  // Masaüstü Klavye Kısayolları (Ctrl+K ile Arama, Esc ile Kapatma)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. Ctrl+K veya Cmd+K ile Canlı Aramaya Odaklan
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // 2. Esc tuşu ile açık modalları, önizlemeleri veya yanıtlamayı kapat
+      if (e.key === "Escape") {
+        if (isGalleryOpen) {
+          setIsGalleryOpen(false);
+          return;
+        }
+        if (previewPdf) {
+          setPreviewPdf(null);
+          return;
+        }
+        if (isStagingModalOpen) {
+          setIsStagingModalOpen(false);
+          setStagedFile(null);
+          return;
+        }
+        if (selectedMessageInfo) {
+          setSelectedMessageInfo(null);
+          return;
+        }
+        if (isEmojiPickerOpen) {
+          setIsEmojiPickerOpen(false);
+          return;
+        }
+        if (isSelectionMode) {
+          clearSelection();
+          return;
+        }
+        if (replyingTo) {
+          setReplyingTo(null);
+          return;
+        }
+        if (editingMessageId) {
+          setEditingMessageId(null);
+          return;
+        }
+        if (isChatSearchOpen) {
+          setIsChatSearchOpen(false);
+          setChatSearchQuery("");
+          return;
+        }
+        if (searchQuery) {
+          setSearchQuery("");
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [
+    isGalleryOpen,
+    previewPdf,
+    isStagingModalOpen,
+    selectedMessageInfo,
+    isEmojiPickerOpen,
+    isSelectionMode,
+    replyingTo,
+    editingMessageId,
+    isChatSearchOpen,
+    searchQuery,
+    clearSelection,
+    setSelectedMessageInfo,
+    setReplyingTo,
+    setEditingMessageId,
+  ]);
+
   // Toplam okunmamış mesaj sayısı
   const totalUnreadCount = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
 
@@ -1207,7 +1289,7 @@ export default function HomePage() {
 
       <div
         id="aura-main-content"
-        className="fixed inset-x-0 flex w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
+        className="fixed inset-x-0 flex flex-col w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
         style={{
           top: `${viewportTop}px`,
           height: viewportHeight ? `${viewportHeight}px` : "100%",
@@ -1215,8 +1297,34 @@ export default function HomePage() {
           visibility: isPrivacyCurtainActive ? "hidden" : "visible",
         }}
       >
-      {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
-      <SideNavigation
+        {/* Çevrimdışı / Yeniden Bağlanma Bildirim Çubuğu (Outbox Durumu ile) */}
+        {!isConnected && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 backdrop-blur-md z-40 transition-all shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span>
+                {isReconnecting
+                  ? "Bağlantı koptu, yeniden bağlanılıyor..."
+                  : "Çevrimdışı mod. Mesajlarınız cihazda sıraya alınıyor."}
+              </span>
+              {pendingQueueCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-[10px] font-mono font-medium">
+                  {pendingQueueCount} bekleyen
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => connect()}
+              className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-medium transition cursor-pointer text-[11px]"
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        )}
+
+        <div className="flex-1 flex w-full overflow-hidden relative">
+        {/* 1. SÜTUN: Grupo Açılır/Kapanır Sol Dikey Menü (SideNavigation) */}
+        <SideNavigation
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
@@ -1291,6 +1399,7 @@ export default function HomePage() {
           <div className="relative">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -2158,6 +2267,18 @@ export default function HomePage() {
                           value={inputMessage}
                           onChange={handleInputChange}
                           onPaste={handleComposerPaste}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowUp" && !inputMessage.trim() && activeConversationId) {
+                              e.preventDefault();
+                              const currentMsgs = messages[activeConversationId] || [];
+                              const lastMineMsg = [...currentMsgs]
+                                .reverse()
+                                .find((m) => m.is_mine && !m.is_deleted_for_all && m.message_type === "text");
+                              if (lastMineMsg) {
+                                setEditingMessageId(lastMineMsg.id);
+                              }
+                            }
+                          }}
                           onFocus={() => {
                             setIsInputFocused(true);
                             setTimeout(() => {
@@ -2625,6 +2746,7 @@ export default function HomePage() {
           </div>
         )}
       </main>
+      </div>
 
       {/* Global Modallar (Mobilde sohbet açık değilken <main> hidden olsa dahi her zaman erişilebilir) */}
       {/* WhatsApp Mesaj Bilgisi Modalı */}

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useSocketStore } from "./useSocketStore";
 import { User } from "./useAuthStore";
 import { notificationManager } from "@/lib/notifications";
+import { triggerReactionConfetti } from "@/lib/confetti";
 
 export interface Message {
   id: string;
@@ -88,6 +89,8 @@ interface ChatState {
   sendTyping: (convId: string, isTyping: boolean) => void;
   setSelectedMessageInfo: (msg: Message | null) => void;
   setReplyingTo: (msg: Message | null) => void;
+  editingMessageId: string | null;
+  setEditingMessageId: (id: string | null) => void;
 
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string, forAll: boolean) => Promise<void>;
@@ -127,9 +130,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   typingMap: {},
   selectedMessageInfo: null,
   replyingTo: null,
+  editingMessageId: null,
   starredMessages: [],
   selectedMessageIds: [],
   isSelectionMode: false,
+
+  setEditingMessageId: (id: string | null) => set({ editingMessageId: id }),
 
   loadStarredMessages: async () => {
     try {
@@ -507,6 +513,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   toggleReaction: async (messageId: string, emoji: string) => {
     try {
+      if (["❤️", "🎉", "🔥", "🚀", "😍", "👏"].includes(emoji)) {
+        triggerReactionConfetti(emoji);
+      }
       const res = await api.post(`/messages/${messageId}/reactions`, { emoji });
       get().onMessageReaction(messageId, res.data.reactions);
     } catch (err) {

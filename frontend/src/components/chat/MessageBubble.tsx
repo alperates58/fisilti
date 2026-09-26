@@ -67,6 +67,8 @@ export default function MessageBubble({
     selectedMessageIds,
     toggleSelectMessage,
     startSelectionMode,
+    editingMessageId,
+    setEditingMessageId,
   } = useChatStore();
   const { user } = useAuthStore();
   const chatSettings = useSettingsStore((state) => state.settings?.chat_settings);
@@ -129,8 +131,24 @@ export default function MessageBubble({
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const isEditing = editingMessageId === message.id;
+  const setIsEditing = (val: boolean) => {
+    if (val) {
+      setEditingMessageId(message.id);
+      setEditText(message.content);
+    } else {
+      if (editingMessageId === message.id) {
+        setEditingMessageId(null);
+      }
+    }
+  };
   const [editText, setEditText] = useState(message.content);
+
+  useEffect(() => {
+    if (editingMessageId === message.id) {
+      setEditText(message.content);
+    }
+  }, [editingMessageId, message.id, message.content]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const buttonRef = useRef<HTMLButtonElement>(null);
