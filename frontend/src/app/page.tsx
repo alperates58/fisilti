@@ -262,6 +262,19 @@ export default function HomePage() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastInteractionRef = useRef<number>(Date.now());
+  const lastActiveSavedRef = useRef<number>(0);
+  const registerUserActivity = useCallback((force = false) => {
+    const now = Date.now();
+    lastInteractionRef.current = now;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("aura_inactive_since");
+      if (force || now - lastActiveSavedRef.current >= 2000) {
+        lastActiveSavedRef.current = now;
+        localStorage.setItem("aura_last_active", now.toString());
+      }
+    }
+  }, []);
 
   // WhatsApp stili otomatik genişleyen mesaj kutusu hesaplayıcısı
   const adjustTextareaHeight = useCallback(() => {
@@ -600,29 +613,48 @@ export default function HomePage() {
         return false;
       }
 
+      // Aktif sesli/görüntülü arama devam ediyorsa veya ses kaydı alınıyorsa ASLA atma!
+      if (useCallStore.getState().callState !== "idle" || isRecordingVoice) {
+        registerUserActivity(true);
+        return false;
+      }
+
       // Eğer zaman takvimi aktifse ve şu an koruma saatleri dışındaysak (örn. gündüz mesai saati):
       if (!isScheduleActiveNow(sec)) {
         return false;
       }
 
+      const now = Date.now();
+      const isHidden = typeof document !== "undefined" && document.hidden;
       const inactiveSinceStr =
         typeof window !== "undefined" ? localStorage.getItem("aura_inactive_since") : null;
       const lastActiveStr =
         typeof window !== "undefined" ? localStorage.getItem("aura_last_active") : null;
 
-      if (!inactiveSinceStr && !lastActiveStr) {
-        return false;
+      const inactiveSince = inactiveSinceStr ? parseInt(inactiveSinceStr, 10) : 0;
+      const lastActive = Math.max(
+        lastInteractionRef.current || 0,
+        lastActiveStr ? parseInt(lastActiveStr, 10) : 0
+      );
+
+      // Sayfa ön plandayken kullanıcı son 20 saniye içinde dokunmuş/yazmışsa eski bayat inactive_since varsa temizle
+      if (!isHidden && now - lastActive < 20000 && inactiveSince > 0) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("aura_inactive_since");
+        }
       }
 
-      const inactiveSince = inactiveSinceStr ? parseInt(inactiveSinceStr, 10) : 0;
-      const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
-
+      // Etkin inaktivite zaman damgası hesabı:
+      // A) Sayfa arka planda / kilitli ise (isHidden): Telefonun kilitlendiği an (inactiveSince) veya son aktiflik anı kullanılır.
+      // B) Sayfa ön planda ve açıksa (!isHidden): Kullanıcının son fiziksel işlem (dokunma, yazma, kaydırma) anı kullanılır!
       let effectiveInactiveAt = 0;
-      if (inactiveSince > 0 && lastActive > 0) {
-        effectiveInactiveAt = Math.min(inactiveSince, lastActive);
-      } else if (inactiveSince > 0) {
-        effectiveInactiveAt = inactiveSince;
-      } else if (lastActive > 0) {
+      if (isHidden) {
+        if (inactiveSince > 0 && lastActive > 0) {
+          effectiveInactiveAt = Math.min(inactiveSince, lastActive);
+        } else {
+          effectiveInactiveAt = inactiveSince || lastActive;
+        }
+      } else {
         effectiveInactiveAt = lastActive;
       }
 
@@ -630,7 +662,7 @@ export default function HomePage() {
         return false;
       }
 
-      const elapsedMs = Date.now() - effectiveInactiveAt;
+      const elapsedMs = now - effectiveInactiveAt;
       const elapsedMinutes = elapsedMs / (1000 * 60);
 
       // Kullanıcının girdiği dakika değerini kesin sayısal olarak al (ASLA hardcoded değil)
@@ -638,9 +670,9 @@ export default function HomePage() {
       const timeoutMinutes = !isNaN(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 15;
 
       console.log(
-        `⏱️ [Aura Inactivity] Denetim: Geçen süre: ${elapsedMinutes.toFixed(2)} dk (${Math.round(
-          elapsedMs / 1000
-        )} sn) / Sınır: ${timeoutMinutes} dk`
+        `⏱️ [Aura Inactivity] Denetim: Ön plan: ${!isHidden} / Geçen süre: ${elapsedMinutes.toFixed(
+          2
+        )} dk (${Math.round(elapsedMs / 1000)} sn) / Sınır: ${timeoutMinutes} dk`
       );
 
       if (elapsedMinutes >= timeoutMinutes) {
@@ -732,16 +764,7 @@ export default function HomePage() {
       return;
     }
 
-    let lastActiveSaved = 0;
-    const markUserActive = (force = false) => {
-      if (typeof window !== "undefined") {
-        const now = Date.now();
-        if (force || now - lastActiveSaved >= 3000) {
-          lastActiveSaved = now;
-          localStorage.setItem("aura_last_active", now.toString());
-        }
-      }
-    };
+    const markUserActive = registerUserActivity;
 
     // İlk kez açılıyorsa başlangıç damgasını vur
     if (typeof window !== "undefined" && !localStorage.getItem("aura_last_active")) {
@@ -758,9 +781,7 @@ export default function HomePage() {
         setIsPrivacyCurtainActive(true);
         if (typeof window !== "undefined") {
           const nowTs = Date.now().toString();
-          if (!localStorage.getItem("aura_inactive_since")) {
-            localStorage.setItem("aura_inactive_since", nowTs);
-          }
+          localStorage.setItem("aura_inactive_since", nowTs);
           console.log("🔒 [Aura Inactivity] Kilitlendi / Arka plana geçti. Zaman:", new Date().toLocaleTimeString());
         }
       }
@@ -852,9 +873,9 @@ export default function HomePage() {
     };
 
     const handleUserInteraction = () => {
-      // ÖNCE inaktivite süresi dolmuş mu denetle!
-      // Eğer süre dolduysa kullanıcının dokunuşu süreyi sıfırlayamaz, anında dışarı fırlatır!
-      if (checkInactivityAndRedirect()) {
+      // Sadece sayfa arka plandayken / kilitliyken gelen uyanış dokunuşu süreyi sıfırlamasın:
+      const isHidden = typeof document !== "undefined" && document.hidden;
+      if (isHidden && checkInactivityAndRedirect()) {
         return;
       }
       markUserActive();
@@ -881,7 +902,6 @@ export default function HomePage() {
     window.addEventListener("pagehide", handleGoingToBackground);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("focus", handleComingToForeground);
-    window.addEventListener("blur", handleGoingToBackground);
     window.addEventListener("freeze", handleGoingToBackground);
     window.addEventListener("resume", handleComingToForeground);
     window.addEventListener("online", handleComingToForeground);
@@ -895,7 +915,6 @@ export default function HomePage() {
       window.removeEventListener("pagehide", handleGoingToBackground);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("focus", handleComingToForeground);
-      window.removeEventListener("blur", handleGoingToBackground);
       window.removeEventListener("freeze", handleGoingToBackground);
       window.removeEventListener("resume", handleComingToForeground);
       window.removeEventListener("online", handleComingToForeground);
@@ -1320,6 +1339,7 @@ export default function HomePage() {
     if (e) e.preventDefault();
     if (!inputMessage.trim() || !activeConversationId) return;
 
+    registerUserActivity(true);
     sendMessage(activeConversationId, inputMessage.trim());
     setInputMessage("");
     if (inputRef.current) {
@@ -1337,6 +1357,7 @@ export default function HomePage() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    registerUserActivity();
     setInputMessage(e.target.value);
     adjustTextareaHeight();
     if (!activeConversationId) return;
@@ -1360,6 +1381,7 @@ export default function HomePage() {
 
   const handleSelectEmoji = useCallback(
     (emoji: string) => {
+      registerUserActivity();
       const input = inputRef.current;
       if (input) {
         const start = input.selectionStart ?? inputMessage.length;
