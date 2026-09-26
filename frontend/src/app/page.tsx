@@ -277,7 +277,7 @@ export default function HomePage() {
   useEffect(() => {
     checkAuth().then((authed) => {
       if (!authed) {
-        router.push("/login");
+        router.replace("/login");
       }
     });
 
@@ -835,7 +835,7 @@ export default function HomePage() {
     router.push("/login");
   };
 
-  if (isLoading) {
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
         <div className="flex flex-col items-center gap-3">
