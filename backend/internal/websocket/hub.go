@@ -372,3 +372,15 @@ func (h *Hub) BroadcastStoryReaction(storyID, authorID, senderID uuid.UUID, send
 	}
 }
 
+func (h *Hub) GetActiveConnectionsCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
+func (h *Hub) GetActiveUsersCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.userClients)
+}
+

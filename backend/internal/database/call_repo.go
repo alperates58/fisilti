@@ -109,3 +109,35 @@ func (r *CallRepository) GetCallByID(ctx context.Context, callID uuid.UUID) (*mo
 	}
 	return &l, nil
 }
+
+func (r *CallRepository) GetActiveCalls(ctx context.Context) ([]models.CallLog, error) {
+	query := `
+		SELECT id, conversation_id, caller_id, receiver_id, call_type, status, started_at, ended_at, duration_seconds, created_at
+		FROM call_logs
+		WHERE status IN ('ringing', 'accepted', 'active')
+		ORDER BY created_at DESC
+		LIMIT 20
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("aktif cagri kayitlari alinamadi: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []models.CallLog
+	for rows.Next() {
+		var l models.CallLog
+		if err := rows.Scan(
+			&l.ID, &l.ConversationID, &l.CallerID, &l.ReceiverID,
+			&l.CallType, &l.Status, &l.StartedAt, &l.EndedAt, &l.DurationSeconds, &l.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		logs = append(logs, l)
+	}
+
+	if logs == nil {
+		logs = []models.CallLog{}
+	}
+	return logs, nil
+}

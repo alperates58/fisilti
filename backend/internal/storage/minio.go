@@ -374,3 +374,64 @@ func (s *StorageService) EnsureBuckets(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *StorageService) Ping(ctx context.Context) error {
+	bucket := s.avatarBucket
+	if bucket == "" {
+		bucket = s.mediaBucket
+	}
+	_, err := s.client.BucketExists(ctx, bucket)
+	return err
+}
+
+func (s *StorageService) GetStorageBreakdown(ctx context.Context) (map[string]interface{}, error) {
+	buckets := map[string]string{
+		"avatars": s.avatarBucket,
+		"media":   s.mediaBucket,
+		"voice":   s.voiceBucket,
+		"files":   s.filesBucket,
+	}
+
+	result := make(map[string]interface{})
+	var grandTotalBytes int64 = 0
+	var grandTotalObjects int64 = 0
+
+	for category, bucketName := range buckets {
+		if bucketName == "" {
+			continue
+		}
+		var bucketBytes int64 = 0
+		var bucketObjects int64 = 0
+
+		objectCh := s.client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
+			Recursive: true,
+		})
+
+		for obj := range objectCh {
+			if obj.Err != nil {
+				continue
+			}
+			bucketBytes += obj.Size
+			bucketObjects++
+		}
+
+		result[category] = map[string]interface{}{
+			"bucket_name":   bucketName,
+			"total_bytes":   bucketBytes,
+			"total_objects": bucketObjects,
+			"total_mb":      float64(bucketBytes) / (1024 * 1024),
+		}
+
+		grandTotalBytes += bucketBytes
+		grandTotalObjects += bucketObjects
+	}
+
+	result["total"] = map[string]interface{}{
+		"total_bytes":   grandTotalBytes,
+		"total_objects": grandTotalObjects,
+		"total_mb":      float64(grandTotalBytes) / (1024 * 1024),
+		"total_gb":      float64(grandTotalBytes) / (1024 * 1024 * 1024),
+	}
+
+	return result, nil
+}

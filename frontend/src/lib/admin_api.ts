@@ -94,6 +94,62 @@ export interface AdminStatsResponse {
   };
 }
 
+export interface DetailedHealthResponse {
+  postgres: { status: string; latency_ms: number };
+  redis: { status: string; latency_ms: number };
+  minio: { status: string; latency_ms: number };
+  livekit: { status: string; url: string };
+  uptime_seconds: number;
+  uptime_formatted: string;
+  active_ws_connections: number;
+  active_online_users: number;
+  goroutines: number;
+  memory: {
+    alloc_mb: number;
+    sys_mb: number;
+    heap_alloc_mb: number;
+    heap_inuse_mb: number;
+    num_gc: number;
+  };
+}
+
+export interface StorageBucketStat {
+  bucket_name: string;
+  total_bytes: number;
+  total_objects: number;
+  total_mb: number;
+}
+
+export interface StorageBreakdownResponse {
+  avatars?: StorageBucketStat;
+  media?: StorageBucketStat;
+  voice?: StorageBucketStat;
+  files?: StorageBucketStat;
+  total: {
+    total_bytes: number;
+    total_objects: number;
+    total_mb: number;
+    total_gb: number;
+  };
+  cached?: boolean;
+}
+
+export interface ActiveCallTelemetry {
+  call_id: string;
+  conversation_id: string;
+  call_type: string;
+  status: string;
+  started_at?: string;
+  elapsed_seconds: number;
+  caller_name: string;
+  receiver_name: string;
+}
+
+export interface ActiveCallsResponse {
+  active_calls: ActiveCallTelemetry[];
+  count: number;
+}
+
 export interface AdminAccessLog {
   id: string;
   user_id: string;
@@ -140,6 +196,21 @@ export const adminApi = {
 
   getStats: async (): Promise<AdminStatsResponse> => {
     const res = await api.get<AdminStatsResponse>("/admin/stats");
+    return res.data;
+  },
+
+  getDetailedHealth: async (): Promise<DetailedHealthResponse> => {
+    const res = await api.get<DetailedHealthResponse>("/admin/health-detailed");
+    return res.data;
+  },
+
+  getStorageBreakdown: async (): Promise<StorageBreakdownResponse> => {
+    const res = await api.get<StorageBreakdownResponse>("/admin/storage-breakdown");
+    return res.data;
+  },
+
+  getActiveCalls: async (): Promise<ActiveCallsResponse> => {
+    const res = await api.get<ActiveCallsResponse>("/admin/active-calls");
     return res.data;
   },
 

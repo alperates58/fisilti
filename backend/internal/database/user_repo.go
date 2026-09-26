@@ -317,3 +317,7 @@ func (r *UserRepository) GetSystemStats(ctx context.Context) (map[string]interfa
 
 	return stats, nil
 }
+
+func (r *UserRepository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
+}

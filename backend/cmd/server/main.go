@@ -125,7 +125,7 @@ func main() {
 	callHandler := handlers.NewCallHandler(callRepo, chatRepo, userRepo, livekitService, hub, rdb, settingsRepo)
 	wsHandler := handlers.NewWSHandler(cfg, hub)
 	pushHandler := handlers.NewPushHandler(pushRepo, vapidService, userRepo)
-	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, rdb, hub)
+	adminHandler := handlers.NewAdminHandler(userRepo, settingsRepo, accessRepo, callRepo, storageService, livekitService, rdb, hub)
 	storyRepo := database.NewStoryRepository(db)
 	storyHandler := handlers.NewStoryHandler(storyRepo, userRepo, storageService, hub)
 
@@ -301,6 +301,9 @@ func main() {
 	admin.Put("/users/:id", adminHandler.UpdateUser)
 	admin.Delete("/users/:id", adminHandler.DeleteUser)
 	admin.Get("/stats", adminHandler.GetSystemStats)
+	admin.Get("/health-detailed", adminHandler.GetDetailedHealth)
+	admin.Get("/storage-breakdown", adminHandler.GetStorageBreakdown)
+	admin.Get("/active-calls", adminHandler.GetActiveCalls)
 	admin.Get("/access-logs", adminHandler.GetAccessLogs)
 
 	// Graceful Shutdown
