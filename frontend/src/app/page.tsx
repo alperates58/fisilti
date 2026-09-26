@@ -403,10 +403,27 @@ export default function HomePage() {
 
   // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve inaktiviteyi denetle
   useEffect(() => {
+    // Güvenlik ayarlarını en güncel kaynaktan oku (önce localStorage önbelleği, yoksa Zustand store)
+    const getEffectiveSecuritySettings = () => {
+      if (typeof window !== "undefined") {
+        try {
+          const cached = localStorage.getItem("aura_security_settings");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === "object") {
+              return parsed;
+            }
+          }
+        } catch (e) {}
+      }
+      return useSettingsStore.getState().settings?.security_settings;
+    };
+
     // Zaman Takvimi Kuralı: Belirlenen gün ve saat aralığında mıyız?
     const isScheduleActiveNow = (sec: any): boolean => {
-      if (!sec?.inactivity_schedule_enabled) {
-        return true; // Zaman takvimi kapalıysa 7/24 devrededir
+      // Zaman takvimi açıkça aktif edilmemişse 7/24 kesintisiz devrededir!
+      if (!sec || sec.inactivity_schedule_enabled !== true) {
+        return true;
       }
 
       const now = new Date();
@@ -414,7 +431,8 @@ export default function HomePage() {
       const isWeekend = day === 0 || day === 6;
 
       if (isWeekend) {
-        return sec.inactivity_weekend_full ?? true;
+        // Hafta sonu tam gün seçeneği: varsayılan true kabul edilir (false olmadığı sürece true)
+        return sec.inactivity_weekend_full !== false;
       }
 
       // Hafta içi saat kontrolü
@@ -444,8 +462,8 @@ export default function HomePage() {
 
     // İnaktivite süresini denetleyip gerekiyorsa anında yönlendiren yardımcı fonksiyon
     const checkInactivityAndRedirect = (): boolean => {
-      const sec = useSettingsStore.getState().settings?.security_settings;
-      if (!sec?.inactivity_logout_enabled) {
+      const sec = getEffectiveSecuritySettings();
+      if (!sec || !sec.inactivity_logout_enabled) {
         return false;
       }
 
@@ -461,15 +479,27 @@ export default function HomePage() {
       }
 
       const inactiveSince = parseInt(inactiveSinceStr, 10);
-      if (isNaN(inactiveSince)) {
+      if (isNaN(inactiveSince) || inactiveSince <= 0) {
         return false;
       }
 
-      const elapsedMinutes = (Date.now() - inactiveSince) / (1000 * 60);
-      const timeoutMinutes = sec.inactivity_timeout_minutes || 15;
+      const elapsedMs = Date.now() - inactiveSince;
+      const elapsedMinutes = elapsedMs / (1000 * 60);
+
+      // Kullanıcının girdiği dakika değerini kesin sayısal olarak al (ASLA hardcoded değil)
+      const parsedTimeout = Number(sec.inactivity_timeout_minutes);
+      const timeoutMinutes = !isNaN(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 15;
+
+      console.log(
+        `⏱️ [Aura Inactivity] Denetim: Geçen süre: ${elapsedMinutes.toFixed(2)} dk (${Math.round(
+          elapsedMs / 1000
+        )} sn) / Sınır: ${timeoutMinutes} dk`
+      );
 
       if (elapsedMinutes >= timeoutMinutes) {
-        // SÜRE DOLDU!
+        console.warn(
+          `🚨 [Aura Inactivity] Süre (${timeoutMinutes} dk) doldu! Oturum kapatılıyor ve yönlendiriliyor...`
+        );
         // 1. Kalkanı açık tut (kullanıcı tek kare bile sohbet görmesin)
         setIsPrivacyCurtainActive(true);
         if (typeof window !== "undefined") {
@@ -506,121 +536,112 @@ export default function HomePage() {
       return;
     }
 
-    const handleVisibilityOrFocus = () => {
-      const isHidden = typeof document !== "undefined" && document.hidden;
-      const sec = useSettingsStore.getState().settings?.security_settings;
-
-      if (isHidden) {
-        // KULLANICI TUŞ KİLİDİNİ KAPATTI VEYA SEKME ARKA PLANA GEÇTİ
-        if (sec?.inactivity_logout_enabled && isScheduleActiveNow(sec)) {
-          // 1. Ekran görüntüsü alınırken sohbetin görünmemesi için kalkanı hemen çek
-          setIsPrivacyCurtainActive(true);
-          // 2. Kilitlenme anını kaydet
-          if (typeof window !== "undefined") {
-            localStorage.setItem("aura_inactive_since", Date.now().toString());
-          }
-        }
-        return;
-      }
-
-      // KULLANICI TUŞ KİLİDİNİ AÇTI VEYA SEKMEDE UYANDI
-      const isVisible =
-        typeof document !== "undefined" &&
-        !document.hidden &&
-        document.visibilityState === "visible";
-
-      if (isVisible) {
-        // Önce inaktivite zaman aşımını kontrol et
-        if (checkInactivityAndRedirect()) {
-          return; // Süre dolduysa soketi bağlamadan fırlatır!
-        }
-
-        // Süre dolmadıysa kalkanı kaldır ve kilitlenme damgasını temizle
-        setIsPrivacyCurtainActive(false);
+    const handleGoingToBackground = () => {
+      const sec = getEffectiveSecuritySettings();
+      if (sec?.inactivity_logout_enabled && isScheduleActiveNow(sec)) {
+        setIsPrivacyCurtainActive(true);
         if (typeof window !== "undefined") {
-          localStorage.removeItem("aura_inactive_since");
-        }
-
-        notificationManager.stopFlash();
-
-        // Kilit ekranı geçiş animasyonunu karşılamak için aşamalı metrik güncellemesi
-        updateViewportMetrics();
-        setTimeout(updateViewportMetrics, 100);
-        setTimeout(updateViewportMetrics, 300);
-
-        // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
-        if (typeof window !== "undefined") {
-          window.scrollTo(0, 0);
-          document.body.scrollTop = 0;
-          document.documentElement.scrollTop = 0;
-        }
-        scrollToBottom("auto");
-        setTimeout(() => scrollToBottom("auto"), 60);
-        setTimeout(() => scrollToBottom("auto"), 150);
-        setTimeout(() => scrollToBottom("auto"), 350);
-
-        // 1. WebSocket kopmuşsa yeniden bağla (eğer CONNECTING aşamasındaysa tekrar açma)
-        const socketState = useSocketStore.getState();
-        if (
-          !socketState.socket ||
-          (socketState.socket.readyState !== WebSocket.OPEN &&
-            socketState.socket.readyState !== WebSocket.CONNECTING)
-        ) {
-          socketState.connect();
-        }
-
-        // 2. Kilit açıldığında güncel konuşmaları ve okunmamış sayılarını çek
-        loadConversations();
-
-        // 3. Eğer açık bir sohbet varsa mesajları tazele ve işlem tamamlandığında kesin tabana kaydır
-        if (activeConversationId) {
-          useChatStore
-            .getState()
-            .loadMessages(activeConversationId)
-            .then(() => {
-              // API'den mesajlar çekilip state güncellendikten sonra tabana sabitle
-              scrollToBottom("auto");
-              setTimeout(() => scrollToBottom("auto"), 50);
-              setTimeout(() => scrollToBottom("auto"), 150);
-            })
-            .catch(() => {});
-
-          const convMessages = messages[activeConversationId] || [];
-          const unreadIds = convMessages
-            .filter((m) => !m.is_mine && !m.read_at)
-            .map((m) => m.id);
-
-          if (unreadIds.length > 0) {
-            useSocketStore.getState().sendAction("read_ack", {
-              conversation_id: activeConversationId,
-              message_ids: unreadIds,
-            });
-          }
+          const nowTs = Date.now().toString();
+          localStorage.setItem("aura_inactive_since", nowTs);
+          console.log("🔒 [Aura Inactivity] Kilitlendi / Arka plana geçti. Zaman:", new Date().toLocaleTimeString());
         }
       }
     };
 
-    // Kullanıcı sayfadayken etkileşim oldukça inaktivite damgasını temizle
-    const handleUserInteraction = () => {
+    const handleComingToForeground = () => {
+      // Önce inaktivite zaman aşımını kontrol et
+      if (checkInactivityAndRedirect()) {
+        return; // Süre dolduysa soketi bağlamadan fırlatır!
+      }
+
+      // Süre dolmadıysa kalkanı kaldır ve kilitlenme damgasını temizle
+      setIsPrivacyCurtainActive(false);
       if (typeof window !== "undefined") {
         localStorage.removeItem("aura_inactive_since");
       }
+
+      notificationManager.stopFlash();
+
+      // Kilit ekranı geçiş animasyonunu karşılamak için aşamalı metrik güncellemesi
+      updateViewportMetrics();
+      setTimeout(updateViewportMetrics, 100);
+      setTimeout(updateViewportMetrics, 300);
+
+      // Kilit açıldığında document scroll'unu sıfırla ve mesajları tam tabana çek
+      if (typeof window !== "undefined") {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+      }
+      scrollToBottom("auto");
+      setTimeout(() => scrollToBottom("auto"), 60);
+      setTimeout(() => scrollToBottom("auto"), 150);
+      setTimeout(() => scrollToBottom("auto"), 350);
+
+      // 1. WebSocket kopmuşsa yeniden bağla
+      const socketState = useSocketStore.getState();
+      if (
+        !socketState.socket ||
+        (socketState.socket.readyState !== WebSocket.OPEN &&
+          socketState.socket.readyState !== WebSocket.CONNECTING)
+      ) {
+        socketState.connect();
+      }
+
+      // 2. Kilit açıldığında güncel konuşmaları ve okunmamış sayılarını çek
+      loadConversations();
+
+      // 3. Açık sohbet varsa mesajları tazele
+      if (activeConversationId) {
+        useChatStore
+          .getState()
+          .loadMessages(activeConversationId)
+          .then(() => {
+            scrollToBottom("auto");
+            setTimeout(() => scrollToBottom("auto"), 50);
+            setTimeout(() => scrollToBottom("auto"), 150);
+          })
+          .catch(() => {});
+
+        const convMessages = messages[activeConversationId] || [];
+        const unreadIds = convMessages
+          .filter((m) => !m.is_mine && !m.read_at)
+          .map((m) => m.id);
+
+        if (unreadIds.length > 0) {
+          useSocketStore.getState().sendAction("read_ack", {
+            conversation_id: activeConversationId,
+            message_ids: unreadIds,
+          });
+        }
+      }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
-    window.addEventListener("focus", handleVisibilityOrFocus);
-    window.addEventListener("online", handleVisibilityOrFocus);
-    window.addEventListener("touchstart", handleUserInteraction, { passive: true });
-    window.addEventListener("mousedown", handleUserInteraction, { passive: true });
-    window.addEventListener("keydown", handleUserInteraction, { passive: true });
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        handleGoingToBackground();
+      } else {
+        handleComingToForeground();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handleGoingToBackground);
+    window.addEventListener("pageshow", handleComingToForeground);
+    window.addEventListener("focus", handleComingToForeground);
+    window.addEventListener("blur", () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        handleGoingToBackground();
+      }
+    });
+    window.addEventListener("online", handleComingToForeground);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
-      window.removeEventListener("focus", handleVisibilityOrFocus);
-      window.removeEventListener("online", handleVisibilityOrFocus);
-      window.removeEventListener("touchstart", handleUserInteraction);
-      window.removeEventListener("mousedown", handleUserInteraction);
-      window.removeEventListener("keydown", handleUserInteraction);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handleGoingToBackground);
+      window.removeEventListener("pageshow", handleComingToForeground);
+      window.removeEventListener("focus", handleComingToForeground);
+      window.removeEventListener("online", handleComingToForeground);
     };
   }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportMetrics]);
 

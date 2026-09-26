@@ -375,6 +375,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       await adminApi.updateSetting(key, value);
       useSettingsStore.getState().updateSettingLocally(key, value);
+      if (key === "security_settings" && typeof window !== "undefined") {
+        localStorage.setItem("aura_security_settings", JSON.stringify(value));
+      }
       setSaveSuccess(`"${key}" parametreleri kaydedildi!`);
       setTimeout(() => setSaveSuccess(null), 3000);
       loadSettings();

@@ -234,6 +234,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
         if (res.data.theme_settings) {
           applyThemeToDocument(res.data.theme_settings);
         }
+        if (res.data.security_settings && typeof window !== "undefined") {
+          localStorage.setItem("aura_security_settings", JSON.stringify(res.data.security_settings));
+        }
         if (res.data.site_info.site_name && typeof document !== "undefined") {
           document.title = res.data.site_info.site_name;
         }
@@ -249,6 +252,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       const updated = { ...state.settings, [key]: value };
       if (key === "theme_settings") {
         applyThemeToDocument(value);
+      }
+      if (key === "security_settings" && typeof window !== "undefined") {
+        localStorage.setItem("aura_security_settings", JSON.stringify(value));
       }
       return { settings: updated };
     });
