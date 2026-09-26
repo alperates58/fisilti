@@ -414,10 +414,39 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const handleSaveSetting = async (key: string, value: any) => {
     try {
-      await adminApi.updateSetting(key, value);
-      useSettingsStore.getState().updateSettingLocally(key, value);
+      let sanitizedValue = value;
+      if (key === "security_settings" && value) {
+        sanitizedValue = {
+          ...value,
+          max_messages_per_second: Number(value.max_messages_per_second) || 5,
+          max_messages_per_minute: Number(value.max_messages_per_minute) || 60,
+          lockout_attempts: Number(value.lockout_attempts) || 5,
+          session_timeout_days: Number(value.session_timeout_days) || 30,
+          inactivity_timeout_minutes: Number(value.inactivity_timeout_minutes) || 15,
+        };
+      } else if (key === "media_limits" && value) {
+        sanitizedValue = {
+          ...value,
+          max_file_size_mb: Number(value.max_file_size_mb) || 50,
+          max_voice_seconds: Number(value.max_voice_seconds) || 120,
+        };
+      } else if (key === "chat_settings" && value) {
+        sanitizedValue = {
+          ...value,
+          edit_time_limit_minutes: Number(value.edit_time_limit_minutes) || 15,
+          delete_time_limit_minutes: Number(value.delete_time_limit_minutes) || 60,
+        };
+      } else if (key === "call_settings" && value) {
+        sanitizedValue = {
+          ...value,
+          max_call_duration_minutes: Number(value.max_call_duration_minutes) || 120,
+        };
+      }
+
+      await adminApi.updateSetting(key, sanitizedValue);
+      useSettingsStore.getState().updateSettingLocally(key, sanitizedValue);
       if (key === "security_settings" && typeof window !== "undefined") {
-        localStorage.setItem("aura_security_settings", JSON.stringify(value));
+        localStorage.setItem("aura_security_settings", JSON.stringify(sanitizedValue));
       }
       setSaveSuccess(`"${key}" parametreleri kaydedildi!`);
       setTimeout(() => setSaveSuccess(null), 3000);
@@ -1376,16 +1405,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Maksimum Dosya Boyutu (MB)</label>
                         <input
                           type="number"
-                          value={settings.media_limits.max_file_size_mb}
-                          onChange={(e) =>
+                          value={settings.media_limits.max_file_size_mb ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               media_limits: {
                                 ...settings.media_limits,
-                                max_file_size_mb: parseInt(e.target.value) || 50,
+                                max_file_size_mb: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.media_limits.max_file_size_mb || Number(settings.media_limits.max_file_size_mb) < 1) {
+                              setSettings({
+                                ...settings,
+                                media_limits: { ...settings.media_limits, max_file_size_mb: 50 },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1394,16 +1432,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Maks. Ses Kayıt Süresi (Saniye)</label>
                         <input
                           type="number"
-                          value={settings.media_limits.max_voice_seconds}
-                          onChange={(e) =>
+                          value={settings.media_limits.max_voice_seconds ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               media_limits: {
                                 ...settings.media_limits,
-                                max_voice_seconds: parseInt(e.target.value) || 300,
+                                max_voice_seconds: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.media_limits.max_voice_seconds || Number(settings.media_limits.max_voice_seconds) < 1) {
+                              setSettings({
+                                ...settings,
+                                media_limits: { ...settings.media_limits, max_voice_seconds: 300 },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1447,16 +1494,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Düzenleme Süre Sınırı (Dakika)</label>
                         <input
                           type="number"
-                          value={settings.chat_settings.edit_time_limit_minutes}
-                          onChange={(e) =>
+                          value={settings.chat_settings.edit_time_limit_minutes ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               chat_settings: {
                                 ...settings.chat_settings,
-                                edit_time_limit_minutes: parseInt(e.target.value) || 15,
+                                edit_time_limit_minutes: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.chat_settings.edit_time_limit_minutes || Number(settings.chat_settings.edit_time_limit_minutes) < 1) {
+                              setSettings({
+                                ...settings,
+                                chat_settings: { ...settings.chat_settings, edit_time_limit_minutes: 15 },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1465,16 +1521,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Herkesten Silme Süre Sınırı (Dakika)</label>
                         <input
                           type="number"
-                          value={settings.chat_settings.delete_time_limit_minutes}
-                          onChange={(e) =>
+                          value={settings.chat_settings.delete_time_limit_minutes ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               chat_settings: {
                                 ...settings.chat_settings,
-                                delete_time_limit_minutes: parseInt(e.target.value) || 60,
+                                delete_time_limit_minutes: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.chat_settings.delete_time_limit_minutes || Number(settings.chat_settings.delete_time_limit_minutes) < 1) {
+                              setSettings({
+                                ...settings,
+                                chat_settings: { ...settings.chat_settings, delete_time_limit_minutes: 60 },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1604,16 +1669,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <label className="text-[11px] text-slate-400 block mb-1">Maksimum Arama Süresi (Dakika)</label>
                       <input
                         type="number"
-                        value={settings.call_settings.max_call_duration_minutes}
-                        onChange={(e) =>
+                        value={settings.call_settings.max_call_duration_minutes ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           setSettings({
                             ...settings,
                             call_settings: {
                               ...settings.call_settings,
-                              max_call_duration_minutes: parseInt(e.target.value) || 120,
+                              max_call_duration_minutes: val === "" ? ("" as any) : parseInt(val, 10),
                             },
-                          })
-                        }
+                          });
+                        }}
+                        onBlur={() => {
+                          if (!settings.call_settings.max_call_duration_minutes || Number(settings.call_settings.max_call_duration_minutes) < 1) {
+                            setSettings({
+                              ...settings,
+                              call_settings: { ...settings.call_settings, max_call_duration_minutes: 120 },
+                            });
+                          }
+                        }}
                         className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                       />
                     </div>
@@ -1715,16 +1789,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Saniyede Maks. Mesaj</label>
                         <input
                           type="number"
-                          value={settings.security_settings.max_messages_per_second}
-                          onChange={(e) =>
+                          value={settings.security_settings.max_messages_per_second ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               security_settings: {
                                 ...settings.security_settings,
-                                max_messages_per_second: parseInt(e.target.value) || 5,
+                                max_messages_per_second: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.security_settings.max_messages_per_second || Number(settings.security_settings.max_messages_per_second) < 1) {
+                              setSettings({
+                                ...settings,
+                                security_settings: {
+                                  ...settings.security_settings,
+                                  max_messages_per_second: 5,
+                                },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1733,16 +1819,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="text-[11px] text-slate-400 block mb-1">Dakikada Maks. Mesaj</label>
                         <input
                           type="number"
-                          value={settings.security_settings.max_messages_per_minute}
-                          onChange={(e) =>
+                          value={settings.security_settings.max_messages_per_minute ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setSettings({
                               ...settings,
                               security_settings: {
                                 ...settings.security_settings,
-                                max_messages_per_minute: parseInt(e.target.value) || 60,
+                                max_messages_per_minute: val === "" ? ("" as any) : parseInt(val, 10),
                               },
-                            })
-                          }
+                            });
+                          }}
+                          onBlur={() => {
+                            if (!settings.security_settings.max_messages_per_minute || Number(settings.security_settings.max_messages_per_minute) < 1) {
+                              setSettings({
+                                ...settings,
+                                security_settings: {
+                                  ...settings.security_settings,
+                                  max_messages_per_minute: 60,
+                                },
+                              });
+                            }
+                          }}
                           className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                         />
                       </div>
@@ -1772,16 +1870,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <label className="text-[11px] text-slate-400 block mb-1">Hatalı Giriş Kilidi (Deneme)</label>
                           <input
                             type="number"
-                            value={settings.security_settings.lockout_attempts}
-                            onChange={(e) =>
+                            value={settings.security_settings.lockout_attempts ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
                               setSettings({
                                 ...settings,
                                 security_settings: {
                                   ...settings.security_settings,
-                                  lockout_attempts: parseInt(e.target.value) || 5,
+                                  lockout_attempts: val === "" ? ("" as any) : parseInt(val, 10),
                                 },
-                              })
-                            }
+                              });
+                            }}
+                            onBlur={() => {
+                              if (!settings.security_settings.lockout_attempts || Number(settings.security_settings.lockout_attempts) < 1) {
+                                setSettings({
+                                  ...settings,
+                                  security_settings: {
+                                    ...settings.security_settings,
+                                    lockout_attempts: 5,
+                                  },
+                                });
+                              }
+                            }}
                             className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                           />
                         </div>
@@ -1790,16 +1900,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <label className="text-[11px] text-slate-400 block mb-1">Oturum Süresi (Gün)</label>
                           <input
                             type="number"
-                            value={settings.security_settings.session_timeout_days}
-                            onChange={(e) =>
+                            value={settings.security_settings.session_timeout_days ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
                               setSettings({
                                 ...settings,
                                 security_settings: {
                                   ...settings.security_settings,
-                                  session_timeout_days: parseInt(e.target.value) || 30,
+                                  session_timeout_days: val === "" ? ("" as any) : parseInt(val, 10),
                                 },
-                              })
-                            }
+                              });
+                            }}
+                            onBlur={() => {
+                              if (!settings.security_settings.session_timeout_days || Number(settings.security_settings.session_timeout_days) < 1) {
+                                setSettings({
+                                  ...settings,
+                                  security_settings: {
+                                    ...settings.security_settings,
+                                    session_timeout_days: 30,
+                                  },
+                                });
+                              }
+                            }}
                             className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                           />
                         </div>
@@ -1851,16 +1973,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             min="1"
                             max="1440"
                             placeholder="15"
-                            value={settings.security_settings.inactivity_timeout_minutes ?? 15}
-                            onChange={(e) =>
+                            value={settings.security_settings.inactivity_timeout_minutes ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
                               setSettings({
                                 ...settings,
                                 security_settings: {
                                   ...settings.security_settings,
-                                  inactivity_timeout_minutes: parseInt(e.target.value) || 15,
+                                  inactivity_timeout_minutes: val === "" ? ("" as any) : parseInt(val, 10),
                                 },
-                              })
-                            }
+                              });
+                            }}
+                            onBlur={() => {
+                              if (!settings.security_settings.inactivity_timeout_minutes || Number(settings.security_settings.inactivity_timeout_minutes) < 1) {
+                                setSettings({
+                                  ...settings,
+                                  security_settings: {
+                                    ...settings.security_settings,
+                                    inactivity_timeout_minutes: 15,
+                                  },
+                                });
+                              }
+                            }}
                             className="w-full bg-[#181B24] border border-[#292D38] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                           />
                           <span className="text-[10px] text-slate-500 mt-1 block">Örn: 15 dakika boyunca kilitli kalırsa</span>
