@@ -56,12 +56,24 @@ export default function RootLayout({
                 try {
                   var cached = localStorage.getItem("aura_security_settings");
                   var inactive = localStorage.getItem("aura_inactive_since");
-                  if (cached && inactive) {
+                  var lastActive = localStorage.getItem("aura_last_active");
+                  if (cached && (inactive || lastActive)) {
                     var s = JSON.parse(cached);
-                    var since = parseInt(inactive, 10);
+                    var sinceInactive = inactive ? parseInt(inactive, 10) : 0;
+                    var sinceActive = lastActive ? parseInt(lastActive, 10) : 0;
+                    var since = 0;
+                    if (sinceInactive > 0 && sinceActive > 0) {
+                      since = Math.min(sinceInactive, sinceActive);
+                    } else if (sinceInactive > 0) {
+                      since = sinceInactive;
+                    } else if (sinceActive > 0) {
+                      since = sinceActive;
+                    }
+
                     var timeout = (Number(s.inactivity_timeout_minutes) || 15) * 60 * 1000;
                     if (s.inactivity_logout_enabled && since > 0 && (Date.now() - since) >= timeout) {
                       localStorage.removeItem("aura_inactive_since");
+                      localStorage.removeItem("aura_last_active");
                       var url = (s.inactivity_redirect_url || "https://www.google.com").trim();
                       if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
                       

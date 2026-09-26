@@ -590,16 +590,30 @@ export default function HomePage() {
 
       const inactiveSinceStr =
         typeof window !== "undefined" ? localStorage.getItem("aura_inactive_since") : null;
-      if (!inactiveSinceStr) {
+      const lastActiveStr =
+        typeof window !== "undefined" ? localStorage.getItem("aura_last_active") : null;
+
+      if (!inactiveSinceStr && !lastActiveStr) {
         return false;
       }
 
-      const inactiveSince = parseInt(inactiveSinceStr, 10);
-      if (isNaN(inactiveSince) || inactiveSince <= 0) {
+      const inactiveSince = inactiveSinceStr ? parseInt(inactiveSinceStr, 10) : 0;
+      const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
+
+      let effectiveInactiveAt = 0;
+      if (inactiveSince > 0 && lastActive > 0) {
+        effectiveInactiveAt = Math.min(inactiveSince, lastActive);
+      } else if (inactiveSince > 0) {
+        effectiveInactiveAt = inactiveSince;
+      } else if (lastActive > 0) {
+        effectiveInactiveAt = lastActive;
+      }
+
+      if (effectiveInactiveAt <= 0) {
         return false;
       }
 
-      const elapsedMs = Date.now() - inactiveSince;
+      const elapsedMs = Date.now() - effectiveInactiveAt;
       const elapsedMinutes = elapsedMs / (1000 * 60);
 
       // Kullanıcının girdiği dakika değerini kesin sayısal olarak al (ASLA hardcoded değil)
@@ -622,6 +636,7 @@ export default function HomePage() {
 
         if (typeof window !== "undefined") {
           localStorage.removeItem("aura_inactive_since");
+          localStorage.removeItem("aura_last_active");
         }
 
         // 1. Soketi ve Store durumlarını sessizce kapat (Asla isAuthenticated: false yapma ki Aura yükleniyor... ekranına düşmesin!)
@@ -679,6 +694,15 @@ export default function HomePage() {
       return;
     }
 
+    const markUserActive = () => {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("aura_last_active", Date.now().toString());
+      }
+    };
+
+    // Başlangıçta aktif damgasını vur
+    markUserActive();
+
     const handleGoingToBackground = () => {
       // Eğer zaten yönlendirme sürecindeysek hiçbir şey yapma
       if (isRedirecting) return;
@@ -689,7 +713,9 @@ export default function HomePage() {
         setIsPrivacyCurtainActive(true);
         if (typeof window !== "undefined") {
           const nowTs = Date.now().toString();
-          localStorage.setItem("aura_inactive_since", nowTs);
+          if (!localStorage.getItem("aura_inactive_since")) {
+            localStorage.setItem("aura_inactive_since", nowTs);
+          }
           console.log("🔒 [Aura Inactivity] Kilitlendi / Arka plana geçti. Zaman:", new Date().toLocaleTimeString());
         }
       }
@@ -706,6 +732,7 @@ export default function HomePage() {
       setIsPrivacyCurtainActive(false);
       if (typeof window !== "undefined") {
         localStorage.removeItem("aura_inactive_since");
+        markUserActive();
       }
 
       notificationManager.stopFlash();
@@ -782,22 +809,46 @@ export default function HomePage() {
       handleComingToForeground();
     };
 
+    const handleBlur = () => {
+      handleGoingToBackground();
+    };
+
+    const handleUserInteraction = () => {
+      markUserActive();
+    };
+
+    const activityEvents = ["touchstart", "touchmove", "touchend", "mousedown", "keydown", "scroll"];
+    activityEvents.forEach((ev) => {
+      window.addEventListener(ev, handleUserInteraction, { passive: true });
+    });
+
+    const heartbeat = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        markUserActive();
+      }
+    }, 3000);
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handleGoingToBackground);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("focus", handleComingToForeground);
-    window.addEventListener("blur", () => {
-      if (typeof document !== "undefined" && document.hidden) {
-        handleGoingToBackground();
-      }
-    });
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("freeze", handleGoingToBackground);
+    window.addEventListener("resume", handleComingToForeground);
     window.addEventListener("online", handleComingToForeground);
 
     return () => {
+      clearInterval(heartbeat);
+      activityEvents.forEach((ev) => {
+        window.removeEventListener(ev, handleUserInteraction);
+      });
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handleGoingToBackground);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("focus", handleComingToForeground);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("freeze", handleGoingToBackground);
+      window.removeEventListener("resume", handleComingToForeground);
       window.removeEventListener("online", handleComingToForeground);
     };
   }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportMetrics]);
