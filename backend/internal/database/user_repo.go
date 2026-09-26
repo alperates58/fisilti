@@ -276,13 +276,27 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, search, roleFilter str
 	return users, total, nil
 }
 
-func (r *UserRepository) UpdateUserAdmin(ctx context.Context, userID uuid.UUID, role string, isBanned bool, banReason string) error {
+func (r *UserRepository) UpdateUserAdmin(
+	ctx context.Context,
+	userID uuid.UUID,
+	displayName, username, email, passwordHash, role string,
+	isBanned bool,
+	banReason string,
+) error {
 	query := `
 		UPDATE users
-		SET role = $1, is_banned = $2, ban_reason = $3, updated_at = NOW()
-		WHERE id = $4
+		SET 
+			display_name = CASE WHEN $1 <> '' THEN $1 ELSE display_name END,
+			username = CASE WHEN $2 <> '' THEN $2 ELSE username END,
+			email = CASE WHEN $3 <> '' THEN $3 ELSE email END,
+			password_hash = CASE WHEN $4 <> '' THEN $4 ELSE password_hash END,
+			role = CASE WHEN $5 <> '' THEN $5 ELSE role END,
+			is_banned = $6,
+			ban_reason = $7,
+			updated_at = NOW()
+		WHERE id = $8
 	`
-	_, err := r.db.ExecContext(ctx, query, role, isBanned, banReason, userID)
+	_, err := r.db.ExecContext(ctx, query, displayName, username, email, passwordHash, role, isBanned, banReason, userID)
 	return err
 }
 

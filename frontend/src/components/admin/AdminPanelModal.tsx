@@ -21,6 +21,7 @@ import {
   PhoneCall,
   Activity,
   FileText,
+  Pencil,
   X,
   Search,
   CheckCircle2,
@@ -213,6 +214,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [totalUsers, setTotalUsers] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+
+  // Kullanıcı Bilgilerini Düzenleme State'i
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState("member");
+  const [editIsBanned, setEditIsBanned] = useState(false);
+  const [editBanReason, setEditBanReason] = useState("");
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [editUserError, setEditUserError] = useState<string | null>(null);
 
   // Stats & Logs state
   const [stats, setStats] = useState<AdminStatsResponse | null>(null);
@@ -476,6 +489,61 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
+  const handleOpenEditUser = (u: User) => {
+    setEditingUser(u);
+    setEditDisplayName(u.display_name || "");
+    setEditUsername(u.username || "");
+    setEditEmail(u.email || "");
+    setEditPassword("");
+    setEditRole(u.role || "member");
+    setEditIsBanned(Boolean(u.is_banned));
+    setEditBanReason(u.ban_reason || "");
+    setEditUserError(null);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editDisplayName.trim()) {
+      setEditUserError("Ad Soyad alanı boş bırakılamaz.");
+      return;
+    }
+    if (!editUsername.trim()) {
+      setEditUserError("Kullanıcı adı boş bırakılamaz.");
+      return;
+    }
+    if (!editEmail.trim()) {
+      setEditUserError("E-posta adresi boş bırakılamaz.");
+      return;
+    }
+    if (editPassword && editPassword.length < 6) {
+      setEditUserError("Yeni şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+
+    setIsSavingUser(true);
+    setEditUserError(null);
+    try {
+      await adminApi.updateUser(editingUser.id, {
+        display_name: editDisplayName.trim(),
+        username: editUsername.trim().toLowerCase(),
+        email: editEmail.trim().toLowerCase(),
+        password: editPassword ? editPassword : undefined,
+        role: editRole,
+        is_banned: editIsBanned,
+        ban_reason: editIsBanned ? editBanReason.trim() : "",
+      });
+      setSaveSuccess(`@${editUsername} kullanıcısının bilgileri güncellendi!`);
+      setTimeout(() => setSaveSuccess(null), 3500);
+      setEditingUser(null);
+      loadUsers();
+    } catch (err: any) {
+      setEditUserError(err?.response?.data?.error || "Kullanıcı güncellenemedi.");
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const NAV_ITEMS = [
@@ -629,47 +697,92 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="border border-[#222631] rounded-2xl overflow-hidden bg-[#10131A]">
-                    <div className="divide-y divide-[#1D212B]">
-                      {users.map((u) => (
-                        <div key={u.id} className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#151922] transition-colors">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-pink-400 overflow-hidden flex-shrink-0">
-                              {u.avatar_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={u.avatar_url} alt={u.display_name} className="w-full h-full object-cover" />
-                              ) : (
-                                u.display_name?.charAt(0).toUpperCase() || "U"
+                  <div className="space-y-2.5">
+                    {users.map((u) => {
+                      const isOnline = u.online_status === 1;
+                      const isAdmin = u.role === "admin";
+                      const isMod = u.role === "moderator";
+
+                      return (
+                        <div
+                          key={u.id}
+                          className="p-3.5 sm:p-4 rounded-2xl bg-[#12151D] border border-[#222634] hover:border-slate-700/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md"
+                        >
+                          {/* Sol: Avatar + İsimler + Rozetler */}
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="relative flex-shrink-0">
+                              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-700 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden shadow-inner">
+                                {u.avatar_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={u.avatar_url}
+                                    alt={u.display_name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  u.display_name?.charAt(0).toUpperCase() || "U"
+                                )}
+                              </div>
+                              {isOnline && (
+                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#12151D]" />
                               )}
                             </div>
+
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold text-white truncate">{u.display_name}</span>
+                                <span className="text-xs sm:text-sm font-bold text-white truncate">
+                                  {u.display_name}
+                                </span>
+
+                                {/* Rol Rozeti */}
+                                {isAdmin ? (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                                    <ShieldAlert className="w-3 h-3 text-purple-400" />
+                                    Yönetici
+                                  </span>
+                                ) : isMod ? (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                    Moderatör
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60">
+                                    Üye
+                                  </span>
+                                )}
+
+                                {/* Yasaklı Rozeti */}
                                 {u.is_banned && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40">
                                     YASAKLI
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-400 truncate">@{u.username} • {u.email}</div>
+
+                              <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
+                                <span className="font-mono text-slate-300">@{u.username}</span>
+                                <span className="text-slate-600">•</span>
+                                <span className="truncate">{u.email}</span>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-[#1D212B]/60">
-                            <select
-                              value={u.role || "member"}
-                              onChange={(e) => handleUpdateUserRole(u, e.target.value)}
-                              className="bg-[#141720] border border-[#252936] text-[11px] text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                          {/* Sağ: Eylem Butonları */}
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-[#222634]">
+                            {/* Düzenle Butonu */}
+                            <button
+                              onClick={() => handleOpenEditUser(u)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                              title="Kullanıcı Bilgilerini Düzenle"
                             >
-                              <option value="member">Üye</option>
-                              <option value="moderator">Moderatör</option>
-                              <option value="admin">Admin</option>
-                            </select>
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Düzenle</span>
+                            </button>
 
+                            {/* Yasakla / Yasağı Kaldır */}
                             <button
                               onClick={() => handleToggleUserBan(u)}
                               title={u.is_banned ? "Yasağı Kaldır" : "Kullanıcıyı Yasakla"}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+                              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
                                 u.is_banned
                                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
                                   : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
@@ -678,22 +791,24 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               {u.is_banned ? <UserCheck className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                             </button>
 
+                            {/* Kalıcı Sil */}
                             <button
                               onClick={() => handleDeleteUser(u.id, u.username)}
                               title="Kullanıcıyı Kalıcı Sil"
-                              className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/80 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
+                              className="p-2 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
-                      ))}
-                      {users.length === 0 && (
-                        <div className="p-8 text-center text-xs text-slate-500">
-                          Kriterlere uygun kullanıcı bulunamadı.
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })}
+
+                    {users.length === 0 && (
+                      <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+                        Kriterlere uygun kullanıcı bulunamadı.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2200,6 +2315,196 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
         </div>
       </div>
+
+      {/* KULLANICI BİLGİLERİNİ DÜZENLEME MODALI */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in select-none">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg bg-[#0F1219] border border-[#252A38] rounded-3xl shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-slate-200 animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
+          >
+            {/* Modal Başlığı */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#222736]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">
+                    Kullanıcı Bilgilerini Düzenle
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    @{editingUser.username} profilini ve yetkilerini yönetin
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingUser(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Hata Bildirimi */}
+            {editUserError && (
+              <div className="px-3.5 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{editUserError}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSaveUser} className="space-y-3.5">
+              {/* Ad Soyad */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ad Soyad
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full bg-[#151922] border border-[#272D3D] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              {/* Kullanıcı Adı */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kullanıcı Adı (@)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full bg-[#151922] border border-[#272D3D] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              {/* E-posta Adresi */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  E-posta Adresi
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-[#151922] border border-[#272D3D] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              {/* Yeni Şifre */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Yeni Şifre Belirle <span className="text-slate-500 font-normal">(İsteğe bağlı)</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Mevcut şifreyi korumak için boş bırakın (En az 6 karakter)"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full bg-[#151922] border border-[#272D3D] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              {/* Kullanıcı Rolü */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Kullanıcı Rolü
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "member", label: "Üye", desc: "Standart" },
+                    { id: "moderator", label: "Moderatör", desc: "Denetçi" },
+                    { id: "admin", label: "Yönetici", desc: "Tam Yetki" },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setEditRole(r.id)}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        editRole === r.id
+                          ? "bg-indigo-600/20 border-indigo-500 text-white font-bold"
+                          : "bg-[#151922] border-[#272D3D] text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <div className="text-xs">{r.label}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{r.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hesap Durumu */}
+              <div className="pt-2 border-t border-[#222736]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Hesap Durumu</div>
+                    <div className="text-[11px] text-slate-400">
+                      {editIsBanned ? "Bu kullanıcının erişimi engellendi." : "Hesap aktif ve giriş yapabilir."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsBanned(!editIsBanned)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      editIsBanned
+                        ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                        : "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    }`}
+                  >
+                    {editIsBanned ? "Yasaklı" : "Aktif"}
+                  </button>
+                </div>
+
+                {editIsBanned && (
+                  <div className="mt-2.5">
+                    <label className="block text-[11px] font-semibold text-rose-300 mb-1">
+                      Yasaklanma Gerekçesi
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Örn: Topluluk kuralları ihlali"
+                      value={editBanReason}
+                      onChange={(e) => setEditBanReason(e.target.value)}
+                      className="w-full bg-[#151922] border border-rose-500/30 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Alt Butonlar */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#222736]">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingUser}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+                >
+                  {isSavingUser ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSavingUser ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

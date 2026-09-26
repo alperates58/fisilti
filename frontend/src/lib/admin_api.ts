@@ -185,7 +185,15 @@ export const adminApi = {
 
   updateUser: async (
     id: string,
-    data: { role: string; is_banned: boolean; ban_reason: string }
+    data: {
+      display_name?: string;
+      username?: string;
+      email?: string;
+      password?: string;
+      role?: string;
+      is_banned?: boolean;
+      ban_reason?: string;
+    }
   ): Promise<void> => {
     await api.put(`/admin/users/${id}`, data);
   },

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"fisilti/internal/database"
 	"fisilti/internal/livekit"
+	"fisilti/internal/middleware"
 	"fisilti/internal/storage"
 	fisiltiws "fisilti/internal/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -162,11 +164,15 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 	})
 }
 
-// 4. Kullanıcı Güncelle (Rol, Ban Durumu)
+// 4. Kullanıcı Güncelle (Profil Bilgileri, Şifre, Rol, Ban Durumu)
 type UpdateUserAdminRequest struct {
-	Role      string `json:"role"`
-	IsBanned  bool   `json:"is_banned"`
-	BanReason string `json:"ban_reason"`
+	DisplayName string `json:"display_name"`
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+	IsBanned    bool   `json:"is_banned"`
+	BanReason   string `json:"ban_reason"`
 }
 
 func (h *AdminHandler) UpdateUser(c *fiber.Ctx) error {
@@ -181,16 +187,32 @@ func (h *AdminHandler) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek gövdesi"})
 	}
 
-	if req.Role != "admin" && req.Role != "moderator" && req.Role != "member" {
+	if req.Role != "" && req.Role != "admin" && req.Role != "moderator" && req.Role != "member" {
 		req.Role = "member"
 	}
 
-	if err := h.userRepo.UpdateUserAdmin(context.Background(), targetID, req.Role, req.IsBanned, req.BanReason); err != nil {
+	var passwordHash string
+	if req.Password != "" {
+		if len(req.Password) < 6 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Şifre en az 6 karakter olmalıdır."})
+		}
+		hash, err := middleware.HashPassword(req.Password)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Şifre şifrelenemedi"})
+		}
+		passwordHash = hash
+	}
+
+	if err := h.userRepo.UpdateUserAdmin(context.Background(), targetID, req.DisplayName, req.Username, req.Email, passwordHash, req.Role, req.IsBanned, req.BanReason); err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "unique") || strings.Contains(errStr, "duplicate") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Bu kullanıcı adı veya e-posta adresi zaten başka bir kullanıcı tarafından kullanılıyor."})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Kullanıcı güncellenemedi"})
 	}
 
 	return c.JSON(fiber.Map{
-		"message": "Kullanıcı durumu başarıyla güncellendi.",
+		"message": "Kullanıcı bilgileri başarıyla güncellendi.",
 	})
 }
 

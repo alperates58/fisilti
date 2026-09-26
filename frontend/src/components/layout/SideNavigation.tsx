@@ -153,10 +153,10 @@ export default function SideNavigation({
             )}
           </button>
 
-          {/* 2. Kişiler / Rehber (Contacts) */}
+          {/* 2. Kişiler (Contacts) */}
           <button
             onClick={() => onTabChange("contacts")}
-            title="Kişiler ve Kullanıcılar"
+            title="Kişiler"
             style={
               activeTab === "contacts"
                 ? {
@@ -173,7 +173,7 @@ export default function SideNavigation({
             }`}
           >
             <Users className="w-5 h-5 flex-shrink-0" />
-            {isExpanded && <span className="text-xs whitespace-nowrap">Kişiler & Rehber</span>}
+            {isExpanded && <span className="text-xs whitespace-nowrap">Kişiler</span>}
           </button>
 
           {/* 3. Yıldızlı Mesajlar (Starred) */}

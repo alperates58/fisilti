@@ -173,27 +173,19 @@ export default function MediaUploadMenu({
 
       {/* Popover Menü */}
       {isOpen && (
-        <div className="absolute bottom-14 left-0 w-52 bg-slate-900 border border-grupo-dark-border rounded-2xl shadow-2xl p-2 z-40 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 space-y-1">
+        <div className="absolute bottom-14 left-0 w-44 bg-slate-900/95 border border-grupo-dark-border rounded-2xl shadow-2xl p-1.5 z-40 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 space-y-0.5">
           {onOpenEmoji && (
             <button
               onClick={() => {
                 setIsOpen(false);
                 onOpenEmoji();
               }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0">
                 <Smile className="w-4 h-4" />
               </div>
-              <div>
-                <div className="font-semibold flex items-center gap-1.5">
-                  Emoji & İfadeler
-                  <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-bold">
-                    YENİ
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400">Gelişmiş emoji klavyesi</div>
-              </div>
+              <span className="font-semibold text-xs">Emoji & İfadeler</span>
             </button>
           )}
 
@@ -202,15 +194,12 @@ export default function MediaUploadMenu({
               setIsOpen(false);
               imageInputRef.current?.click();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
           >
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0">
               <Image className="w-4 h-4" />
             </div>
-            <div>
-              <div className="font-semibold">Fotoğraf & Video</div>
-              <div className="text-[10px] text-slate-400">JPG, PNG, MP4...</div>
-            </div>
+            <span className="font-semibold text-xs">Fotoğraf & Video</span>
           </button>
 
           <button
@@ -218,15 +207,12 @@ export default function MediaUploadMenu({
               setIsOpen(false);
               fileInputRef.current?.click();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
           >
-            <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center flex-shrink-0">
               <FileText className="w-4 h-4" />
             </div>
-            <div>
-              <div className="font-semibold">Belge / Dosya</div>
-              <div className="text-[10px] text-slate-400">PDF, DOC, ZIP...</div>
-            </div>
+            <span className="font-semibold text-xs">Belge / Dosya</span>
           </button>
 
           <button
@@ -234,28 +220,22 @@ export default function MediaUploadMenu({
               setIsOpen(false);
               onStartVoice();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
           >
-            <div className="w-8 h-8 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center flex-shrink-0">
               <Mic className="w-4 h-4" />
             </div>
-            <div>
-              <div className="font-semibold">Sesli Mesaj</div>
-              <div className="text-[10px] text-slate-400">Mikrofonla kaydet</div>
-            </div>
+            <span className="font-semibold text-xs">Sesli Mesaj</span>
           </button>
 
           <button
             onClick={handleShareLocation}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
           >
-            <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center flex-shrink-0">
               <MapPin className="w-4 h-4" />
             </div>
-            <div>
-              <div className="font-semibold">Konum Paylaş</div>
-              <div className="text-[10px] text-slate-400">Anlık harita konumu</div>
-            </div>
+            <span className="font-semibold text-xs">Konum Paylaş</span>
           </button>
 
           {onOpenDoodle && (
@@ -264,20 +244,12 @@ export default function MediaUploadMenu({
                 setIsOpen(false);
                 onOpenDoodle();
               }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center flex-shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <div>
-                <div className="font-semibold flex items-center gap-1.5">
-                  Canlı Çizim / Doodle
-                  <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded-full font-bold">
-                    YENİ
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400">Birlikte resim çizin</div>
-              </div>
+              <span className="font-semibold text-xs">Canlı Çizim</span>
             </button>
           )}
 
@@ -287,20 +259,12 @@ export default function MediaUploadMenu({
                 setIsOpen(false);
                 onOpenListenTogether();
               }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-800 text-slate-200 hover:text-white transition-colors cursor-pointer text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center flex-shrink-0">
                 <Headphones className="w-4 h-4" />
               </div>
-              <div>
-                <div className="font-semibold flex items-center gap-1.5">
-                  Birlikte Dinle
-                  <span className="text-[9px] px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full font-bold">
-                    YENİ
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400">Senkron müzik dinleyin</div>
-              </div>
+              <span className="font-semibold text-xs">Birlikte Dinle</span>
             </button>
           )}
         </div>

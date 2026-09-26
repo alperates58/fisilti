@@ -257,10 +257,20 @@ export default function HomePage() {
       el.style.height = `${maxHeight}px`;
       el.style.overflowY = "auto";
     } else {
-      el.style.height = `${Math.max(scrollHeight, 44)}px`;
+      el.style.height = `${Math.max(scrollHeight, 40)}px`;
       el.style.overflowY = "hidden";
     }
   }, []);
+
+  // Karşı tarafın mesajı seçildiğinde veya bana ait olmayan herhangi bir mesaj seçildiğinde
+  // "Herkesten Sil" butonunun kesinlikle gizlenmesi (Admin dahi olsa başkasının mesajını silemez)
+  const canDeleteSelectedForAll = useMemo(() => {
+    if (!isSelectionMode || selectedMessageIds.length === 0 || !activeConversationId) return false;
+    const currentMsgs = messages[activeConversationId] || [];
+    const selectedMsgs = currentMsgs.filter((m) => selectedMessageIds.includes(m.id));
+    if (selectedMsgs.length === 0) return false;
+    return selectedMsgs.every((m) => m.is_mine && !m.is_deleted_for_all);
+  }, [isSelectionMode, selectedMessageIds, activeConversationId, messages]);
 
   const updateViewportMetrics = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -2025,24 +2035,26 @@ export default function HomePage() {
                     <span className="hidden sm:inline">Benden Sil</span>
                   </button>
 
-                  {/* Herkesten Sil */}
-                  <button
-                    onClick={async () => {
-                      if (selectedMessageIds.length === 0) return;
-                      if (!confirm(`${selectedMessageIds.length} adet mesajı herkesten silmek istediğinize emin misiniz? Sadece size ait ve silme süresi dolmamış mesajlar herkesten kaldırılır.`)) return;
-                      try {
-                        await deleteSelectedMessages(true);
-                      } catch (err: any) {
-                        alert(err.response?.data?.error || "Mesajlar silinemedi.");
-                      }
-                    }}
-                    disabled={selectedMessageIds.length === 0}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-semibold shadow transition-colors cursor-pointer"
-                    title="Seçili mesajları herkesten sil"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Herkesten Sil</span>
-                  </button>
+                  {/* Herkesten Sil (Sadece seçili tüm mesajlar bana aitse görünür) */}
+                  {canDeleteSelectedForAll && (
+                    <button
+                      onClick={async () => {
+                        if (selectedMessageIds.length === 0) return;
+                        if (!confirm(`${selectedMessageIds.length} adet mesajı herkesten silmek istediğinize emin misiniz?`)) return;
+                        try {
+                          await deleteSelectedMessages(true);
+                        } catch (err: any) {
+                          alert(err.response?.data?.error || "Mesajlar silinemedi.");
+                        }
+                      }}
+                      disabled={selectedMessageIds.length === 0}
+                      className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-semibold shadow transition-colors cursor-pointer"
+                      title="Seçili mesajları herkesten sil"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Herkesten Sil</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -2336,7 +2348,7 @@ export default function HomePage() {
                               scrollToBottom("auto");
                             }, 60);
                           }}
-                          placeholder="Bir mesaj yazın... (Yeni satır için Shift+Enter)"
+                          placeholder=""
                           style={{
                             borderColor:
                               isInputFocused || inputMessage.trim()
@@ -2345,10 +2357,10 @@ export default function HomePage() {
                             boxShadow: isInputFocused
                               ? "0 0 0 1px var(--accent, #6366F1)"
                               : undefined,
-                            minHeight: "44px",
+                            minHeight: "40px",
                             maxHeight: "140px",
                           }}
-                          className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[15px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all resize-none leading-relaxed overflow-y-hidden"
+                          className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-2 sm:py-2.5 px-3.5 sm:px-4 text-[15px] sm:text-sm text-white focus:outline-none transition-all resize-none leading-normal overflow-y-hidden"
                         />
 
                         {inputMessage.trim() ? (
