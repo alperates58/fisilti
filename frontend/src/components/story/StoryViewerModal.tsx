@@ -17,9 +17,11 @@ import {
   Pencil,
   Share2,
   Heart,
+  Bookmark,
 } from "lucide-react";
 import { formatStoryTime } from "@/lib/utils";
 import { api, resolveMediaUrl } from "@/lib/api";
+import { AddToHighlightModal } from "./StoryHighlightModal";
 import {
   extractYouTubeVideoId,
   formatTimeSeconds,
@@ -56,6 +58,7 @@ export default function StoryViewerModal() {
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
+  const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -720,6 +723,17 @@ export default function StoryViewerModal() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setIsPaused(true);
+                      setIsHighlightModalOpen(true);
+                    }}
+                    title="Öne Çıkanlara Ekle"
+                    className="p-2 text-white/80 hover:text-pink-400 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <Bookmark className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       handleDelete();
                     }}
                     title="Hikayeyi Sil"
@@ -1123,6 +1137,17 @@ export default function StoryViewerModal() {
               </div>
             </div>
           </div>
+        )}
+
+        {isHighlightModalOpen && currentStory && (
+          <AddToHighlightModal
+            isOpen={isHighlightModalOpen}
+            onClose={() => {
+              setIsHighlightModalOpen(false);
+              setIsPaused(false);
+            }}
+            story={currentStory}
+          />
         )}
       </div>
     </div>

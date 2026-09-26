@@ -18,6 +18,8 @@ import { AdminPanelModal } from "@/components/admin/AdminPanelModal";
 import StoriesBar from "@/components/story/StoriesBar";
 import StoryViewerModal from "@/components/story/StoryViewerModal";
 import StoryCreatorModal from "@/components/story/StoryCreatorModal";
+import StoryHighlightViewerModal from "@/components/story/StoryHighlightViewerModal";
+import { HighlightsBar } from "@/components/story/StoryHighlightModal";
 import StoryNotificationBanner from "@/components/story/StoryNotificationBanner";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInfoModal from "@/components/chat/MessageInfoModal";
@@ -127,6 +129,7 @@ export default function HomePage() {
     storyGroups,
     openViewer,
     loadStories,
+    activeHighlight,
   } = useStoryStore();
 
   const [activeTab, setActiveTab] = useState<NavTab>("chats");
@@ -2038,6 +2041,15 @@ export default function HomePage() {
             </div>
 
             <div className="p-4 space-y-4 flex-1 overflow-y-auto text-xs">
+              {/* Öne Çıkanlar (Story Highlights) */}
+              <div className="border-b border-grupo-dark-border pb-3">
+                <span className="text-slate-400 font-semibold block mb-2">Öne Çıkanlar</span>
+                <HighlightsBar
+                  userId={activeConv.other_user.id}
+                  isOwnProfile={activeConv.other_user.id === user?.id}
+                />
+              </div>
+
               <div>
                 <span className="text-slate-400 font-semibold block mb-1">Hakkında</span>
                 <p className="text-slate-200 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
@@ -2398,6 +2410,9 @@ export default function HomePage() {
 
       {/* Gerçek Zamanlı Hikaye Bildirim Banner'ı */}
       <StoryNotificationBanner />
+
+      {/* Öne Çıkanlar (Story Highlights) Tam Ekran Oynatıcı */}
+      {activeHighlight && <StoryHighlightViewerModal />}
     </div>
     </>
   );

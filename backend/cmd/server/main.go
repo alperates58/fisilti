@@ -276,6 +276,15 @@ func main() {
 	stories.Post("/:id/reactions", storyHandler.AddStoryReaction)
 	stories.Delete("/:id", storyHandler.DeleteStory)
 
+	// Öne Çıkanlar (Story Highlights)
+	stories.Post("/highlights", storyHandler.CreateHighlight)
+	stories.Get("/highlights/user/:userId", storyHandler.GetUserHighlights)
+	stories.Get("/highlights/:id", storyHandler.GetHighlightWithStories)
+	stories.Put("/highlights/:id", storyHandler.UpdateHighlight)
+	stories.Delete("/highlights/:id", storyHandler.DeleteHighlight)
+	stories.Post("/highlights/:id/stories", storyHandler.AddStoriesToHighlight)
+	stories.Delete("/highlights/:id/stories/:storyId", storyHandler.RemoveStoryFromHighlight)
+
 	// Web Push Bildirim Rotaları
 	v1.Get("/notifications/vapid-key", pushHandler.GetVapidKey)
 	notifications := v1.Group("/notifications", middleware.JWTMiddleware(cfg.JWTAccessSecret))

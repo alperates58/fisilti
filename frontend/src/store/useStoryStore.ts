@@ -104,6 +104,32 @@ interface StoryStoreState {
       audience?: "everyone" | "close_friends";
     }
   ) => Promise<void>;
+
+  // Story Highlights (Öne Çıkanlar)
+  userHighlights: Record<string, StoryHighlight[]>;
+  activeHighlight: StoryHighlight | null;
+  activeHighlightStoryIndex: number;
+  loadUserHighlights: (userId: string) => Promise<StoryHighlight[]>;
+  loadHighlightDetails: (highlightId: string) => Promise<StoryHighlight>;
+  createHighlight: (title: string, coverUrl: string, storyIds: string[]) => Promise<StoryHighlight>;
+  updateHighlight: (id: string, title: string, coverUrl: string) => Promise<void>;
+  deleteHighlight: (id: string, userId: string) => Promise<void>;
+  addStoriesToHighlight: (highlightId: string, storyIds: string[]) => Promise<void>;
+  removeStoryFromHighlight: (highlightId: string, storyId: string) => Promise<void>;
+  openHighlightViewer: (highlight: StoryHighlight, initialIndex?: number) => void;
+  closeHighlightViewer: () => void;
+  setHighlightStoryIndex: (index: number) => void;
+}
+
+export interface StoryHighlight {
+  id: string;
+  user_id: string;
+  title: string;
+  cover_url: string;
+  story_count?: number;
+  stories?: Story[];
+  created_at: string;
+  updated_at: string;
 }
 
 export const useStoryStore = create<StoryStoreState>((set, get) => ({
@@ -300,5 +326,135 @@ export const useStoryStore = create<StoryStoreState>((set, get) => ({
       console.error("Hikaye güncellenemedi:", err);
       throw err;
     }
+  },
+
+  // Highlight State & Metodları
+  userHighlights: {},
+  activeHighlight: null,
+  activeHighlightStoryIndex: 0,
+
+  loadUserHighlights: async (userId: string) => {
+    try {
+      const res = await api.get<{ highlights: StoryHighlight[] }>(`/stories/highlights/user/${userId}`);
+      const list = res.data.highlights || [];
+      set((state) => ({
+        userHighlights: { ...state.userHighlights, [userId]: list },
+      }));
+      return list;
+    } catch (err) {
+      console.error("Öne çıkanlar yüklenemedi:", err);
+      return [];
+    }
+  },
+
+  loadHighlightDetails: async (highlightId: string) => {
+    try {
+      const res = await api.get<StoryHighlight>(`/stories/highlights/${highlightId}`);
+      return res.data;
+    } catch (err) {
+      console.error("Öne çıkan detayı yüklenemedi:", err);
+      throw err;
+    }
+  },
+
+  createHighlight: async (title: string, coverUrl: string, storyIds: string[]) => {
+    try {
+      const res = await api.post<StoryHighlight>("/stories/highlights", {
+        title,
+        cover_url: coverUrl,
+        story_ids: storyIds,
+      });
+      const newHL = res.data;
+      const currentUserId = newHL.user_id;
+      if (currentUserId) {
+        set((state) => {
+          const existing = state.userHighlights[currentUserId] || [];
+          return {
+            userHighlights: {
+              ...state.userHighlights,
+              [currentUserId]: [newHL, ...existing],
+            },
+          };
+        });
+      }
+      return newHL;
+    } catch (err) {
+      console.error("Öne çıkan oluşturulamadı:", err);
+      throw err;
+    }
+  },
+
+  updateHighlight: async (id: string, title: string, coverUrl: string) => {
+    try {
+      await api.put(`/stories/highlights/${id}`, { title, cover_url: coverUrl });
+    } catch (err) {
+      console.error("Öne çıkan güncellenemedi:", err);
+      throw err;
+    }
+  },
+
+  deleteHighlight: async (id: string, userId: string) => {
+    try {
+      await api.delete(`/stories/highlights/${id}`);
+      set((state) => {
+        const existing = state.userHighlights[userId] || [];
+        return {
+          userHighlights: {
+            ...state.userHighlights,
+            [userId]: existing.filter((h) => h.id !== id),
+          },
+        };
+      });
+    } catch (err) {
+      console.error("Öne çıkan silinemedi:", err);
+      throw err;
+    }
+  },
+
+  addStoriesToHighlight: async (highlightId: string, storyIds: string[]) => {
+    try {
+      await api.post(`/stories/highlights/${highlightId}/stories`, { story_ids: storyIds });
+    } catch (err) {
+      console.error("Hikayeler öne çıkarılamadı:", err);
+      throw err;
+    }
+  },
+
+  removeStoryFromHighlight: async (highlightId: string, storyId: string) => {
+    try {
+      await api.delete(`/stories/highlights/${highlightId}/stories/${storyId}`);
+      set((state) => {
+        if (!state.activeHighlight || state.activeHighlight.id !== highlightId) return state;
+        const filtered = (state.activeHighlight.stories || []).filter((s) => s.id !== storyId);
+        return {
+          activeHighlight: {
+            ...state.activeHighlight,
+            stories: filtered,
+            story_count: filtered.length,
+          },
+        };
+      });
+    } catch (err) {
+      console.error("Hikaye öne çıkanlardan çıkarılamadı:", err);
+      throw err;
+    }
+  },
+
+  openHighlightViewer: (highlight: StoryHighlight, initialIndex = 0) => {
+    set({
+      activeHighlight: highlight,
+      activeHighlightStoryIndex: initialIndex,
+    });
+  },
+
+  closeHighlightViewer: () => {
+    set({
+      activeHighlight: null,
+      activeHighlightStoryIndex: 0,
+    });
+  },
+
+  setHighlightStoryIndex: (index: number) => {
+    set({ activeHighlightStoryIndex: index });
   },
 }));

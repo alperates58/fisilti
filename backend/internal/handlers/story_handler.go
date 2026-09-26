@@ -400,3 +400,136 @@ func (h *StoryHandler) UpdateStory(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"status": "updated"})
 }
+
+// ==========================================
+// STORY HIGHLIGHT HANDLERS (ÖNE ÇIKANLAR)
+// ==========================================
+
+// CreateHighlight - Yeni bir öne çıkan albüm oluşturur
+func (h *StoryHandler) CreateHighlight(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	var req models.CreateHighlightRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı."})
+	}
+
+	req.Title = strings.TrimSpace(req.Title)
+	if req.Title == "" {
+		req.Title = "Öne Çıkanlar"
+	}
+
+	hl, err := h.storyRepo.CreateHighlight(c.Context(), userID, req.Title, req.CoverURL, req.StoryIDs)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(hl)
+}
+
+// UpdateHighlight - Öne çıkan başlığını ve kapağını günceller
+func (h *StoryHandler) UpdateHighlight(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	hlID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz albüm ID'si."})
+	}
+
+	var req models.UpdateHighlightRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz veri."})
+	}
+
+	if err := h.storyRepo.UpdateHighlight(c.Context(), hlID, userID, req.Title, req.CoverURL); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "updated"})
+}
+
+// DeleteHighlight - Öne çıkan albümü siler
+func (h *StoryHandler) DeleteHighlight(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	hlID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz albüm ID'si."})
+	}
+
+	if err := h.storyRepo.DeleteHighlight(c.Context(), hlID, userID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "deleted"})
+}
+
+// AddStoriesToHighlight - Albüme yeni hikayeler ekler
+func (h *StoryHandler) AddStoriesToHighlight(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	hlID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz albüm ID'si."})
+	}
+
+	var req models.AddStoriesToHighlightRequest
+	if err := c.BodyParser(&req); err != nil || len(req.StoryIDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "En az bir hikaye seçilmelidir."})
+	}
+
+	if err := h.storyRepo.AddStoriesToHighlight(c.Context(), hlID, userID, req.StoryIDs); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "stories_added"})
+}
+
+// RemoveStoryFromHighlight - Albümden belirli bir hikayeyi çıkarır
+func (h *StoryHandler) RemoveStoryFromHighlight(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+	hlID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz albüm ID'si."})
+	}
+	storyID, err := uuid.Parse(c.Params("storyId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz hikaye ID'si."})
+	}
+
+	if err := h.storyRepo.RemoveStoryFromHighlight(c.Context(), hlID, userID, storyID); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "story_removed"})
+}
+
+// GetUserHighlights - Bir kullanıcının öne çıkan albümlerini listeler
+func (h *StoryHandler) GetUserHighlights(c *fiber.Ctx) error {
+	viewerID := c.Locals("user_id").(uuid.UUID)
+	targetUserID, err := uuid.Parse(c.Params("userId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz kullanıcı ID'si."})
+	}
+
+	highlights, err := h.storyRepo.GetUserHighlights(c.Context(), targetUserID, viewerID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"highlights": highlights})
+}
+
+// GetHighlightWithStories - Albüm detayını ve izinli hikayelerini döner
+func (h *StoryHandler) GetHighlightWithStories(c *fiber.Ctx) error {
+	viewerID := c.Locals("user_id").(uuid.UUID)
+	hlID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz albüm ID'si."})
+	}
+
+	hl, err := h.storyRepo.GetHighlightWithStories(c.Context(), hlID, viewerID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(hl)
+}
+

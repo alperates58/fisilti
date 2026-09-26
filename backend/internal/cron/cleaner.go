@@ -102,9 +102,12 @@ func (c *ExpiredMessagesCleaner) cleanupExpiredMessages(ctx context.Context) {
 
 func (c *ExpiredMessagesCleaner) cleanupExpiredStories(ctx context.Context) {
 	query := `
-		SELECT id, user_id, media_url
-		FROM stories
-		WHERE expires_at <= NOW()
+		SELECT s.id, s.user_id, s.media_url
+		FROM stories s
+		WHERE s.expires_at <= NOW()
+		  AND NOT EXISTS (
+		      SELECT 1 FROM story_highlight_items shi WHERE shi.story_id = s.id
+		  )
 		LIMIT 50
 	`
 	rows, err := c.db.QueryContext(ctx, query)
