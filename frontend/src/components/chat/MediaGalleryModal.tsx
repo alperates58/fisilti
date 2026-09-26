@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { format } from "date-fns";
 
 export interface GalleryMediaItem {
@@ -83,23 +83,6 @@ export default function MediaGalleryModal({ isOpen, initialIndex = 0, items, onC
   const currentItem = items[currentIndex];
   if (!currentItem) return null;
 
-  const handleDownload = async () => {
-    try {
-      const response = await fetch(currentItem.url);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = currentItem.name || (currentItem.type === "video" ? "video.mp4" : "image.jpg");
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(currentItem.url, "_blank");
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between p-2 sm:p-4 select-none animate-in fade-in duration-200"
@@ -159,14 +142,6 @@ export default function MediaGalleryModal({ isOpen, initialIndex = 0, items, onC
           )}
 
           <button
-            onClick={handleDownload}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer border border-slate-700/60"
-            title="İndir"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          <button
             onClick={onClose}
             className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer border border-slate-700/60"
             title="Kapat (Esc)"
@@ -202,9 +177,11 @@ export default function MediaGalleryModal({ isOpen, initialIndex = 0, items, onC
               key={currentItem.id}
               src={currentItem.url}
               controls
+              controlsList="nodownload"
               autoPlay
               playsInline
               className="max-w-full max-h-[78vh] rounded-2xl shadow-2xl bg-black object-contain"
+              onContextMenu={(e) => e.preventDefault()}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
@@ -216,7 +193,9 @@ export default function MediaGalleryModal({ isOpen, initialIndex = 0, items, onC
                 transform: `scale(${zoomLevel})`,
                 transition: "transform 0.15s ease-out",
               }}
-              className="max-w-full max-h-[78vh] rounded-2xl shadow-2xl object-contain cursor-grab active:cursor-grabbing"
+              className="max-w-full max-h-[78vh] rounded-2xl shadow-2xl object-contain cursor-grab active:cursor-grabbing select-none"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
             />
           )}
         </div>

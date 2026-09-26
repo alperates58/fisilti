@@ -64,7 +64,6 @@ import {
   AlertCircle,
   Sliders,
   Play,
-  Download,
   ChevronUp,
   ChevronDown,
   CheckSquare,
@@ -2728,13 +2727,11 @@ export default function HomePage() {
                         return (
                           <div
                             key={m.id}
-                            onClick={() =>
-                              setPreviewMedia({
-                                url: finalUrl,
-                                type: isVid ? "video" : "image",
-                                name: m.media_metadata?.file_name,
-                              })
-                            }
+                            onClick={() => {
+                              const idx = galleryItems.findIndex((it) => it.id === m.id);
+                              setGalleryInitialIndex(idx >= 0 ? idx : 0);
+                              setIsGalleryOpen(true);
+                            }}
                             className="aspect-square rounded-xl overflow-hidden bg-slate-800 relative cursor-pointer group hover:scale-[1.03] hover:ring-2 hover:ring-grupo-accent/60 transition-all duration-150 shadow-sm"
                             title="Büyütmek için tıkla"
                           >

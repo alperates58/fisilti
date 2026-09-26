@@ -126,8 +126,10 @@ export default function AudioWaveform({ audioUrl, isMine, initialDuration, peaks
       <div className="py-1 min-w-[200px] max-w-[280px]">
         <audio
           controls
+          controlsList="nodownload"
           preload="metadata"
           className="w-full h-8 brightness-90 contrast-125"
+          onContextMenu={(e) => e.preventDefault()}
           src={finalUrl}
         >
           Tarayıcınız bu ses kaydını desteklemiyor.

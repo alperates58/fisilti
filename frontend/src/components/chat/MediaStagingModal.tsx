@@ -135,21 +135,31 @@ export default function MediaStagingModal({ file, isOpen, onClose, onSend }: Pro
             <img
               src={previewUrl}
               alt="Önizleme"
-              className="max-h-[46vh] max-w-full rounded-2xl object-contain shadow-lg"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              className="max-h-[46vh] max-w-full rounded-2xl object-contain shadow-lg select-none"
             />
           ) : isVideo && previewUrl ? (
             <video
               src={previewUrl}
               controls
+              controlsList="nodownload"
               playsInline
               className="max-h-[46vh] max-w-full rounded-2xl object-contain shadow-lg bg-black"
+              onContextMenu={(e) => e.preventDefault()}
             />
           ) : isAudio && previewUrl ? (
             <div className="w-full max-w-md p-6 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-lg">
                 <Music className="w-8 h-8" />
               </div>
-              <audio src={previewUrl} controls className="w-full" />
+              <audio
+                src={previewUrl}
+                controls
+                controlsList="nodownload"
+                className="w-full"
+                onContextMenu={(e) => e.preventDefault()}
+              />
             </div>
           ) : (
             <div className="w-full max-w-md p-8 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center text-center gap-3">

@@ -642,9 +642,11 @@ export default function MessageBubble({
             <div className="my-1 overflow-hidden rounded-2xl max-h-72 bg-black">
               <video
                 controls
+                controlsList="nodownload"
                 playsInline
                 preload="metadata"
                 className="max-h-72 w-full rounded-2xl object-contain bg-black"
+                onContextMenu={(e) => e.preventDefault()}
                 src={(() => {
                   const isIOS =
                     typeof navigator !== "undefined" &&
@@ -672,7 +674,9 @@ export default function MessageBubble({
                 alt="Fotoğraf"
                 loading="lazy"
                 decoding="async"
-                className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+                className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200 select-none"
                 onClick={() => {
                   if (onOpenMedia) {
                     onOpenMedia(message.id);
@@ -1098,7 +1102,9 @@ export default function MessageBubble({
             <img
               src={previewImage}
               alt="Büyük Görsel"
-              className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl select-none"
             />
             <button
               onClick={() => setPreviewImage(null)}
