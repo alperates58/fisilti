@@ -22,7 +22,9 @@ interface CallStoreState {
   livekitUrl: string;
   caller: CallerInfo | null;
   duration: number; // sn
+  isPiPMinimized: boolean;
 
+  setPiPMinimized: (val: boolean) => void;
   initiateCall: (conversationId: string, callType: CallType) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => Promise<void>;
@@ -34,6 +36,15 @@ interface CallStoreState {
   onCallRejected: (payload: any) => void;
   onCallEnded: (payload?: any) => void;
 }
+
+let ringingTimeoutTimer: NodeJS.Timeout | null = null;
+
+const clearRingingTimer = () => {
+  if (ringingTimeoutTimer) {
+    clearTimeout(ringingTimeoutTimer);
+    ringingTimeoutTimer = null;
+  }
+};
 
 export function resolveLivekitUrl(serverUrl?: string): string {
   if (typeof window === "undefined") {
@@ -79,14 +90,19 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   livekitUrl: resolveLivekitUrl(),
   caller: null,
   duration: 0,
+  isPiPMinimized: false,
+
+  setPiPMinimized: (val: boolean) => set({ isPiPMinimized: val }),
 
   initiateCall: async (conversationId: string, callType: CallType) => {
     try {
+      clearRingingTimer();
       set({
         callState: "outgoing",
         callType,
         conversationId,
         duration: 0,
+        isPiPMinimized: false,
       });
 
       const res = await api.post("/calls/initiate", {
@@ -101,7 +117,16 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
         token: token,
         livekitUrl: resolveLivekitUrl(livekit_url),
       });
+
+      // 45 saniyelik çalma zaman aşımı (Zaman aşımında çağrıyı otomatik sonlandır)
+      ringingTimeoutTimer = setTimeout(() => {
+        if (get().callState === "outgoing") {
+          get().endCall();
+          alert("Kullanıcı cevap vermedi (Zaman aşımı).");
+        }
+      }, 45000);
     } catch (err: any) {
+      clearRingingTimer();
       const reason = err.response?.data?.error || "Arama başlatılamadı.";
       alert(reason);
       get().resetCall();
@@ -109,6 +134,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   acceptCall: async () => {
+    clearRingingTimer();
     soundEffects.stopRingtone();
     const { callId, conversationId } = get();
     if (!callId || !conversationId) return;
@@ -127,6 +153,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   rejectCall: async (reason = "rejected") => {
+    clearRingingTimer();
     soundEffects.stopRingtone();
     const { callId, conversationId } = get();
     if (callId && conversationId) {
@@ -144,6 +171,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   endCall: async () => {
+    clearRingingTimer();
     soundEffects.stopRingtone();
     const { callId, conversationId, duration } = get();
     if (callId && conversationId) {
@@ -161,6 +189,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   },
 
   resetCall: () => {
+    clearRingingTimer();
     soundEffects.stopRingtone();
     set({
       callState: "idle",
@@ -170,6 +199,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       token: null,
       caller: null,
       duration: 0,
+      isPiPMinimized: false,
     });
   },
 
