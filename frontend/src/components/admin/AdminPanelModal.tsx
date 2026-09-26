@@ -9,7 +9,7 @@ import {
 } from "@/lib/admin_api";
 import { User } from "@/store/useAuthStore";
 import { useSettingsStore, applyThemeToDocument } from "@/store/useSettingsStore";
-import { getContrastTextColor } from "@/lib/utils";
+import { getContrastTextColor, getMutedTextColor } from "@/lib/utils";
 import {
   ShieldAlert,
   Users,
@@ -55,8 +55,21 @@ type TabType =
 
 export const THEME_PRESETS = [
   {
+    id: "obsidian-noir",
+    name: "Obsidian Noir",
+    badge: "Siyaha Yakın Derin Koyu",
+    description: "Discord, Linear ve macOS ilhamlı; göz yormayan derin obsidian, antrasit kömür ve çinko zemin.",
+    color: "#818CF8",
+    bubble: "#27272A",
+    text: "#F4F4F5",
+    main_bg: "#09090B",
+    card_bg: "#121215",
+    border_color: "#27272A",
+    incoming_bubble: "#18181B",
+  },
+  {
     id: "linear-obsidian",
-    name: "Linear Obsidian",
+    name: "Linear Midnight",
     badge: "Varsayılan SaaS",
     description: "Linear & Vercel ilhamlı; göz yormayan derin çivit ve gece mavisi.",
     color: "#6366F1",
@@ -1042,14 +1055,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       {/* Gelen Mesaj */}
                       <div className="flex justify-start">
                         <div
-                          className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs text-slate-200 border max-w-[85%] shadow-sm transition-colors duration-200"
+                          className="px-3.5 py-2 rounded-2xl rounded-bl-xs text-xs border max-w-[85%] shadow-sm transition-colors duration-200"
                           style={{
                             backgroundColor: incomingBubble,
                             borderColor: borderColor,
+                            color: getContrastTextColor(incomingBubble),
                           }}
                         >
                           <div>Yeni SaaS koyu mod teması nasıl duruyor?</div>
-                          <div className="text-[10px] text-slate-400 text-right mt-0.5">14:30</div>
+                          <div
+                            className="text-[10px] text-right mt-0.5"
+                            style={{
+                              color: getMutedTextColor(incomingBubble, getContrastTextColor(incomingBubble)),
+                            }}
+                          >
+                            14:30
+                          </div>
                         </div>
                       </div>
 
@@ -1063,8 +1084,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           }}
                         >
                           <div>Kusursuz! Gözü hiç yormuyor ve tam aradığım premium havayı veriyor.</div>
-                          <div className="text-[10px] text-right mt-0.5" style={{ opacity: 0.8 }}>
-                            14:31 ✓✓
+                          <div
+                            className="text-[10px] text-right mt-0.5 flex items-center justify-end gap-1"
+                            style={{
+                              color: getMutedTextColor(outgoingBubble, effectiveTextColor),
+                            }}
+                          >
+                            <span>14:31</span>
+                            <span>✓✓</span>
                           </div>
                         </div>
                       </div>

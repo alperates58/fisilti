@@ -17,6 +17,8 @@
   --outgoing-text: #FFFFFF;
   --outgoing-text-muted: rgba(255, 255, 255, 0.75);
   --incoming-bubble: #181C28;
+  --incoming-text: #F8FAFC;
+  --incoming-text-muted: rgba(248, 250, 252, 0.70);
 }
 
 @layer utilities {

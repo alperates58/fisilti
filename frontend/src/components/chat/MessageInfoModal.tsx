@@ -42,9 +42,20 @@ export default function MessageInfoModal() {
         </div>
 
         {/* Mesaj Önizlemesi */}
-        <div className="p-4 bg-slate-900/50 border-b border-grupo-dark-border">
-          <div className="p-3 rounded-xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border border-pink-500/30 text-white text-sm">
-            <p className="break-words line-clamp-3">{selectedMessage.content}</p>
+        <div className="p-4 bg-slate-950/40 border-b border-grupo-dark-border">
+          <div
+            className="p-3 rounded-2xl border text-sm shadow-sm"
+            style={{
+              backgroundColor: selectedMessage.is_mine
+                ? "var(--outgoing-bubble, #4F46E5)"
+                : "var(--incoming-bubble, #181C28)",
+              borderColor: selectedMessage.is_mine ? "transparent" : "var(--border, #1E2333)",
+              color: selectedMessage.is_mine
+                ? "var(--outgoing-text, #FFFFFF)"
+                : "var(--incoming-text, #F8FAFC)",
+            }}
+          >
+            <p className="break-words line-clamp-3 leading-relaxed">{selectedMessage.content}</p>
           </div>
         </div>
 

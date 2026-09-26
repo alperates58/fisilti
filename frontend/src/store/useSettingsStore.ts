@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { getApiBaseUrl } from "@/lib/api";
-import { getContrastTextColor } from "@/lib/utils";
+import { getContrastTextColor, getMutedTextColor } from "@/lib/utils";
 import axios from "axios";
 
 export interface PublicSettings {
@@ -161,21 +161,19 @@ export const applyThemeToDocument = (
         : getContrastTextColor(theme.outgoing_bubble);
 
     root.style.setProperty("--outgoing-text", textColor);
-    const mutedColor =
-      textColor === "#FFFFFF"
-        ? "rgba(255, 255, 255, 0.75)"
-        : "rgba(15, 23, 42, 0.7)";
+    const mutedColor = getMutedTextColor(theme.outgoing_bubble, textColor);
     root.style.setProperty("--outgoing-text-muted", mutedColor);
   } else if (theme.outgoing_text && theme.outgoing_text !== "auto") {
     root.style.setProperty("--outgoing-text", theme.outgoing_text);
-    const mutedColor =
-      theme.outgoing_text === "#FFFFFF"
-        ? "rgba(255, 255, 255, 0.75)"
-        : "rgba(15, 23, 42, 0.7)";
+    const mutedColor = getMutedTextColor(undefined, theme.outgoing_text);
     root.style.setProperty("--outgoing-text-muted", mutedColor);
   }
   if (theme.incoming_bubble) {
     root.style.setProperty("--incoming-bubble", theme.incoming_bubble);
+    const incomingText = getContrastTextColor(theme.incoming_bubble);
+    root.style.setProperty("--incoming-text", incomingText);
+    const incomingMuted = getMutedTextColor(theme.incoming_bubble, incomingText);
+    root.style.setProperty("--incoming-text-muted", incomingMuted);
   }
   if (theme.main_bg) {
     root.style.setProperty("--background", theme.main_bg);

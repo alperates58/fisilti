@@ -301,11 +301,11 @@ export default function MessageBubble({
     if (!message.is_mine) return null;
 
     if (message.tick_status === "read") {
-      return <CheckCheck className="w-4 h-4 text-sky-400 inline ml-1" />;
+      return <CheckCheck className="w-4 h-4 text-sky-400 inline ml-1 flex-shrink-0" />;
     } else if (message.tick_status === "delivered") {
-      return <CheckCheck className="w-4 h-4 opacity-75 inline ml-1" />;
+      return <CheckCheck className="w-4 h-4 inline ml-1 flex-shrink-0" />;
     }
-    return <Check className="w-4 h-4 opacity-75 inline ml-1" />;
+    return <Check className="w-4 h-4 inline ml-1 flex-shrink-0" />;
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -395,7 +395,9 @@ export default function MessageBubble({
               ? "var(--outgoing-bubble, #4F46E5)"
               : "var(--incoming-bubble, #181C28)",
             borderColor: message.is_mine ? "transparent" : "var(--border, #1E2333)",
-            color: message.is_mine ? "var(--outgoing-text, #ffffff)" : undefined,
+            color: message.is_mine
+              ? "var(--outgoing-text, #ffffff)"
+              : "var(--incoming-text, #f8fafc)",
           }}
           className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none ${
             isEditing ? "w-full min-w-[280px]" : "max-w-full min-w-0"
@@ -406,7 +408,7 @@ export default function MessageBubble({
           } ${
             message.is_mine
               ? "rounded-br-xs"
-              : "border text-slate-100 rounded-bl-xs"
+              : "border rounded-bl-xs"
           } ${message.is_deleted_for_all ? "opacity-60 italic" : ""}`}
         >
           {/* WhatsApp Tarzı Alıntılanan Mesaj (Reply Preview) */}
@@ -714,11 +716,11 @@ export default function MessageBubble({
           {/* Zaman, Düzenlendi Etiketi, Yıldız ve WhatsApp Tikleri */}
           <div
             style={{
-              color: message.is_mine ? "var(--outgoing-text-muted, rgba(255,255,255,0.75))" : undefined,
+              color: message.is_mine
+                ? "var(--outgoing-text-muted, rgba(255,255,255,0.75))"
+                : "var(--incoming-text-muted, rgba(248,250,252,0.70))",
             }}
-            className={`flex items-center justify-end gap-1 mt-1 text-[11px] float-right ml-3 select-none ${
-              message.is_mine ? "" : "opacity-80"
-            }`}
+            className="flex items-center justify-end gap-1 mt-1 text-[11px] float-right ml-3 select-none flex-shrink-0"
           >
             {message.is_starred && <Star className="w-3 h-3 text-amber-300 fill-amber-300" />}
             {message.is_edited && !message.is_deleted_for_all && (

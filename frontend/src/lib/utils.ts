@@ -119,3 +119,41 @@ export function getContrastTextColor(hexColor?: string): string {
   return yiq >= 145 ? "#0F172A" : "#FFFFFF";
 }
 
+/**
+ * Verilen arka plan veya metin rengine göre mesaj saati, tik ikonları ve ikincil metinler
+ * için en uygun, gözü yormayan ve yüksek okunurluğa sahip "muted" renk değerini hesaplar.
+ * Açık zemin/koyu metin durumunda: rgba(15, 23, 42, 0.65)
+ * Koyu zemin/açık metin durumunda: rgba(255, 255, 255, 0.70)
+ */
+export function getMutedTextColor(bubbleHex?: string, textHex?: string): string {
+  // Eğer özel metin rengi belirtilmişse ve "auto" değilse, metin renginin parlaklığına bakılır
+  if (textHex && textHex !== "auto") {
+    let cleanHex = textHex.replace("#", "").trim();
+    if (cleanHex.length === 3) cleanHex = cleanHex.split("").map((c) => c + c).join("");
+    if (cleanHex.length === 6) {
+      const r = parseInt(cleanHex.substring(0, 2), 16);
+      const g = parseInt(cleanHex.substring(2, 4), 16);
+      const b = parseInt(cleanHex.substring(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+        // Metin rengi açıksa (örn. #FFFFFF, #E9EDEF, #F8FAFC) muted renk açık ton olmalı
+        if (yiq >= 145) {
+          return "rgba(255, 255, 255, 0.70)";
+        } else {
+          return "rgba(15, 23, 42, 0.65)";
+        }
+      }
+    }
+  }
+
+  // Metin rengi belirtilmemişse veya auto ise balonun arka plan rengine göre belirlenir
+  if (bubbleHex) {
+    const contrast = getContrastTextColor(bubbleHex);
+    return contrast === "#0F172A"
+      ? "rgba(15, 23, 42, 0.65)"
+      : "rgba(255, 255, 255, 0.70)";
+  }
+
+  return "rgba(255, 255, 255, 0.70)";
+}
+
