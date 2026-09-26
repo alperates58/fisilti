@@ -18,6 +18,7 @@ import { AdminPanelModal } from "@/components/admin/AdminPanelModal";
 import StoriesBar from "@/components/story/StoriesBar";
 import StoryViewerModal from "@/components/story/StoryViewerModal";
 import StoryCreatorModal from "@/components/story/StoryCreatorModal";
+import StoryNotificationBanner from "@/components/story/StoryNotificationBanner";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInfoModal from "@/components/chat/MessageInfoModal";
 import ReplyBar from "@/components/chat/ReplyBar";
@@ -26,6 +27,7 @@ import AudioRecorder from "@/components/chat/AudioRecorder";
 import { api, resolveMediaUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
 import { notificationManager } from "@/lib/notifications";
+import { subscribeUserToPush, getPushSubscription } from "@/lib/push_notifications";
 import ConversationListItem from "@/components/chat/ConversationListItem";
 import {
   MessageSquare,
@@ -282,6 +284,29 @@ export default function HomePage() {
       loadStarredMessages();
     }
   }, [isAuthenticated, connect, loadConversations, loadStarredMessages]);
+
+  // 2b. Bildirim İzni ve Web Push Otomatik Kaydı
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        const timer = setTimeout(() => {
+          notificationManager.requestPermission().then((granted) => {
+            if (granted) {
+              subscribeUserToPush().catch(() => {});
+            }
+          });
+        }, 2500);
+        return () => clearTimeout(timer);
+      } else if (Notification.permission === "granted") {
+        getPushSubscription().then((sub) => {
+          if (!sub) {
+            subscribeUserToPush().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [isAuthenticated]);
 
   // Konuşma değiştiğinde bayrakları sıfırla
   useEffect(() => {
@@ -1813,6 +1838,9 @@ export default function HomePage() {
           Çıkmak için tekrar dokunun
         </div>
       )}
+
+      {/* Gerçek Zamanlı Hikaye Bildirim Banner'ı */}
+      <StoryNotificationBanner />
     </div>
   );
 }

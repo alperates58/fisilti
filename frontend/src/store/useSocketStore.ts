@@ -222,19 +222,33 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
           case "new_story": {
             const currentUserId = useAuthStore.getState().user?.id;
-            if (data.payload?.user_id !== currentUserId) {
+            if (data.payload?.user_id && data.payload.user_id !== currentUserId) {
               soundEffects.playReceived();
               const authorName = data.payload?.author_name || "Bir kullanıcı";
-              const caption = data.payload?.caption ? `: "${data.payload.caption}"` : "";
-              notificationManager.notify(
-                `${authorName} yeni bir hikaye paylaştı! 📸`,
-                `Hikayeyi görmek için tıklayın${caption}`
-              );
-              notificationManager.flashTitle(1);
+              const authorAvatar = data.payload?.author_avatar || "";
+              const caption = data.payload?.caption || "";
 
+              // 1. Ekranın üstünde Instagram/WhatsApp tarzı In-App Hikaye Bildirim Banner'ı aç
               import("./useStoryStore").then(({ useStoryStore }) => {
+                useStoryStore.getState().showStoryNotification({
+                  userId: data.payload.user_id,
+                  authorName,
+                  authorAvatar,
+                  caption,
+                  audience: data.payload?.audience,
+                  timestamp: Date.now(),
+                });
+                // Hikayeleri arka planda anında tazele
                 useStoryStore.getState().loadStories();
               });
+
+              // 2. Tarayıcı / Sistem OS Bildirimi
+              notificationManager.notify(
+                `${authorName} yeni bir hikaye paylaştı! 📸`,
+                caption ? `"${caption}"` : "Hikayeyi görmek için dokunun",
+                authorAvatar
+              );
+              notificationManager.flashTitle(1);
             }
             break;
           }

@@ -40,13 +40,25 @@ export interface UserStoriesGroup {
   latest_story: string;
 }
 
+export interface InAppStoryNotification {
+  userId: string;
+  authorName: string;
+  authorAvatar: string;
+  caption?: string;
+  audience?: string;
+  timestamp: number;
+}
+
 interface StoryStoreState {
   storyGroups: UserStoriesGroup[];
   isLoading: boolean;
   activeViewerGroup: UserStoriesGroup | null;
   activeViewerStoryIndex: number;
   isCreatorOpen: boolean;
+  inAppNotification: InAppStoryNotification | null;
 
+  showStoryNotification: (notif: InAppStoryNotification) => void;
+  dismissStoryNotification: () => void;
   loadStories: () => Promise<void>;
   createStory: (storyData: {
     media_type: "image" | "video" | "text" | "audio";
@@ -100,6 +112,10 @@ export const useStoryStore = create<StoryStoreState>((set, get) => ({
   activeViewerGroup: null,
   activeViewerStoryIndex: 0,
   isCreatorOpen: false,
+  inAppNotification: null,
+
+  showStoryNotification: (notif) => set({ inAppNotification: notif }),
+  dismissStoryNotification: () => set({ inAppNotification: null }),
 
   loadStories: async () => {
     set({ isLoading: true });

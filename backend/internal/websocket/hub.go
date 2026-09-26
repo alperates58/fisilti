@@ -279,6 +279,7 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 	jsonBytes, err := json.Marshal(payload)
 	if err == nil {
 		h.BroadcastToAll(jsonBytes)
+		log.Printf("📢 [Story Hub] 'new_story' bildirimi %d soket istemcisine yayınlandı (Yazar: %s)", len(h.clients), authorName)
 	}
 
 	// 2. Web Push Notification: close_friends ise genel kitleye push atma
@@ -287,15 +288,23 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 	}
 
 	if h.pushRepo == nil || h.vapidService == nil {
+		log.Printf("⚠️ [Story Push] Push servisi veya repo yapılandırılmamış.")
 		return
 	}
 
 	go func() {
 		ctx := context.Background()
 		subs, err := h.pushRepo.GetAllSubscriptionsExceptUser(ctx, authorID)
-		if err != nil || len(subs) == 0 {
+		if err != nil {
+			log.Printf("⚠️ [Story Push] Aboneler çekilirken hata: %v", err)
 			return
 		}
+		if len(subs) == 0 {
+			log.Printf("ℹ️ [Story Push] Yazar dışındaki diğer kullanıcılar için kayıtlı push aboneliği bulunamadı.")
+			return
+		}
+
+		log.Printf("📱 [Story Push] %d adet kayıtlı aboneye Web Push bildirimi iletiliyor (Yazar: %s)...", len(subs), authorName)
 
 		title := authorName
 		body := "Yeni bir hikaye paylaştı 📸"
@@ -306,7 +315,7 @@ func (h *Hub) BroadcastStoryNotification(authorID uuid.UUID, authorName, authorA
 		if icon == "" {
 			icon = "/favicon.ico"
 		}
-		url := "/?tab=stories"
+		url := "/"
 
 		for _, sub := range subs {
 			silent := false

@@ -1,4 +1,5 @@
 import { soundEffects } from "./sounds";
+import { resolveMediaUrl } from "./api";
 
 // notifications.ts - Tarayıcı sekme başlığı ve Web Notifications yönetimi
 
@@ -43,7 +44,7 @@ class NotificationManager {
     return false;
   }
 
-  async notify(title: string, body: string, icon?: string, silent?: boolean) {
+  async notify(title: string, body: string, icon?: string, silent?: boolean, forceSystem?: boolean) {
     if (typeof window === "undefined" || !("Notification" in window)) return;
 
     const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -53,10 +54,13 @@ class NotificationManager {
       ? "/" + rawBasePath.replace(/\/+$/, "")
       : "";
     const defaultIcon = basePath ? `${basePath}/favicon.ico` : "/favicon.ico";
-    const notifIcon = icon || defaultIcon;
+    const notifIcon = icon ? resolveMediaUrl(icon) : defaultIcon;
     const isSilent = silent !== undefined ? silent : !soundEffects.isSoundEnabled();
 
-    if (Notification.permission === "granted" && document.hidden) {
+    // Kullanıcı pencereye odaklı değilse veya sekme arka plandaysa bildir
+    const isBackground = document.hidden || !document.hasFocus();
+
+    if (Notification.permission === "granted" && (isBackground || forceSystem)) {
       if ("serviceWorker" in navigator) {
         try {
           const reg = await navigator.serviceWorker.ready;
