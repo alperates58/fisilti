@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
-import { LogIn, Lock, User as UserIcon, AlertCircle, AlertTriangle } from "lucide-react";
+import { Lock, User as UserIcon, AlertCircle, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const settings = useSettingsStore((state) => state.settings);
 
   const [form, setForm] = useState({ login: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -24,14 +25,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (!form.login || !form.password) {
+    if (!form.login.trim() || !form.password) {
       setError("Lütfen kullanıcı adı ve şifrenizi girin.");
       return;
     }
 
     try {
       setLoading(true);
-      await login(form.login, form.password);
+      await login(form.login.trim(), form.password);
       router.push("/");
     } catch (err: any) {
       const msg = err.response?.data?.error || "Giriş yapılırken bir hata oluştu.";
@@ -42,95 +43,153 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg p-4 sm:p-6 py-8 select-none overflow-y-auto">
-      <div className="w-full max-w-md bg-grupo-dark-card border border-grupo-dark-border rounded-2xl p-6 sm:p-8 shadow-2xl">
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-grupo-accent to-grupo-accent-secondary flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-pink-500/25">
-            {siteName.charAt(0) || "A"}
+    <div className="relative min-h-[100dvh] w-full flex items-center justify-center bg-[#08090D] p-4 sm:p-6 overflow-x-hidden overflow-y-auto selection:bg-indigo-500/30 selection:text-white">
+      {/* Ambient background glow & subtle grid */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] sm:w-[650px] h-[350px] bg-gradient-to-b from-indigo-500/15 via-purple-500/5 to-transparent blur-[120px] rounded-full"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(#1E2333_1px,transparent_1px)] [background-size:24px_24px] opacity-20 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]"
+      />
+
+      {/* Main Login Card */}
+      <div className="relative w-full max-w-[380px] sm:max-w-[400px] bg-[#0E1017]/90 backdrop-blur-2xl border border-white/[0.08] rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.02)] z-10">
+        {/* Subtle top border accent highlight */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-px inset-x-8 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent"
+        />
+
+        {/* Minimalist Aura Header */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="relative mb-3 flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/[0.1] shadow-[0_0_20px_-3px_rgba(99,102,241,0.3)]">
+            <div className="absolute inset-0 rounded-2xl bg-indigo-500/10 blur-sm pointer-events-none" />
+            <svg
+              className="w-6 h-6 relative z-10"
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
+                stroke="url(#aura-stroke-grad)"
+                className="opacity-95"
+              />
+              <circle cx="12" cy="12" r="3.2" fill="url(#aura-fill-grad)" />
+              <defs>
+                <linearGradient id="aura-stroke-grad" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#818CF8" />
+                  <stop offset="1" stopColor="#C084FC" />
+                </linearGradient>
+                <linearGradient id="aura-fill-grad" x1="9" y1="9" x2="15" y2="15" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#A5B4FC" />
+                  <stop offset="1" stopColor="#818CF8" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">{siteName}&apos;ya Giriş Yap</h1>
-          <p className="text-sm text-slate-400 mt-1">Giriş yaparak devam edin</p>
+          <h1 className="text-2xl sm:text-[26px] font-semibold tracking-[-0.03em] text-white">
+            {siteName}
+          </h1>
         </div>
 
+        {/* Maintenance Banner */}
         {isMaintenance && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-amber-300 text-xs leading-relaxed">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
-            <span>Sistem şu anda bakım modundadır. Yalnızca yöneticiler giriş yapabilir.</span>
+          <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-2.5 text-amber-300 text-xs">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+            <span>Sistem bakım modundadır. Yalnızca yöneticiler giriş yapabilir.</span>
           </div>
         )}
 
+        {/* Error Alert */}
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3 text-rose-400 text-sm animate-shake">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2.5 text-rose-300 text-xs sm:text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
             <span>{error}</span>
           </div>
         )}
 
+        {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-2">
               Kullanıcı Adı veya E-posta
             </label>
             <div className="relative">
-              <UserIcon className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-400" />
+              <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               <input
                 type="text"
                 value={form.login}
                 onChange={(e) => setForm({ ...form, login: e.target.value })}
-                placeholder="kullanici_adi veya e-posta"
-                className="w-full bg-slate-900/80 border border-grupo-dark-border rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
+                placeholder="Kullanıcı adı veya e-posta"
+                autoComplete="username"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck="false"
+                className="w-full h-11 sm:h-12 bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.08] focus:border-indigo-500/80 focus:bg-white/[0.05] focus:ring-2 focus:ring-indigo-500/20 rounded-xl pl-10 pr-4 text-base sm:text-sm text-white placeholder:text-slate-500 outline-none transition-all"
                 autoFocus
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-2">
               Şifre
             </label>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-400" />
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="••••••••"
-                className="w-full bg-slate-900/80 border border-grupo-dark-border rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-grupo-accent transition-colors"
+                autoComplete="current-password"
+                className="w-full h-11 sm:h-12 bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.08] focus:border-indigo-500/80 focus:bg-white/[0.05] focus:ring-2 focus:ring-indigo-500/20 rounded-xl pl-10 pr-11 text-base sm:text-sm text-white placeholder:text-slate-500 outline-none transition-all"
               />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors cursor-pointer rounded-lg"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3.5 rounded-xl bg-grupo-accent hover:bg-grupo-accent-hover text-white font-semibold text-sm shadow-lg shadow-pink-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="w-full h-11 sm:h-12 mt-2 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-500 hover:opacity-95 active:scale-[0.99] text-white font-medium text-sm shadow-[0_0_20px_-3px_rgba(99,102,241,0.35)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
-              <span>Giriş yapılıyor...</span>
+              <div className="flex items-center gap-2 text-white/90">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Giriş yapılıyor...</span>
+              </div>
             ) : (
-              <>
-                <LogIn className="w-4 h-4" />
-                <span>Giriş Yap</span>
-              </>
+              <span>Giriş Yap</span>
             )}
           </button>
         </form>
 
-        <div className="mt-8 text-center text-sm text-slate-400">
-          {allowRegistration ? (
-            <>
-              Hesabınız yok mu?{" "}
-              <Link href="/register" className="text-grupo-accent hover:underline font-semibold ml-1">
-                Kayıt Olun
-              </Link>
-            </>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-400">
-              <Lock className="w-3.5 h-3.5 text-slate-500" />
-              <span>Yeni üye kayıtları kapatılmıştır.</span>
-            </div>
-          )}
-        </div>
+        {/* Only show registration link if registration is allowed. If false, nothing is rendered! */}
+        {allowRegistration && (
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Hesabınız yok mu?{" "}
+            <Link
+              href="/register"
+              className="text-slate-200 hover:text-white font-medium underline underline-offset-4 decoration-slate-600 hover:decoration-white transition-colors ml-1"
+            >
+              Kayıt Olun
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
