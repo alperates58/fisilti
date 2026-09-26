@@ -35,6 +35,8 @@ import LinkPreviewCard from "./LinkPreviewCard";
 import { resolveMediaUrl } from "@/lib/api";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import CodeSnippetBox from "./CodeSnippetBox";
+import LocationMessageCard from "./LocationMessageCard";
 
 interface Props {
   message: Message;
@@ -277,51 +279,114 @@ export default function MessageBubble({
     Boolean(message.content?.includes("Cevapsız") ||
     message.content?.includes("Reddedilen"));
 
-  const renderFormattedContent = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
-    const parts = text.split(urlRegex);
-    return parts.map((part, index) => {
-      if (part.match(urlRegex)) {
+  const renderInlinePart = (part: string, keyPrefix: string) => {
+    if (searchQuery && searchQuery.trim().length > 0) {
+      const q = searchQuery.trim();
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchRegex = new RegExp(`(${escaped})`, "gi");
+      const subParts = part.split(searchRegex);
+      if (subParts.length > 1) {
+        return subParts.map((sub, sIdx) => {
+          if (sub.toLowerCase() === q.toLowerCase()) {
+            return (
+              <mark
+                key={`${keyPrefix}_mark_${sIdx}`}
+                className="bg-amber-300 text-slate-950 font-bold px-0.5 rounded shadow-xs"
+              >
+                {sub}
+              </mark>
+            );
+          }
+          return sub;
+        });
+      }
+    }
+    return part;
+  };
+
+  const renderInlineFormatting = (text: string, keyPrefix: string) => {
+    // 1. Satır içi kod (`code`) ayrıştır
+    const inlineCodeRegex = /`([^`\n]+)`/g;
+    const partsWithCode = text.split(inlineCodeRegex);
+
+    return partsWithCode.map((segment, cIdx) => {
+      if (cIdx % 2 === 1) {
         return (
-          <a
-            key={index}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`underline hover:opacity-80 transition-opacity break-all ${
-              message.is_mine ? "text-inherit opacity-95 font-medium underline" : "text-grupo-accent font-medium"
-            }`}
-            onClick={(e) => e.stopPropagation()}
+          <code
+            key={`${keyPrefix}_code_${cIdx}`}
+            className="px-1.5 py-0.5 mx-0.5 rounded bg-black/40 border border-white/10 font-mono text-[11px] text-pink-300 font-semibold"
           >
-            {part}
-          </a>
+            {segment}
+          </code>
         );
       }
 
-      if (searchQuery && searchQuery.trim().length > 0) {
-        const q = searchQuery.trim();
-        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const searchRegex = new RegExp(`(${escaped})`, "gi");
-        const subParts = part.split(searchRegex);
-        if (subParts.length > 1) {
-          return subParts.map((sub, sIdx) => {
-            if (sub.toLowerCase() === q.toLowerCase()) {
-              return (
-                <mark
-                  key={sIdx}
-                  className="bg-amber-300 text-slate-950 font-bold px-0.5 rounded shadow-xs"
-                >
-                  {sub}
-                </mark>
-              );
-            }
-            return sub;
-          });
+      // 2. URL ayrıştırma
+      const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
+      const urlParts = segment.split(urlRegex);
+      return urlParts.map((part, uIdx) => {
+        if (part.match(urlRegex)) {
+          return (
+            <a
+              key={`${keyPrefix}_${cIdx}_url_${uIdx}`}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`underline hover:opacity-80 transition-opacity break-all ${
+                message.is_mine
+                  ? "text-inherit opacity-95 font-medium underline"
+                  : "text-grupo-accent font-medium"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part}
+            </a>
+          );
         }
+
+        return renderInlinePart(part, `${keyPrefix}_${cIdx}_${uIdx}`);
+      });
+    });
+  };
+
+  const renderFormattedContent = (text: string) => {
+    // Çok satırlı kod bloğu kontrolü (```lang\ncode\n```)
+    if (text.includes("```")) {
+      const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+      const elements: React.ReactNode[] = [];
+      let lastIdx = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = codeBlockRegex.exec(text)) !== null) {
+        if (match.index > lastIdx) {
+          elements.push(
+            renderInlineFormatting(text.substring(lastIdx, match.index), `pre_${lastIdx}`)
+          );
+        }
+
+        const lang = match[1] || "kod";
+        const code = match[2] || "";
+        elements.push(
+          <CodeSnippetBox
+            key={`snippet_${match.index}`}
+            language={lang}
+            code={code}
+          />
+        );
+
+        lastIdx = match.index + match[0].length;
       }
 
-      return part;
-    });
+      if (lastIdx < text.length) {
+        elements.push(
+          renderInlineFormatting(text.substring(lastIdx), `post_${lastIdx}`)
+        );
+      }
+
+      return elements;
+    }
+
+    return renderInlineFormatting(text, "root");
   };
 
   const formattedTime = (() => {
@@ -685,6 +750,20 @@ export default function MessageBubble({
           {/* 4c. Genel Web Bağlantısı Önizleme Kartı (OpenGraph) */}
           {generalUrl && (
             <LinkPreviewCard url={generalUrl} isMine={message.is_mine} />
+          )}
+
+          {/* 4d. Konum Paylaşımı Kartı */}
+          {(message.message_type === "location" ||
+            (message.media_metadata?.latitude !== undefined &&
+              message.media_metadata?.longitude !== undefined)) && (
+            <LocationMessageCard
+              latitude={Number(message.media_metadata?.latitude) || 0}
+              longitude={Number(message.media_metadata?.longitude) || 0}
+              isLive={Boolean(message.media_metadata?.is_live)}
+              durationMinutes={Number(message.media_metadata?.duration) || undefined}
+              liveUntil={message.media_metadata?.live_until}
+              isMine={message.is_mine}
+            />
           )}
 
           {/* 5. Arama Kaydı Kartı veya Metin İçeriği ve Düzenleme Modu */}

@@ -30,6 +30,8 @@ import EmojiPicker from "@/components/chat/EmojiPicker";
 import MediaStagingModal from "@/components/chat/MediaStagingModal";
 import PdfPreviewModal from "@/components/chat/PdfPreviewModal";
 import MediaGalleryModal, { GalleryMediaItem } from "@/components/chat/MediaGalleryModal";
+import DoodleModal from "@/components/chat/DoodleModal";
+import ListenTogetherModal from "@/components/chat/ListenTogetherModal";
 import { compressImage, validateVideo } from "@/lib/compression";
 import { api, resolveMediaUrl, getApiBaseUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
@@ -236,11 +238,29 @@ export default function HomePage() {
   const [contactsList, setContactsList] = useState<any[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isDoodleOpen, setIsDoodleOpen] = useState(false);
+  const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportTop, setViewportTop] = useState<number>(0);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // WhatsApp stili otomatik genişleyen mesaj kutusu hesaplayıcısı
+  const adjustTextareaHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxHeight = 140; // ~5-6 satır (WhatsApp standardı)
+    const scrollHeight = el.scrollHeight;
+    if (scrollHeight > maxHeight) {
+      el.style.height = `${maxHeight}px`;
+      el.style.overflowY = "auto";
+    } else {
+      el.style.height = `${Math.max(scrollHeight, 44)}px`;
+      el.style.overflowY = "hidden";
+    }
+  }, []);
 
   const updateViewportMetrics = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -376,6 +396,10 @@ export default function HomePage() {
     if (!activeConversationId) return;
     initialScrolledConvsRef.current[activeConversationId] = false;
     isPrependingOlderRef.current = false;
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.overflowY = "hidden";
+    }
   }, [activeConversationId]);
 
   // 3. Mesaj listesi otomatik en alta kaydırma
@@ -858,23 +882,24 @@ export default function HomePage() {
   }, [activeConversationId, galleryItems]);
 
   // Pano Yapıştırma (Clipboard Paste - Ctrl+V)
-  const handleComposerPaste = (e: React.ClipboardEvent) => {
+  const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (!activeConv) return;
     const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          setStagedFile(file);
-          setIsStagingModalOpen(true);
-          return;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            setStagedFile(file);
+            setIsStagingModalOpen(true);
+            return;
+          }
         }
       }
     }
+    setTimeout(adjustTextareaHeight, 0);
   };
 
   // Sürükle ve Bırak (Drag & Drop) Olayları
@@ -1181,12 +1206,16 @@ export default function HomePage() {
     );
   }, [messages, starredMessages]);
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!inputMessage.trim() || !activeConversationId) return;
 
     sendMessage(activeConversationId, inputMessage.trim());
     setInputMessage("");
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.overflowY = "hidden";
+    }
     setTimeout(() => scrollToBottom("smooth"), 50);
 
     if (typingTimeoutRef.current) {
@@ -1196,8 +1225,9 @@ export default function HomePage() {
     sendTyping(activeConversationId, false);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
+    adjustTextareaHeight();
     if (!activeConversationId) return;
 
     sendTyping(activeConversationId, true);
@@ -1237,12 +1267,14 @@ export default function HomePage() {
           input.focus();
           const newPos = start + emoji.length;
           input.setSelectionRange(newPos, newPos);
+          adjustTextareaHeight();
         }, 0);
       } else {
         setInputMessage((prev) => prev + emoji);
+        setTimeout(adjustTextareaHeight, 0);
       }
     },
-    [inputMessage, activeConversationId, sendTyping]
+    [inputMessage, activeConversationId, sendTyping, adjustTextareaHeight]
   );
 
   const handleStartChat = async (targetUserId: string) => {
@@ -2214,7 +2246,7 @@ export default function HomePage() {
                 <>
                   <ReplyBar />
 
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-end gap-2 sm:gap-3">
                     <MediaUploadMenu
                       conversationId={activeConv.id}
                       onStartVoice={() => setIsRecordingVoice(true)}
@@ -2223,6 +2255,8 @@ export default function HomePage() {
                         setStagedFile(file);
                         setIsStagingModalOpen(true);
                       }}
+                      onOpenDoodle={() => setIsDoodleOpen(true)}
+                      onOpenListenTogether={() => setIsListenTogetherOpen(true)}
                     />
 
                     {/* WhatsApp / Telegram Stili Gelişmiş Emoji Butonu & Popover */}
@@ -2260,14 +2294,19 @@ export default function HomePage() {
                         onComplete={() => setIsRecordingVoice(false)}
                       />
                     ) : (
-                      <form onSubmit={handleSend} className="flex-1 flex items-center gap-2">
-                        <input
+                      <form onSubmit={handleSend} className="flex-1 flex items-end gap-2">
+                        <textarea
                           ref={inputRef}
-                          type="text"
+                          rows={1}
                           value={inputMessage}
                           onChange={handleInputChange}
                           onPaste={handleComposerPaste}
                           onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSend();
+                              return;
+                            }
                             if (e.key === "ArrowUp" && !inputMessage.trim() && activeConversationId) {
                               e.preventDefault();
                               const currentMsgs = messages[activeConversationId] || [];
@@ -2297,7 +2336,7 @@ export default function HomePage() {
                               scrollToBottom("auto");
                             }, 60);
                           }}
-                          placeholder="Bir mesaj yazın..."
+                          placeholder="Bir mesaj yazın... (Yeni satır için Shift+Enter)"
                           style={{
                             borderColor:
                               isInputFocused || inputMessage.trim()
@@ -2306,8 +2345,10 @@ export default function HomePage() {
                             boxShadow: isInputFocused
                               ? "0 0 0 1px var(--accent, #6366F1)"
                               : undefined,
+                            minHeight: "44px",
+                            maxHeight: "140px",
                           }}
-                          className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all"
+                          className="flex-1 bg-slate-900/90 border border-grupo-dark-border rounded-2xl py-3 px-4 sm:py-3.5 sm:px-5 text-[15px] sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-all resize-none leading-relaxed overflow-y-hidden"
                         />
 
                         {inputMessage.trim() ? (
@@ -2802,6 +2843,25 @@ export default function HomePage() {
           setStagedFile(null);
         }}
         onSend={handleSendStagedMedia}
+      />
+
+      {/* 1-E-1 CANLI EŞZAMANLI ÇİZİM (DOODLE) MODALI */}
+      <DoodleModal
+        isOpen={isDoodleOpen}
+        conversationId={activeConversationId}
+        onClose={() => setIsDoodleOpen(false)}
+        onSendDoodle={(file) => {
+          setIsDoodleOpen(false);
+          setStagedFile(file);
+          setIsStagingModalOpen(true);
+        }}
+      />
+
+      {/* 1-E-1 SENKRON MÜZİK DİNLEME (LISTEN TOGETHER) MODALI */}
+      <ListenTogetherModal
+        isOpen={isListenTogetherOpen}
+        conversationId={activeConversationId}
+        onClose={() => setIsListenTogetherOpen(false)}
       />
 
       {/* Ana Ekran Geri Tuşu Çift Dokunma Bilgilendirme Kartı */}
