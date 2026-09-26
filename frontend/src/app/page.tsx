@@ -24,7 +24,8 @@ import MessageInfoModal from "@/components/chat/MessageInfoModal";
 import ReplyBar from "@/components/chat/ReplyBar";
 import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
 import AudioRecorder from "@/components/chat/AudioRecorder";
-import { api, resolveMediaUrl } from "@/lib/api";
+import EmojiPicker from "@/components/chat/EmojiPicker";
+import { api, resolveMediaUrl, getApiBaseUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
 import { notificationManager } from "@/lib/notifications";
 import { subscribeUserToPush, getPushSubscription } from "@/lib/push_notifications";
@@ -34,6 +35,7 @@ import {
   LogOut,
   Send,
   Search,
+  Smile,
   UserPlus,
   ShieldCheck,
   Sparkles,
@@ -108,7 +110,18 @@ export default function HomePage() {
             targetUrl = "https://" + targetUrl;
           }
           try {
-            navigator.sendBeacon?.("/api/v1/auth/logout");
+            const apiBase = getApiBaseUrl().replace(/\/+$/, "");
+            const logoutUrl = `${apiBase}/auth/logout`;
+            if (typeof fetch !== "undefined") {
+              fetch(logoutUrl, {
+                method: "POST",
+                credentials: "include",
+                keepalive: true,
+              }).catch(() => {});
+            }
+            if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+              navigator.sendBeacon(logoutUrl);
+            }
           } catch (e) {}
           window.location.replace(targetUrl);
           return <div className="fixed inset-0 z-[9999999] bg-[#090A0F]" />;
@@ -222,6 +235,7 @@ export default function HomePage() {
 
   const [inputMessage, setInputMessage] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [contactsList, setContactsList] = useState<any[]>([]);
@@ -229,6 +243,8 @@ export default function HomePage() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportTop, setViewportTop] = useState<number>(0);
+
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const updateViewportMetrics = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -360,6 +376,7 @@ export default function HomePage() {
 
   // Konuşma değiştiğinde bayrakları sıfırla
   useEffect(() => {
+    setIsEmojiPickerOpen(false);
     if (!activeConversationId) return;
     initialScrolledConvsRef.current[activeConversationId] = false;
     isPrependingOlderRef.current = false;
@@ -577,19 +594,27 @@ export default function HomePage() {
           localStorage.removeItem("aura_inactive_since");
         }
 
-        // 2. Soketi ve Store'ları sessizce kapat
+        // 2. Soketi, Store'ları ve Yetki durumunu anında temizle
         try {
+          useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
           useSocketStore.getState().disconnect();
           useChatStore.getState().reset();
           useCallStore.getState().resetCall();
         } catch (e) {}
 
-        // 3. Arka planda sunucuya logout isteği at (ASLA await ile bekleme, yükleniyor ekranı tetikleme!)
+        // 3. Arka planda sunucuya HttpOnly çerezleri temizlemesi için logout isteği at
         try {
+          const apiBase = getApiBaseUrl().replace(/\/+$/, "");
+          const logoutUrl = `${apiBase}/auth/logout`;
+          if (typeof fetch !== "undefined") {
+            fetch(logoutUrl, {
+              method: "POST",
+              credentials: "include",
+              keepalive: true,
+            }).catch(() => {});
+          }
           if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-            navigator.sendBeacon("/api/v1/auth/logout");
-          } else {
-            fetch("/api/v1/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
+            navigator.sendBeacon(logoutUrl);
           }
         } catch (e) {}
 
@@ -703,9 +728,18 @@ export default function HomePage() {
       }
     };
 
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // Eğer kullanıcı tarayıcı geri/ileri tuşuna (bfcache) basarak geri geldiyse sayfayı temizle ve yeniden yükle
+      if (event.persisted) {
+        window.location.reload();
+        return;
+      }
+      handleComingToForeground();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handleGoingToBackground);
-    window.addEventListener("pageshow", handleComingToForeground);
+    window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("focus", handleComingToForeground);
     window.addEventListener("blur", () => {
       if (typeof document !== "undefined" && document.hidden) {
@@ -717,7 +751,7 @@ export default function HomePage() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handleGoingToBackground);
-      window.removeEventListener("pageshow", handleComingToForeground);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("focus", handleComingToForeground);
       window.removeEventListener("online", handleComingToForeground);
     };
@@ -921,6 +955,39 @@ export default function HomePage() {
       }
     }, 2000);
   };
+
+  const handleSelectEmoji = useCallback(
+    (emoji: string) => {
+      const input = inputRef.current;
+      if (input) {
+        const start = input.selectionStart ?? inputMessage.length;
+        const end = input.selectionEnd ?? inputMessage.length;
+        const nextVal = inputMessage.slice(0, start) + emoji + inputMessage.slice(end);
+        setInputMessage(nextVal);
+
+        if (activeConversationId) {
+          sendTyping(activeConversationId, true);
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+          typingTimeoutRef.current = setTimeout(() => {
+            if (activeConversationId) {
+              sendTyping(activeConversationId, false);
+            }
+          }, 3000);
+        }
+
+        setTimeout(() => {
+          input.focus();
+          const newPos = start + emoji.length;
+          input.setSelectionRange(newPos, newPos);
+        }, 0);
+      } else {
+        setInputMessage((prev) => prev + emoji);
+      }
+    },
+    [inputMessage, activeConversationId, sendTyping]
+  );
 
   const handleStartChat = async (targetUserId: string) => {
     setSearchQuery("");
@@ -1770,7 +1837,36 @@ export default function HomePage() {
                     <MediaUploadMenu
                       conversationId={activeConv.id}
                       onStartVoice={() => setIsRecordingVoice(true)}
+                      onOpenEmoji={() => setIsEmojiPickerOpen((prev) => !prev)}
                     />
+
+                    {/* WhatsApp / Telegram Stili Gelişmiş Emoji Butonu & Popover */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+                        title="Emoji ve İfade Klavyesi"
+                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer flex-shrink-0 ${
+                          isEmojiPickerOpen
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.35)] scale-105"
+                            : "bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-grupo-dark-border"
+                        }`}
+                      >
+                        <Smile
+                          className={`w-5 h-5 transition-transform duration-300 ${
+                            isEmojiPickerOpen ? "rotate-12 scale-110 text-amber-400" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {/* Gelişmiş Emoji Klavyesi Popover */}
+                      <EmojiPicker
+                        isOpen={isEmojiPickerOpen}
+                        onClose={() => setIsEmojiPickerOpen(false)}
+                        onSelectEmoji={handleSelectEmoji}
+                        anchorPosition="bottom-left"
+                      />
+                    </div>
 
                     {isRecordingVoice ? (
                       <AudioRecorder
@@ -1781,6 +1877,7 @@ export default function HomePage() {
                     ) : (
                       <form onSubmit={handleSend} className="flex-1 flex items-center gap-2">
                         <input
+                          ref={inputRef}
                           type="text"
                           value={inputMessage}
                           onChange={handleInputChange}

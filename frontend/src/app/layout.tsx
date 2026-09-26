@@ -41,6 +41,9 @@ export default function RootLayout({
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
         <link
           rel="manifest"
           href={manifestPath}
@@ -61,7 +64,13 @@ export default function RootLayout({
                       localStorage.removeItem("aura_inactive_since");
                       var url = (s.inactivity_redirect_url || "https://www.google.com").trim();
                       if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
-                      try { navigator.sendBeacon("/api/v1/auth/logout"); } catch(e){}
+                      
+                      var sub = (window.location.pathname.match(/^(\\/[a-zA-Z0-9_-]+)/) || ["",""])[1];
+                      if (["/login", "/register", "/chat", "/settings", "/api"].indexOf(sub) !== -1) sub = "";
+                      var logoutUrl = window.location.origin + sub + "/api/v1/auth/logout";
+                      try { fetch(logoutUrl, { method: "POST", credentials: "include", keepalive: true }); } catch(e){}
+                      try { navigator.sendBeacon(logoutUrl); } catch(e){}
+
                       window.location.replace(url);
                     }
                   }
