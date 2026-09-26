@@ -208,11 +208,18 @@ func (r *SettingsRepository) GetCallSettings(ctx context.Context) models.CallSet
 
 func (r *SettingsRepository) GetSecuritySettings(ctx context.Context) models.SecuritySettings {
 	defaults := models.SecuritySettings{
-		MaxMessagesPerSecond:   5,
-		MaxMessagesPerMinute:   60,
-		RequireStrongPasswords: false,
-		LockoutAttempts:        5,
-		SessionTimeoutDays:     30,
+		MaxMessagesPerSecond:      5,
+		MaxMessagesPerMinute:      60,
+		RequireStrongPasswords:    false,
+		LockoutAttempts:           5,
+		SessionTimeoutDays:        30,
+		InactivityLogoutEnabled:   false,
+		InactivityTimeoutMinutes:  15,
+		InactivityRedirectURL:     "https://www.google.com",
+		InactivityScheduleEnabled: false,
+		InactivityWeekdayStart:    "17:30",
+		InactivityWeekdayEnd:      "08:30",
+		InactivityWeekendFull:     true,
 	}
 
 	raw, err := r.GetSetting(ctx, "security_settings")
@@ -223,6 +230,18 @@ func (r *SettingsRepository) GetSecuritySettings(ctx context.Context) models.Sec
 	var res models.SecuritySettings
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return defaults
+	}
+	if res.InactivityTimeoutMinutes <= 0 {
+		res.InactivityTimeoutMinutes = 15
+	}
+	if res.InactivityRedirectURL == "" {
+		res.InactivityRedirectURL = "https://www.google.com"
+	}
+	if res.InactivityWeekdayStart == "" {
+		res.InactivityWeekdayStart = "17:30"
+	}
+	if res.InactivityWeekdayEnd == "" {
+		res.InactivityWeekdayEnd = "08:30"
 	}
 	return res
 }
@@ -274,10 +293,11 @@ func (r *SettingsRepository) GetNotificationSettings(ctx context.Context) models
 
 func (r *SettingsRepository) GetPublicSettings(ctx context.Context) models.PublicSettingsResponse {
 	return models.PublicSettingsResponse{
-		SiteInfo:      r.GetSiteInfo(ctx),
-		ThemeSettings: r.GetThemeSettings(ctx),
-		MediaLimits:   r.GetMediaLimits(ctx),
-		ChatSettings:  r.GetChatSettings(ctx),
-		CallSettings:  r.GetCallSettings(ctx),
+		SiteInfo:         r.GetSiteInfo(ctx),
+		ThemeSettings:    r.GetThemeSettings(ctx),
+		MediaLimits:      r.GetMediaLimits(ctx),
+		ChatSettings:     r.GetChatSettings(ctx),
+		CallSettings:     r.GetCallSettings(ctx),
+		SecuritySettings: r.GetSecuritySettings(ctx),
 	}
 }

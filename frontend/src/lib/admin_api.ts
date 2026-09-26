@@ -40,6 +40,13 @@ export interface SystemSettings {
     require_strong_passwords: boolean;
     lockout_attempts: number;
     session_timeout_days: number;
+    inactivity_logout_enabled?: boolean;
+    inactivity_timeout_minutes?: number;
+    inactivity_redirect_url?: string;
+    inactivity_schedule_enabled?: boolean;
+    inactivity_weekday_start?: string;
+    inactivity_weekday_end?: string;
+    inactivity_weekend_full?: boolean;
   };
   notification_settings: {
     enable_web_push: boolean;

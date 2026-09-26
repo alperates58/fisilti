@@ -35,11 +35,18 @@ type CallSettings struct {
 }
 
 type SecuritySettings struct {
-	MaxMessagesPerSecond   int  `json:"max_messages_per_second"`
-	MaxMessagesPerMinute   int  `json:"max_messages_per_minute"`
-	RequireStrongPasswords bool `json:"require_strong_passwords"`
-	LockoutAttempts        int  `json:"lockout_attempts"`
-	SessionTimeoutDays     int  `json:"session_timeout_days"`
+	MaxMessagesPerSecond      int    `json:"max_messages_per_second"`
+	MaxMessagesPerMinute      int    `json:"max_messages_per_minute"`
+	RequireStrongPasswords    bool   `json:"require_strong_passwords"`
+	LockoutAttempts           int    `json:"lockout_attempts"`
+	SessionTimeoutDays        int    `json:"session_timeout_days"`
+	InactivityLogoutEnabled   bool   `json:"inactivity_logout_enabled"`
+	InactivityTimeoutMinutes  int    `json:"inactivity_timeout_minutes"`
+	InactivityRedirectURL     string `json:"inactivity_redirect_url"`
+	InactivityScheduleEnabled bool   `json:"inactivity_schedule_enabled"`
+	InactivityWeekdayStart     string `json:"inactivity_weekday_start"`
+	InactivityWeekdayEnd       string `json:"inactivity_weekday_end"`
+	InactivityWeekendFull      bool   `json:"inactivity_weekend_full"`
 }
 
 type NotificationSettings struct {
@@ -62,9 +69,10 @@ type ThemeSettings struct {
 }
 
 type PublicSettingsResponse struct {
-	SiteInfo      SiteInfoSettings    `json:"site_info"`
-	ThemeSettings ThemeSettings       `json:"theme_settings"`
-	MediaLimits   MediaLimitsSettings `json:"media_limits"`
-	ChatSettings  ChatSettings        `json:"chat_settings"`
-	CallSettings  CallSettings        `json:"call_settings"`
+	SiteInfo         SiteInfoSettings    `json:"site_info"`
+	ThemeSettings    ThemeSettings       `json:"theme_settings"`
+	MediaLimits      MediaLimitsSettings `json:"media_limits"`
+	ChatSettings     ChatSettings        `json:"chat_settings"`
+	CallSettings     CallSettings        `json:"call_settings"`
+	SecuritySettings SecuritySettings    `json:"security_settings"`
 }

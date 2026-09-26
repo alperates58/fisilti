@@ -46,6 +46,20 @@ export interface PublicSettings {
     enable_screen_share: boolean;
     max_call_duration_minutes: number;
   };
+  security_settings?: {
+    max_messages_per_second?: number;
+    max_messages_per_minute?: number;
+    require_strong_passwords?: boolean;
+    lockout_attempts?: number;
+    session_timeout_days?: number;
+    inactivity_logout_enabled?: boolean;
+    inactivity_timeout_minutes?: number;
+    inactivity_redirect_url?: string;
+    inactivity_schedule_enabled?: boolean;
+    inactivity_weekday_start?: string;
+    inactivity_weekday_end?: string;
+    inactivity_weekend_full?: boolean;
+  };
 }
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
@@ -89,6 +103,20 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
     enable_video_calls: true,
     enable_screen_share: true,
     max_call_duration_minutes: 120,
+  },
+  security_settings: {
+    max_messages_per_second: 5,
+    max_messages_per_minute: 60,
+    require_strong_passwords: false,
+    lockout_attempts: 5,
+    session_timeout_days: 30,
+    inactivity_logout_enabled: false,
+    inactivity_timeout_minutes: 15,
+    inactivity_redirect_url: "https://www.google.com",
+    inactivity_schedule_enabled: false,
+    inactivity_weekday_start: "17:30",
+    inactivity_weekday_end: "08:30",
+    inactivity_weekend_full: true,
   },
 };
 

@@ -141,6 +141,9 @@ export default function HomePage() {
     name?: string;
   } | null>(null);
 
+  // Gizlilik Kalkanı: Tuş kilidi kapandığında veya inaktivite yönlendirmesinde sohbeti anında gizler
+  const [isPrivacyCurtainActive, setIsPrivacyCurtainActive] = useState(false);
+
   // Sohbet İçi Arama Durumları (WhatsApp Tarzı)
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
@@ -398,15 +401,146 @@ export default function HomePage() {
     }
   }, [messages, activeConversationId, scrollToBottom]);
 
-  // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve konuşmaları yükle
+  // 3b. Kullanıcı telefon kilidini açtığında veya sekmeye geri döndüğünde bağlantıyı tazele ve inaktiviteyi denetle
   useEffect(() => {
+    // Zaman Takvimi Kuralı: Belirlenen gün ve saat aralığında mıyız?
+    const isScheduleActiveNow = (sec: any): boolean => {
+      if (!sec?.inactivity_schedule_enabled) {
+        return true; // Zaman takvimi kapalıysa 7/24 devrededir
+      }
+
+      const now = new Date();
+      const day = now.getDay(); // 0: Pazar, 6: Cumartesi
+      const isWeekend = day === 0 || day === 6;
+
+      if (isWeekend) {
+        return sec.inactivity_weekend_full ?? true;
+      }
+
+      // Hafta içi saat kontrolü
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const parseTimeToMinutes = (t?: string, defaultMin: number = 0) => {
+        if (!t || !t.includes(":")) return defaultMin;
+        const parts = t.split(":");
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+      };
+
+      const startMinutes = parseTimeToMinutes(sec.inactivity_weekday_start, 17 * 60 + 30); // 17:30
+      const endMinutes = parseTimeToMinutes(sec.inactivity_weekday_end, 8 * 60 + 30); // 08:30
+
+      if (startMinutes > endMinutes) {
+        // Geceyi aşan aralık (Örn: Hafta içi 17:30 akşam başlar, ertesi sabah 08:30'a kadar sürer)
+        return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+      } else if (startMinutes < endMinutes) {
+        // Aynı gün içi aralık (Örn: 09:00 - 18:00)
+        return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+      }
+
+      return true;
+    };
+
+    // İnaktivite süresini denetleyip gerekiyorsa anında yönlendiren yardımcı fonksiyon
+    const checkInactivityAndRedirect = (): boolean => {
+      const sec = useSettingsStore.getState().settings?.security_settings;
+      if (!sec?.inactivity_logout_enabled) {
+        return false;
+      }
+
+      // Eğer zaman takvimi aktifse ve şu an koruma saatleri dışındaysak (örn. gündüz mesai saati):
+      if (!isScheduleActiveNow(sec)) {
+        return false;
+      }
+
+      const inactiveSinceStr =
+        typeof window !== "undefined" ? localStorage.getItem("aura_inactive_since") : null;
+      if (!inactiveSinceStr) {
+        return false;
+      }
+
+      const inactiveSince = parseInt(inactiveSinceStr, 10);
+      if (isNaN(inactiveSince)) {
+        return false;
+      }
+
+      const elapsedMinutes = (Date.now() - inactiveSince) / (1000 * 60);
+      const timeoutMinutes = sec.inactivity_timeout_minutes || 15;
+
+      if (elapsedMinutes >= timeoutMinutes) {
+        // SÜRE DOLDU!
+        // 1. Kalkanı açık tut (kullanıcı tek kare bile sohbet görmesin)
+        setIsPrivacyCurtainActive(true);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("aura_inactive_since");
+        }
+
+        // 2. Soketi ve Store'ları kapat
+        try {
+          useSocketStore.getState().disconnect();
+          useChatStore.getState().reset();
+          useCallStore.getState().resetCall();
+        } catch (e) {}
+
+        // 3. Hedef siteye anında yönlendir
+        let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+          targetUrl = "https://" + targetUrl;
+        }
+
+        useAuthStore
+          .getState()
+          .logout()
+          .finally(() => {
+            window.location.replace(targetUrl);
+          });
+        return true;
+      }
+
+      return false;
+    };
+
+    // Sayfa mount olduğunda süre aşımı varsa hemen fırlat
+    if (checkInactivityAndRedirect()) {
+      return;
+    }
+
     const handleVisibilityOrFocus = () => {
+      const isHidden = typeof document !== "undefined" && document.hidden;
+      const sec = useSettingsStore.getState().settings?.security_settings;
+
+      if (isHidden) {
+        // KULLANICI TUŞ KİLİDİNİ KAPATTI VEYA SEKME ARKA PLANA GEÇTİ
+        if (sec?.inactivity_logout_enabled && isScheduleActiveNow(sec)) {
+          // 1. Ekran görüntüsü alınırken sohbetin görünmemesi için kalkanı hemen çek
+          setIsPrivacyCurtainActive(true);
+          // 2. Kilitlenme anını kaydet
+          if (typeof window !== "undefined") {
+            localStorage.setItem("aura_inactive_since", Date.now().toString());
+          }
+        }
+        return;
+      }
+
+      // KULLANICI TUŞ KİLİDİNİ AÇTI VEYA SEKMEDE UYANDI
       const isVisible =
         typeof document !== "undefined" &&
         !document.hidden &&
         document.visibilityState === "visible";
 
       if (isVisible) {
+        // Önce inaktivite zaman aşımını kontrol et
+        if (checkInactivityAndRedirect()) {
+          return; // Süre dolduysa soketi bağlamadan fırlatır!
+        }
+
+        // Süre dolmadıysa kalkanı kaldır ve kilitlenme damgasını temizle
+        setIsPrivacyCurtainActive(false);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("aura_inactive_since");
+        }
+
         notificationManager.stopFlash();
 
         // Kilit ekranı geçiş animasyonunu karşılamak için aşamalı metrik güncellemesi
@@ -466,13 +600,27 @@ export default function HomePage() {
       }
     };
 
+    // Kullanıcı sayfadayken etkileşim oldukça inaktivite damgasını temizle
+    const handleUserInteraction = () => {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("aura_inactive_since");
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityOrFocus);
     window.addEventListener("focus", handleVisibilityOrFocus);
     window.addEventListener("online", handleVisibilityOrFocus);
+    window.addEventListener("touchstart", handleUserInteraction, { passive: true });
+    window.addEventListener("mousedown", handleUserInteraction, { passive: true });
+    window.addEventListener("keydown", handleUserInteraction, { passive: true });
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("focus", handleVisibilityOrFocus);
       window.removeEventListener("online", handleVisibilityOrFocus);
+      window.removeEventListener("touchstart", handleUserInteraction);
+      window.removeEventListener("mousedown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
     };
   }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportMetrics]);
 
@@ -699,8 +847,24 @@ export default function HomePage() {
   }
 
   return (
-    <div
-      className="fixed inset-x-0 flex w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
+    <>
+      {/* GİZLİLİK KALKANI: Tuş kilidi kapatıldığında veya inaktivite yönlendirmesinde sohbeti sıfır sızıntıyla örter */}
+      {isPrivacyCurtainActive && (
+        <div
+          className="fixed inset-0 z-[999999] bg-[#090A0F] flex flex-col items-center justify-center pointer-events-auto select-none"
+          style={{ backgroundColor: "var(--background, #090A0F)" }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-9 h-9 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs text-slate-400 font-medium tracking-wide">
+              Güvenli Oturum Doğrulanıyor...
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div
+        className="fixed inset-x-0 flex w-full bg-grupo-dark-bg text-slate-100 select-none overflow-hidden"
       style={{
         top: `${viewportTop}px`,
         height: viewportHeight ? `${viewportHeight}px` : "100%",
@@ -2058,5 +2222,6 @@ export default function HomePage() {
       {/* Gerçek Zamanlı Hikaye Bildirim Banner'ı */}
       <StoryNotificationBanner />
     </div>
+    </>
   );
 }
