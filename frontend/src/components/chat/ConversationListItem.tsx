@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Conversation } from "@/store/useChatStore";
+import { useStoryStore } from "@/store/useStoryStore";
+import { resolveMediaUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
 import { Trash2, Eraser, AlertCircle, MoreHorizontal } from "lucide-react";
 
@@ -22,6 +24,15 @@ export default function ConversationListItem({
   onDelete,
   onClearHistory,
 }: Props) {
+  const storyGroups = useStoryStore((state) => state.storyGroups);
+  const openViewer = useStoryStore((state) => state.openViewer);
+  const userStoryGroup = storyGroups.find(
+    (g) => g.user.id === conversation.other_user.id && g.stories.length > 0
+  );
+  const hasStory = !!userStoryGroup;
+  const hasUnviewed = !!userStoryGroup?.has_unviewed;
+  const isCloseFriends = !!userStoryGroup?.has_close_friends;
+
   const [translateX, setTranslateX] = useState(0);
   const [isSwiped, setIsSwiped] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -173,22 +184,59 @@ export default function ConversationListItem({
               : "bg-[#16191E] hover:bg-[#1D2128] border-transparent hover:border-slate-800/80"
           }`}
         >
-          {/* Avatar & Canlı Durum */}
-          <div className="relative flex-shrink-0">
-            <div className="w-11 h-11 rounded-full bg-slate-800 border border-slate-700/80 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden">
-              {conversation.other_user.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={conversation.other_user.avatar_url}
-                  alt={conversation.other_user.display_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                conversation.other_user.display_name.charAt(0).toUpperCase()
-              )}
+          {/* Avatar & Canlı Durum & WhatsApp Hikaye Halkası */}
+          <div
+            onClick={
+              hasStory
+                ? (e) => {
+                    e.stopPropagation();
+                    openViewer(userStoryGroup, 0);
+                  }
+                : undefined
+            }
+            title={hasStory ? `${conversation.other_user.display_name} hikayesini izle` : undefined}
+            className={`relative flex-shrink-0 ${hasStory ? "cursor-pointer group/story-item" : ""}`}
+          >
+            <div
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+                hasStory
+                  ? `p-[2px] group-hover/story-item:scale-105 ${
+                      hasUnviewed
+                        ? isCloseFriends
+                          ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/30 animate-in fade-in"
+                          : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 ring-2 ring-pink-500/20 animate-in fade-in"
+                        : isCloseFriends
+                        ? "border-2 border-emerald-500/70"
+                        : "border-2 border-slate-700"
+                    }`
+                  : "border border-slate-700/80 bg-slate-800"
+              }`}
+            >
+              <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center font-bold text-sm text-pink-400 overflow-hidden border border-[#16191E]">
+                {conversation.other_user.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolveMediaUrl(conversation.other_user.avatar_url)}
+                    alt={conversation.other_user.display_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  conversation.other_user.display_name.charAt(0).toUpperCase()
+                )}
+              </div>
             </div>
+
             {conversation.is_online && (
-              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#16191E] shadow-sm" />
+              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#16191E] shadow-sm z-10" />
+            )}
+
+            {hasStory && isCloseFriends && hasUnviewed && (
+              <span
+                title="Yakın Arkadaşlar Hikayesi"
+                className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[8px] font-black border border-slate-950 shadow-sm z-10"
+              >
+                ★
+              </span>
             )}
           </div>
 

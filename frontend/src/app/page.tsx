@@ -117,7 +117,15 @@ export default function HomePage() {
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
-  const { activeViewerGroup, closeViewer, isCreatorOpen, closeCreator } = useStoryStore();
+  const {
+    activeViewerGroup,
+    closeViewer,
+    isCreatorOpen,
+    closeCreator,
+    storyGroups,
+    openViewer,
+    loadStories,
+  } = useStoryStore();
 
   const [activeTab, setActiveTab] = useState<NavTab>("chats");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -282,8 +290,9 @@ export default function HomePage() {
       connect();
       loadConversations();
       loadStarredMessages();
+      loadStories();
     }
-  }, [isAuthenticated, connect, loadConversations, loadStarredMessages]);
+  }, [isAuthenticated, connect, loadConversations, loadStarredMessages, loadStories]);
 
   // 2b. Bildirim İzni ve Web Push Otomatik Kaydı
   useEffect(() => {
@@ -501,6 +510,18 @@ export default function HomePage() {
   const activeConv = conversations.find((c) => c.id === activeConversationId);
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
   const isOtherTyping = activeConversationId ? typingMap[activeConversationId] : false;
+
+  const otherUserStoryGroup = useMemo(() => {
+    if (!activeConv?.other_user?.id) return null;
+    return (
+      storyGroups.find(
+        (g) => g.user.id === activeConv.other_user.id && g.stories.length > 0
+      ) || null
+    );
+  }, [storyGroups, activeConv?.other_user?.id]);
+  const hasOtherStory = !!otherUserStoryGroup;
+  const hasOtherUnviewed = !!otherUserStoryGroup?.has_unviewed;
+  const isOtherCloseFriends = !!otherUserStoryGroup?.has_close_friends;
 
   // Sohbet değiştiğinde aramayı sıfırla
   useEffect(() => {
@@ -788,29 +809,77 @@ export default function HomePage() {
             <div className="px-3 py-1.5 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
               Arama Sonuçları ({searchResults.length})
             </div>
-            {searchResults.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => handleStartChat(u.id)}
-                className="w-full p-2.5 rounded-xl hover:bg-slate-800/60 flex items-center justify-between text-left transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-grupo-accent overflow-hidden">
-                    {u.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={u.avatar_url} alt={u.display_name} className="w-full h-full object-cover" />
-                    ) : (
-                      u.display_name.charAt(0).toUpperCase()
-                    )}
+            {searchResults.map((u) => {
+              const uStory = storyGroups.find((g) => g.user.id === u.id && g.stories.length > 0);
+              const uHasStory = !!uStory;
+              const uUnviewed = !!uStory?.has_unviewed;
+              const uCloseFriends = !!uStory?.has_close_friends;
+
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => handleStartChat(u.id)}
+                  className="w-full p-2.5 rounded-xl hover:bg-slate-800/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      onClick={
+                        uHasStory
+                          ? (e) => {
+                              e.stopPropagation();
+                              openViewer(uStory, 0);
+                            }
+                          : undefined
+                      }
+                      title={uHasStory ? `${u.display_name} hikayesini izle` : undefined}
+                      className={`relative flex-shrink-0 ${uHasStory ? "cursor-pointer group/search-story" : ""}`}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          uHasStory
+                            ? `p-[2px] group-hover/search-story:scale-105 ${
+                                uUnviewed
+                                  ? uCloseFriends
+                                    ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/30"
+                                    : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 ring-2 ring-pink-500/20"
+                                  : uCloseFriends
+                                  ? "border-2 border-emerald-500/70"
+                                  : "border-2 border-slate-700"
+                              }`
+                            : "border border-slate-700 bg-slate-800"
+                        }`}
+                      >
+                        <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-grupo-accent overflow-hidden border border-grupo-dark-card">
+                          {u.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={resolveMediaUrl(u.avatar_url)}
+                              alt={u.display_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            u.display_name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                      </div>
+                      {uHasStory && uCloseFriends && uUnviewed && (
+                        <span
+                          title="Yakın Arkadaşlar Hikayesi"
+                          className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[7px] font-black border border-slate-950 shadow-sm z-10"
+                        >
+                          ★
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">{u.display_name}</div>
+                      <div className="text-xs text-slate-400">@{u.username}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">{u.display_name}</div>
-                    <div className="text-xs text-slate-400">@{u.username}</div>
-                  </div>
-                </div>
-                <UserPlus className="w-4 h-4 text-grupo-accent" />
-              </button>
-            ))}
+                  <UserPlus className="w-4 h-4 text-grupo-accent" />
+                </button>
+              );
+            })}
           </div>
         ) : activeTab === "contacts" ? (
           /* TAB 2: Kişiler / Rehber Listesi */
@@ -825,41 +894,87 @@ export default function HomePage() {
                 Sistemde henüz başka kayıtlı kullanıcı yok.
               </div>
             ) : (
-              contactsList.map((contact) => (
-                <button
-                  key={contact.id}
-                  onClick={() => handleStartChat(contact.id)}
-                  className="w-full p-3 rounded-2xl hover:bg-slate-800/60 flex items-center gap-3 text-left transition-all cursor-pointer"
-                >
-                  <div className="relative flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden">
-                      {contact.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={contact.avatar_url} alt={contact.display_name} className="w-full h-full object-cover" />
-                      ) : (
-                        contact.display_name.charAt(0).toUpperCase()
+              contactsList.map((contact) => {
+                const contactStory = storyGroups.find((g) => g.user.id === contact.id && g.stories.length > 0);
+                const contactHasStory = !!contactStory;
+                const contactUnviewed = !!contactStory?.has_unviewed;
+                const contactCloseFriends = !!contactStory?.has_close_friends;
+
+                return (
+                  <button
+                    key={contact.id}
+                    onClick={() => handleStartChat(contact.id)}
+                    className="w-full p-3 rounded-2xl hover:bg-slate-800/60 flex items-center gap-3 text-left transition-all cursor-pointer"
+                  >
+                    <div
+                      onClick={
+                        contactHasStory
+                          ? (e) => {
+                              e.stopPropagation();
+                              openViewer(contactStory, 0);
+                            }
+                          : undefined
+                      }
+                      title={contactHasStory ? `${contact.display_name} hikayesini izle` : undefined}
+                      className={`relative flex-shrink-0 ${contactHasStory ? "cursor-pointer group/contact-story" : ""}`}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                          contactHasStory
+                            ? `p-[2px] group-hover/contact-story:scale-105 ${
+                                contactUnviewed
+                                  ? contactCloseFriends
+                                    ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/30"
+                                    : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 ring-2 ring-pink-500/20"
+                                  : contactCloseFriends
+                                  ? "border-2 border-emerald-500/70"
+                                  : "border-2 border-slate-700"
+                              }`
+                            : "border border-slate-700 bg-slate-800"
+                        }`}
+                      >
+                        <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden border border-grupo-dark-card">
+                          {contact.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={resolveMediaUrl(contact.avatar_url)}
+                              alt={contact.display_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            contact.display_name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                      </div>
+                      {contact.online_status === 1 && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card z-10"></span>
                       )}
-                    </div>
-                    {contact.online_status === 1 && (
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-white truncate">{contact.display_name}</div>
-                      {contact.online_status === 1 ? (
-                        <span className="text-[10px] text-emerald-400 font-medium">Çevrimiçi</span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
-                          {formatLastSeen(contact.last_seen_at, contact.privacy_settings?.last_seen)}
+                      {contactHasStory && contactCloseFriends && contactUnviewed && (
+                        <span
+                          title="Yakın Arkadaşlar Hikayesi"
+                          className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[8px] font-black border border-slate-950 shadow-sm z-10"
+                        >
+                          ★
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400 truncate">@{contact.username}</div>
-                  </div>
-                  <UserPlus className="w-4 h-4 text-grupo-accent flex-shrink-0" />
-                </button>
-              ))
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-white truncate">{contact.display_name}</div>
+                        {contact.online_status === 1 ? (
+                          <span className="text-[10px] text-emerald-400 font-medium">Çevrimiçi</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                            {formatLastSeen(contact.last_seen_at, contact.privacy_settings?.last_seen)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate">@{contact.username}</div>
+                    </div>
+                    <UserPlus className="w-4 h-4 text-grupo-accent flex-shrink-0" />
+                  </button>
+                );
+              })
             )}
           </div>
         ) : activeTab === "starred" ? (
@@ -990,21 +1105,62 @@ export default function HomePage() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
 
-                <div className="relative flex-shrink-0">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-grupo-accent overflow-hidden">
-                    {activeConv.other_user.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={activeConv.other_user.avatar_url}
-                        alt={activeConv.other_user.display_name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      activeConv.other_user.display_name.charAt(0).toUpperCase()
-                    )}
+                <div
+                  onClick={
+                    hasOtherStory
+                      ? (e) => {
+                          e.stopPropagation();
+                          openViewer(otherUserStoryGroup, 0);
+                        }
+                      : undefined
+                  }
+                  title={
+                    hasOtherStory
+                      ? `${activeConv.other_user.display_name} hikayesini izle`
+                      : undefined
+                  }
+                  className={`relative flex-shrink-0 ${
+                    hasOtherStory ? "group/story-header cursor-pointer" : ""
+                  }`}
+                >
+                  <div
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
+                      hasOtherStory
+                        ? `p-[2px] group-hover/story-header:scale-105 ${
+                            hasOtherUnviewed
+                              ? isOtherCloseFriends
+                                ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-2 ring-emerald-500/30 animate-in fade-in"
+                                : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 ring-2 ring-pink-500/20 animate-in fade-in"
+                              : isOtherCloseFriends
+                              ? "border-2 border-emerald-500/70"
+                              : "border-2 border-slate-700"
+                          }`
+                        : "border border-slate-700 bg-slate-800"
+                    }`}
+                  >
+                    <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs sm:text-sm text-grupo-accent overflow-hidden border border-grupo-dark-card">
+                      {activeConv.other_user.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={resolveMediaUrl(activeConv.other_user.avatar_url)}
+                          alt={activeConv.other_user.display_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        activeConv.other_user.display_name.charAt(0).toUpperCase()
+                      )}
+                    </div>
                   </div>
                   {activeConv.is_online && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card"></span>
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-grupo-dark-card z-10"></span>
+                  )}
+                  {hasOtherStory && isOtherCloseFriends && hasOtherUnviewed && (
+                    <span
+                      title="Yakın Arkadaşlar Hikayesi"
+                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[8px] font-black border border-slate-950 shadow-sm z-10"
+                    >
+                      ★
+                    </span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1449,17 +1605,77 @@ export default function HomePage() {
             </div>
 
             <div className="p-6 flex flex-col items-center text-center border-b border-grupo-dark-border">
-              <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-grupo-accent/40 flex items-center justify-center font-bold text-2xl text-grupo-accent overflow-hidden mb-3 shadow-lg">
-                {activeConv.other_user.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={activeConv.other_user.avatar_url}
-                    alt={activeConv.other_user.display_name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  activeConv.other_user.display_name.charAt(0).toUpperCase()
-                )}
+              <div
+                onClick={() => {
+                  if (hasOtherStory) {
+                    openViewer(otherUserStoryGroup, 0);
+                  } else if (activeConv.other_user.avatar_url) {
+                    setPreviewMedia({
+                      url: resolveMediaUrl(activeConv.other_user.avatar_url),
+                      type: "image",
+                      name: activeConv.other_user.display_name,
+                    });
+                  }
+                }}
+                className={`relative mb-3 flex flex-col items-center ${
+                  hasOtherStory || activeConv.other_user.avatar_url
+                    ? "cursor-pointer group/drawer-avatar"
+                    : ""
+                }`}
+                title={
+                  hasOtherStory
+                    ? `${activeConv.other_user.display_name} hikayesini izle`
+                    : activeConv.other_user.avatar_url
+                    ? "Büyük fotoğrafı gör"
+                    : undefined
+                }
+              >
+                <div
+                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-transform group-hover/drawer-avatar:scale-105 shadow-xl ${
+                    hasOtherStory
+                      ? `p-[3px] ${
+                          hasOtherUnviewed
+                            ? isOtherCloseFriends
+                              ? "bg-gradient-to-tr from-emerald-500 via-green-400 to-teal-400 ring-4 ring-emerald-500/25 animate-pulse"
+                              : "bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 ring-4 ring-pink-500/20"
+                            : isOtherCloseFriends
+                            ? "border-2 border-emerald-500/70"
+                            : "border-2 border-slate-700"
+                        }`
+                      : "border-2 border-grupo-accent/40"
+                  }`}
+                >
+                  <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center font-bold text-2xl text-grupo-accent overflow-hidden border-2 border-grupo-dark-card">
+                    {activeConv.other_user.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveMediaUrl(activeConv.other_user.avatar_url)}
+                        alt={activeConv.other_user.display_name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      activeConv.other_user.display_name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                </div>
+
+                {/* WhatsApp tarzı Hikaye Rozeti / Butonu */}
+                {hasOtherStory ? (
+                  <div
+                    className={`mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all group-hover/drawer-avatar:scale-105 shadow-md ${
+                      hasOtherUnviewed
+                        ? isOtherCloseFriends
+                          ? "bg-emerald-500 text-slate-950 font-bold"
+                          : "bg-gradient-to-r from-pink-500 via-rose-500 to-amber-400 text-white font-bold"
+                        : isOtherCloseFriends
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        : "bg-slate-800 text-slate-300 border border-slate-700"
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>{hasOtherUnviewed ? "Hikayeyi İzle" : "Hikayeyi Gör"}</span>
+                  </div>
+                ) : null}
               </div>
               <h4 className="text-base font-bold text-white">{activeConv.other_user.display_name}</h4>
               <p className="text-xs text-slate-400">@{activeConv.other_user.username}</p>
