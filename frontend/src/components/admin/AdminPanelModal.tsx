@@ -670,26 +670,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* TAB 2: MERKEZİ SİSTEM TEMASI & RENK PARAMETRELERİ */}
               {activeTab === "theme" && (
                 <div className="space-y-6">
-                  {/* Başlık & Bilgi Kutusu */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-500/20 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 flex-shrink-0 mt-0.5">
-                        <Palette className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-white">Merkezi Sistem Teması & Görünüm Parametreleri</h4>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            Dark-First SaaS
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
-                          Linear, Supabase ve Raycast standartlarında profesyonel koyu mod temalarını seçin veya her rengi özelleştirin. Burada kaydedilen ayarlar tüm platform kullanıcılarına tek merkezden uygulanır.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* 1. KÜRATORLÜ PREMİUM KOYU TEMA KARTLARI */}
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
