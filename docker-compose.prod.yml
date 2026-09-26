@@ -200,7 +200,7 @@ services:
       - 'traefik.http.routers.fisilti-frontend.priority=${TRAEFIK_FRONTEND_PRIORITY:-50}'
       - 'traefik.http.routers.fisilti-frontend.service=fisilti-frontend'
       # 2. Document/Navigation HTTPS Router (Yalnızca gerçek HTML GET navigation istekleri için - Basic Auth + CrowdSec)
-      - 'traefik.http.routers.fisilti-frontend-doc.rule=${TRAEFIK_FRONTEND_DOCUMENT_RULE:-(${TRAEFIK_FRONTEND_RULE:-Host(`fisilti.app`)}) && Method(`GET`) && HeadersRegexp(`Accept`, `text/html`)}'
+      - 'traefik.http.routers.fisilti-frontend-doc.rule=${TRAEFIK_FRONTEND_DOCUMENT_RULE:-(${TRAEFIK_FRONTEND_RULE:-Host(`fisilti.app`)}) && Method(`GET`) && HeaderRegexp(`Accept`, `text/html`)}'
       - 'traefik.http.routers.fisilti-frontend-doc.entrypoints=https'
       - 'traefik.http.routers.fisilti-frontend-doc.tls=true'
       - 'traefik.http.routers.fisilti-frontend-doc.tls.certresolver=letsencrypt'
