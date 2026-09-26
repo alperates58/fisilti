@@ -294,6 +294,7 @@ export default function HomePage() {
   const prevMessagesCountRef = useRef<Record<string, number>>({});
   const isPrependingOlderRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   // Akıllı ve güvenli en alta kaydırma fonksiyonu (Sadece mesaj konteynerini kaydırır, tarayıcı penceresini/document'ı kaydırmaz)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -375,7 +376,7 @@ export default function HomePage() {
       loadStarredMessages();
       loadStories();
     }
-  }, [isAuthenticated, connect, loadConversations, loadStarredMessages, loadStories]);
+  }, [isAuthenticated]);
 
   // 2b. Bildirim İzni ve Web Push Otomatik Kaydı
   useEffect(() => {
@@ -694,14 +695,19 @@ export default function HomePage() {
       return;
     }
 
-    const markUserActive = () => {
+    let lastActiveSaved = 0;
+    const markUserActive = (force = false) => {
       if (typeof window !== "undefined") {
-        localStorage.setItem("aura_last_active", Date.now().toString());
+        const now = Date.now();
+        if (force || now - lastActiveSaved >= 4000) {
+          lastActiveSaved = now;
+          localStorage.setItem("aura_last_active", now.toString());
+        }
       }
     };
 
     // Başlangıçta aktif damgasını vur
-    markUserActive();
+    markUserActive(true);
 
     const handleGoingToBackground = () => {
       // Eğer zaten yönlendirme sürecindeysek hiçbir şey yapma
@@ -732,7 +738,7 @@ export default function HomePage() {
       setIsPrivacyCurtainActive(false);
       if (typeof window !== "undefined") {
         localStorage.removeItem("aura_inactive_since");
-        markUserActive();
+        markUserActive(true);
       }
 
       notificationManager.stopFlash();
@@ -764,13 +770,14 @@ export default function HomePage() {
       }
 
       // 2. Kilit açıldığında güncel konuşmaları ve okunmamış sayılarını çek
-      loadConversations();
+      useChatStore.getState().loadConversations();
 
       // 3. Açık sohbet varsa mesajları tazele
-      if (activeConversationId) {
+      const curConvId = useChatStore.getState().activeConversationId;
+      if (curConvId) {
         useChatStore
           .getState()
-          .loadMessages(activeConversationId)
+          .loadMessages(curConvId)
           .then(() => {
             scrollToBottom("auto");
             setTimeout(() => scrollToBottom("auto"), 50);
@@ -778,14 +785,15 @@ export default function HomePage() {
           })
           .catch(() => {});
 
-        const convMessages = messages[activeConversationId] || [];
+        const allMsgs = useChatStore.getState().messages;
+        const convMessages = allMsgs[curConvId] || [];
         const unreadIds = convMessages
           .filter((m) => !m.is_mine && !m.read_at)
           .map((m) => m.id);
 
         if (unreadIds.length > 0) {
           useSocketStore.getState().sendAction("read_ack", {
-            conversation_id: activeConversationId,
+            conversation_id: curConvId,
             message_ids: unreadIds,
           });
         }
@@ -809,15 +817,12 @@ export default function HomePage() {
       handleComingToForeground();
     };
 
-    const handleBlur = () => {
-      handleGoingToBackground();
-    };
-
     const handleUserInteraction = () => {
       markUserActive();
     };
 
-    const activityEvents = ["touchstart", "touchmove", "touchend", "mousedown", "keydown", "scroll"];
+    // keydown kaldırıldı: mesaj yazarken gereksiz CPU ve localStorage I/O yükünü engeller
+    const activityEvents = ["touchstart", "touchmove", "touchend", "mousedown", "scroll"];
     activityEvents.forEach((ev) => {
       window.addEventListener(ev, handleUserInteraction, { passive: true });
     });
@@ -826,13 +831,12 @@ export default function HomePage() {
       if (typeof document !== "undefined" && !document.hidden) {
         markUserActive();
       }
-    }, 3000);
+    }, 4000);
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handleGoingToBackground);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("focus", handleComingToForeground);
-    window.addEventListener("blur", handleBlur);
     window.addEventListener("freeze", handleGoingToBackground);
     window.addEventListener("resume", handleComingToForeground);
     window.addEventListener("online", handleComingToForeground);
@@ -846,12 +850,11 @@ export default function HomePage() {
       window.removeEventListener("pagehide", handleGoingToBackground);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("focus", handleComingToForeground);
-      window.removeEventListener("blur", handleBlur);
       window.removeEventListener("freeze", handleGoingToBackground);
       window.removeEventListener("resume", handleComingToForeground);
       window.removeEventListener("online", handleComingToForeground);
     };
-  }, [activeConversationId, messages, loadConversations, scrollToBottom, updateViewportMetrics]);
+  }, [scrollToBottom, updateViewportMetrics]);
 
   // 4. Kişiler sekmesine geçildiğinde tüm kullanıcıları yükle
   useEffect(() => {
@@ -1283,6 +1286,7 @@ export default function HomePage() {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
+    lastTypingSentRef.current = 0;
     sendTyping(activeConversationId, false);
   };
 
@@ -1291,16 +1295,21 @@ export default function HomePage() {
     adjustTextareaHeight();
     if (!activeConversationId) return;
 
-    sendTyping(activeConversationId, true);
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 3000) {
+      lastTypingSentRef.current = now;
+      sendTyping(activeConversationId, true);
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     typingTimeoutRef.current = setTimeout(() => {
       if (activeConversationId) {
+        lastTypingSentRef.current = 0;
         sendTyping(activeConversationId, false);
       }
-    }, 2000);
+    }, 2500);
   };
 
   const handleSelectEmoji = useCallback(

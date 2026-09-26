@@ -67,9 +67,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     }
 
     // Zaten bağlı veya bağlanma sürecindeyse mükerrer soket oluşturma
+    const currentSocket = activeWs || get().socket;
     if (
-      activeWs &&
-      (activeWs.readyState === WebSocket.OPEN || activeWs.readyState === WebSocket.CONNECTING)
+      currentSocket &&
+      (currentSocket.readyState === WebSocket.OPEN || currentSocket.readyState === WebSocket.CONNECTING)
     ) {
       return;
     }
@@ -144,7 +145,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     try {
       const ws = new WebSocket(url);
       activeWs = ws;
-      set({ socket: ws, isConnected: false });
+      set({ socket: ws, isConnecting: true });
 
       ws.onopen = () => {
         if (activeWs !== ws) return;
