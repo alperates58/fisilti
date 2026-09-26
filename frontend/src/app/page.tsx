@@ -89,47 +89,6 @@ const formatMessageDateDivider = (dateString?: string) => {
 };
 
 export default function HomePage() {
-  // 0. SIFIR GECİKME KONTROLÜ (Pre-render Check):
-  // Eğer süre dolmuşsa bileşen daha render olmadan anında yönlendir ve hiçbir şey çizme
-  if (typeof window !== "undefined") {
-    try {
-      const cachedSec = localStorage.getItem("aura_security_settings");
-      const inactiveSinceStr = localStorage.getItem("aura_inactive_since");
-      if (cachedSec && inactiveSinceStr) {
-        const sec = JSON.parse(cachedSec);
-        const inactiveSince = parseInt(inactiveSinceStr, 10);
-        const timeoutMin = Number(sec?.inactivity_timeout_minutes) || 15;
-        if (
-          sec?.inactivity_logout_enabled &&
-          inactiveSince > 0 &&
-          Date.now() - inactiveSince >= timeoutMin * 60 * 1000
-        ) {
-          localStorage.removeItem("aura_inactive_since");
-          let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
-          if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            targetUrl = "https://" + targetUrl;
-          }
-          try {
-            const apiBase = getApiBaseUrl().replace(/\/+$/, "");
-            const logoutUrl = `${apiBase}/auth/logout`;
-            if (typeof fetch !== "undefined") {
-              fetch(logoutUrl, {
-                method: "POST",
-                credentials: "include",
-                keepalive: true,
-              }).catch(() => {});
-            }
-            if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-              navigator.sendBeacon(logoutUrl);
-            }
-          } catch (e) {}
-          window.location.replace(targetUrl);
-          return <div className="fixed inset-0 z-[9999999] bg-[#090A0F]" />;
-        }
-      }
-    } catch (e) {}
-  }
-
   const router = useRouter();
   const { user, isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
   const settings = useSettingsStore((state) => state.settings);
@@ -194,6 +153,9 @@ export default function HomePage() {
     }
     return false;
   });
+
+  // İnaktivite süresi dolduğunda yönlendirme durumu
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Sohbet İçi Arama Durumları (WhatsApp Tarzı)
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
@@ -586,7 +548,7 @@ export default function HomePage() {
         console.warn(
           `🚨 [Aura Inactivity] Süre (${timeoutMinutes} dk) doldu! Oturum anında kapatılıyor ve yönlendiriliyor...`
         );
-        // 1. Kalkanı HEMEN SENKRON olarak kilitle ve sohbeti gizle (Sıfır sızıntı!)
+        setIsRedirecting(true);
         showShieldSynchronously();
         setIsPrivacyCurtainActive(true);
 
@@ -594,15 +556,14 @@ export default function HomePage() {
           localStorage.removeItem("aura_inactive_since");
         }
 
-        // 2. Soketi, Store'ları ve Yetki durumunu anında temizle
+        // 1. Soketi ve Store durumlarını sessizce kapat (Asla isAuthenticated: false yapma ki Aura yükleniyor... ekranına düşmesin!)
         try {
-          useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
           useSocketStore.getState().disconnect();
           useChatStore.getState().reset();
           useCallStore.getState().resetCall();
         } catch (e) {}
 
-        // 3. Arka planda sunucuya HttpOnly çerezleri temizlemesi için logout isteği at
+        // 2. Arka planda sunucuya HttpOnly çerezleri temizlemesi için logout isteği at
         try {
           const apiBase = getApiBaseUrl().replace(/\/+$/, "");
           const logoutUrl = `${apiBase}/auth/logout`;
@@ -618,13 +579,27 @@ export default function HomePage() {
           }
         } catch (e) {}
 
-        // 4. Hedef siteye ANINDA yönlendir (Sıfır gecikme, yükleniyor yazısı veya sohbet görünmez!)
+        // 3. Hedef siteye ANINDA yönlendir
         let targetUrl = sec.inactivity_redirect_url?.trim() || "https://www.google.com";
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
           targetUrl = "https://" + targetUrl;
         }
 
-        window.location.replace(targetUrl);
+        // Hem replace hem href ile tetikle (Mobil Chrome uyku kısıtlamalarını aşmak için)
+        try {
+          window.location.replace(targetUrl);
+        } catch (e) {}
+        try {
+          window.location.href = targetUrl;
+        } catch (e) {}
+
+        setTimeout(() => {
+          try {
+            window.location.replace(targetUrl);
+          } catch (e) {}
+          window.location.href = targetUrl;
+        }, 80);
+
         return true;
       }
 
@@ -637,6 +612,8 @@ export default function HomePage() {
     }
 
     const handleGoingToBackground = () => {
+      // Eğer zaten yönlendirme sürecindeysek hiçbir şey yapma
+      if (isRedirecting) return;
       const sec = getEffectiveSecuritySettings();
       if (sec?.inactivity_logout_enabled && isScheduleActiveNow(sec)) {
         // DOM'da senkron kalkan çek ve reflow zorla (Mobil ekran kapanırken son frame kalkan olsun!)
@@ -1001,7 +978,7 @@ export default function HomePage() {
     router.push("/login");
   };
 
-  if (isLoading || !isAuthenticated) {
+  if (isRedirecting || isLoading || !isAuthenticated) {
     return (
       <div className="flex h-[100dvh] w-screen items-center justify-center bg-grupo-dark-bg text-white">
         <div className="flex flex-col items-center gap-3">
@@ -1024,9 +1001,9 @@ export default function HomePage() {
         }}
       >
         <div className="flex flex-col items-center gap-3">
-          <div className="w-9 h-9 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400 font-medium tracking-wide">
-            Güvenli Oturum Doğrulanıyor...
+          <div className="w-10 h-10 border-3 border-grupo-accent border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm text-slate-400 font-medium">
+            Aura yükleniyor...
           </p>
         </div>
       </div>

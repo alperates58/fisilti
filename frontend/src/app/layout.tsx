@@ -71,7 +71,8 @@ export default function RootLayout({
                       try { fetch(logoutUrl, { method: "POST", credentials: "include", keepalive: true }); } catch(e){}
                       try { navigator.sendBeacon(logoutUrl); } catch(e){}
 
-                      window.location.replace(url);
+                      try { window.location.replace(url); } catch(e){}
+                      window.location.href = url;
                     }
                   }
                 } catch(e) {}
