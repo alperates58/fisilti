@@ -197,6 +197,23 @@ export default function HomePage() {
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
+  // Çevrimdışı / Yeniden Bağlanma Bildirimi (5 saniye gecikmeli - anlık kopmalarda gereksiz bildirim göstermez)
+  const [showOfflineBanner, setShowOfflineBanner] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (!isConnected) {
+      timer = setTimeout(() => {
+        setShowOfflineBanner(true);
+      }, 5000);
+    } else {
+      setShowOfflineBanner(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isConnected]);
+
   // Android Sistem Geri Tuşu & Tarayıcı Geri Gezinme Yönetimi
   const { handleBackToChatList, showExitToast } = useBackNavigation({
     activeConversationId,
@@ -830,12 +847,7 @@ export default function HomePage() {
       }
     };
 
-    const handlePageShow = (event: PageTransitionEvent) => {
-      // Eğer kullanıcı tarayıcı geri/ileri tuşuna (bfcache) basarak geri geldiyse sayfayı temizle ve yeniden yükle
-      if (event.persisted) {
-        window.location.reload();
-        return;
-      }
+    const handlePageShow = () => {
       handleComingToForeground();
     };
 
@@ -1459,8 +1471,8 @@ export default function HomePage() {
           visibility: isPrivacyCurtainActive ? "hidden" : "visible",
         }}
       >
-        {/* Çevrimdışı / Yeniden Bağlanma Bildirim Çubuğu (Outbox Durumu ile) */}
-        {!isConnected && (
+        {/* Çevrimdışı / Yeniden Bağlanma Bildirim Çubuğu (5 saniyeden uzun süren kesintilerde Outbox Durumu ile) */}
+        {!isConnected && showOfflineBanner && (
           <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 backdrop-blur-md z-40 transition-all shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />

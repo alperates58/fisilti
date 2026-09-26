@@ -400,6 +400,35 @@ export default function MessageBubble({
   const renderTicks = () => {
     if (!message.is_mine) return null;
 
+    if (message.tick_status === "pending") {
+      return (
+        <span
+          title="Gönderiliyor..."
+          className="inline-flex items-center justify-center ml-1 flex-shrink-0"
+        >
+          <svg
+            className="animate-spin w-3 h-3 text-current opacity-75"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3.5"
+            />
+            <path
+              className="opacity-90"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            />
+          </svg>
+        </span>
+      );
+    }
+
     if (message.tick_status === "read") {
       return <CheckCheck className="w-4 h-4 text-sky-400 inline ml-1 flex-shrink-0" />;
     } else if (message.tick_status === "delivered") {

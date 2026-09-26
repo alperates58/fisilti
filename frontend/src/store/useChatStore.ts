@@ -36,7 +36,7 @@ export interface Message {
   sent_at: string;
   delivered_at?: string;
   read_at?: string;
-  tick_status: "sent" | "delivered" | "read";
+  tick_status: "pending" | "sent" | "delivered" | "read";
   is_mine: boolean;
   is_edited: boolean;
   is_starred: boolean;
@@ -227,17 +227,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadMessages: async (convId: string) => {
     try {
       const res = await api.get<Message[]>(`/conversations/${convId}/messages?limit=50`);
-      const list = res.data || [];
-      set((state) => ({
-        messages: {
-          ...state.messages,
-          [convId]: list,
-        },
-        hasMoreMessages: {
-          ...state.hasMoreMessages,
-          [convId]: list.length >= 50,
-        },
-      }));
+      const fetchedList = res.data || [];
+      set((state) => {
+        const currentList = state.messages[convId] || [];
+
+        // 1. Zaten bellekte olan ve henüz onaylanmamış temp / pending mesajlar
+        const memoryPending = currentList.filter(
+          (m) =>
+            (m.id.startsWith("temp_") || m.tick_status === "pending") &&
+            !fetchedList.some((f) => f.id === m.id)
+        );
+
+        // 2. LocalStorage Outbox'ında bu konuşmaya ait bekleyen mesajlar
+        let outboxPending: Message[] = [];
+        try {
+          if (typeof window !== "undefined") {
+            const rawOutbox = localStorage.getItem("fisilti_outbox");
+            if (rawOutbox) {
+              const outboxItems = JSON.parse(rawOutbox);
+              outboxPending = outboxItems
+                .filter(
+                  (item: any) =>
+                    item.action === "send_message" &&
+                    item.payload?.conversation_id === convId
+                )
+                .map((item: any) => {
+                  const p = item.payload;
+                  return {
+                    id: p.temp_id || item.id,
+                    conversation_id: convId,
+                    sender_id: "",
+                    recipient_id: "",
+                    reply_to_id: p.reply_to_id,
+                    message_type: p.message_type || "text",
+                    content: p.content || "",
+                    media_url: p.media_url,
+                    media_metadata: p.media_metadata,
+                    sent_at: new Date(item.timestamp || Date.now()).toISOString(),
+                    tick_status: "pending" as const,
+                    is_mine: true,
+                    is_edited: false,
+                    is_starred: false,
+                    is_deleted_for_all: false,
+                    created_at: new Date(item.timestamp || Date.now()).toISOString(),
+                  };
+                })
+                .filter(
+                  (om: Message) =>
+                    !fetchedList.some((f) => f.id === om.id) &&
+                    !memoryPending.some((mp) => mp.id === om.id)
+                );
+            }
+          }
+        } catch (e) {
+          console.error("Outbox yüklenirken hata:", e);
+        }
+
+        const mergedList = [...fetchedList, ...memoryPending, ...outboxPending];
+
+        return {
+          messages: {
+            ...state.messages,
+            [convId]: mergedList,
+          },
+          hasMoreMessages: {
+            ...state.hasMoreMessages,
+            [convId]: fetchedList.length >= 50,
+          },
+        };
+      });
     } catch (err) {
       console.error("Mesajlar yüklenemedi:", err);
     }
@@ -336,7 +394,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       message_type: "text",
       content,
       sent_at: new Date().toISOString(),
-      tick_status: "sent",
+      tick_status: "pending",
       is_mine: true,
       is_edited: false,
       is_starred: false,
@@ -395,7 +453,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       media_url: mediaUrl,
       media_metadata: metadata,
       sent_at: new Date().toISOString(),
-      tick_status: "sent",
+      tick_status: "pending",
       is_mine: true,
       is_edited: false,
       is_starred: false,
@@ -562,6 +620,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   onMessageSent: (tempId: string, confirmed: Message) => {
+    // Outbox'tan bu geçici mesajı temizle
+    useSocketStore.getState().removeFromOutbox(tempId);
+
     const convExists = get().conversations.some((c) => c.id === confirmed.conversation_id);
     if (!convExists) {
       get().loadConversations();
@@ -570,10 +631,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const convId = confirmed.conversation_id;
       const list = state.messages[convId] || [];
-      const updated = list.map((m) => (m.id === tempId ? confirmed : m));
+      const confirmedWithTick: Message = {
+        ...confirmed,
+        tick_status: confirmed.tick_status || "sent",
+      };
+
+      const hasTemp = list.some((m) => m.id === tempId);
+      let updated: Message[];
+
+      if (hasTemp) {
+        updated = list.map((m) => (m.id === tempId ? confirmedWithTick : m));
+      } else {
+        const hasConfirmed = list.some((m) => m.id === confirmed.id);
+        if (hasConfirmed) {
+          updated = list.map((m) => (m.id === confirmed.id ? confirmedWithTick : m));
+        } else {
+          updated = [...list, confirmedWithTick];
+        }
+      }
 
       const updatedConvs = state.conversations.map((c) =>
-        c.id === convId ? { ...c, last_message: confirmed } : c
+        c.id === convId ? { ...c, last_message: confirmedWithTick } : c
       );
 
       return {

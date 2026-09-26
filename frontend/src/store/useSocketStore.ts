@@ -23,6 +23,7 @@ interface SocketState {
   disconnect: () => void;
   sendAction: (action: string, payload: any) => void;
   flushOutbox: () => void;
+  removeFromOutbox: (tempId: string) => void;
 }
 
 let activeWs: WebSocket | null = null;
@@ -213,6 +214,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           switch (data.action) {
             case "message_sent":
               soundEffects.playSent();
+              if (data.payload?.temp_id) {
+                get().removeFromOutbox(data.payload.temp_id);
+              }
               chatStore.onMessageSent(data.payload.temp_id, data.payload.message);
               break;
 
@@ -433,17 +437,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   },
 
   sendAction: (action: string, payload: any) => {
+    const isOnline = typeof navigator === "undefined" || navigator.onLine;
     const ws = get().socket;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.send(JSON.stringify({ action, payload }));
-        return;
-      } catch (e) {
-        console.error("Mesaj gönderilemedi, outbox'a ekleniyor:", e);
-      }
-    }
+    const isOpen = ws && ws.readyState === WebSocket.OPEN && isOnline;
 
-    // Soket açık değilse ve kritik bir işlem ise (örneğin send_message) Outbox kuyruğuna al
+    // send_message için her halükarda Outbox kuyruğuna güvenle al (sunucu onaylayana kadar)
     if (action === "send_message") {
       const queue = loadOutbox();
       const item: QueuedAction = {
@@ -452,36 +450,52 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         payload,
         timestamp: Date.now(),
       };
-      // Tekrarlı eklemeyi önle
       if (!queue.some((q) => q.payload?.temp_id === payload.temp_id)) {
         queue.push(item);
         saveOutbox(queue);
         set({ pendingQueueCount: queue.length });
-        console.log(`📦 [Outbox] Mesaj çevrimdışı kuyruğa alındı (${queue.length} bekleyen).`);
+        console.log(`📦 [Outbox] Mesaj kuyruğa alındı (${queue.length} bekleyen).`);
+      }
+    }
+
+    if (isOpen) {
+      try {
+        ws.send(JSON.stringify({ action, payload }));
+        return;
+      } catch (e) {
+        console.error("Mesaj gönderilemedi, outbox'ta bekleyecek:", e);
       }
     }
   },
 
   flushOutbox: () => {
+    const isOnline = typeof navigator === "undefined" || navigator.onLine;
     const ws = get().socket;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !isOnline) return;
 
     const queue = loadOutbox();
     if (queue.length === 0) return;
 
     console.log(`🚀 [Outbox] Çevrimdışı biriken ${queue.length} mesaj sunucuya iletiliyor...`);
-    const remaining: QueuedAction[] = [];
-
     for (const item of queue) {
       try {
         ws.send(JSON.stringify({ action: item.action, payload: item.payload }));
       } catch (e) {
-        console.error("Outbox öğesi gönderilemedi, kuyrukta kalıyor:", e);
-        remaining.push(item);
+        console.error("Outbox öğesi gönderilemedi:", e);
       }
     }
+  },
 
-    saveOutbox(remaining);
-    set({ pendingQueueCount: remaining.length });
+  removeFromOutbox: (tempId: string) => {
+    if (!tempId) return;
+    const queue = loadOutbox();
+    const updated = queue.filter(
+      (item) => item.payload?.temp_id !== tempId && item.id !== tempId
+    );
+    if (updated.length !== queue.length) {
+      saveOutbox(updated);
+      set({ pendingQueueCount: updated.length });
+      console.log(`✅ [Outbox] Mesaj onaylandı ve kuyruktan çıkarıldı (${tempId}).`);
+    }
   },
 }));
