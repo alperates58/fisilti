@@ -11,9 +11,10 @@ interface Props {
   conversationId: string;
   onStartVoice: () => void;
   onOpenEmoji?: () => void;
+  onStageFile?: (file: File) => void;
 }
 
-export default function MediaUploadMenu({ conversationId, onStartVoice, onOpenEmoji }: Props) {
+export default function MediaUploadMenu({ conversationId, onStartVoice, onOpenEmoji, onStageFile }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const sendMediaMessage = useChatStore((state) => state.sendMediaMessage);
@@ -49,6 +50,13 @@ export default function MediaUploadMenu({ conversationId, onStartVoice, onOpenEm
     }
 
     setIsOpen(false);
+
+    if (onStageFile) {
+      e.target.value = "";
+      onStageFile(file);
+      return;
+    }
+
     setIsUploading(true);
 
     try {

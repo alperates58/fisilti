@@ -25,6 +25,7 @@ import {
   Video,
   VideoOff,
   CheckSquare,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import AudioWaveform from "./AudioWaveform";
@@ -41,6 +42,8 @@ interface Props {
   isHighlightedMatch?: boolean;
   onJumpToMessage?: (messageId: string) => void;
   otherUserName?: string;
+  onOpenMedia?: (messageId: string) => void;
+  onOpenPdf?: (url: string, name?: string) => void;
 }
 
 export default function MessageBubble({
@@ -49,6 +52,8 @@ export default function MessageBubble({
   isHighlightedMatch,
   onJumpToMessage,
   otherUserName,
+  onOpenMedia,
+  onOpenPdf,
 }: Props) {
   const {
     setSelectedMessageInfo,
@@ -556,7 +561,13 @@ export default function MessageBubble({
                 loading="lazy"
                 decoding="async"
                 className="max-h-72 w-full object-cover rounded-xl hover:scale-[1.02] transition-transform duration-200"
-                onClick={() => setPreviewImage(resolvedMediaUrl || null)}
+                onClick={() => {
+                  if (onOpenMedia) {
+                    onOpenMedia(message.id);
+                  } else {
+                    setPreviewImage(resolvedMediaUrl || null);
+                  }
+                }}
               />
             </div>
           )}
@@ -615,12 +626,33 @@ export default function MessageBubble({
                   {formatFileSize(message.media_metadata?.file_size)}
                 </div>
               </div>
+
+              {/* Güvenli PDF Önizleme Butonu */}
+              {(message.media_metadata?.mime_type === "application/pdf" ||
+                message.media_metadata?.file_name?.toLowerCase().endsWith(".pdf") ||
+                message.media_url?.toLowerCase().includes(".pdf")) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenPdf) {
+                      onOpenPdf(resolvedMediaUrl, message.media_metadata?.file_name);
+                    }
+                  }}
+                  className="p-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 hover:text-white transition-colors cursor-pointer"
+                  title="PDF'i Önizle"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              )}
+
               <a
                 href={resolvedMediaUrl}
                 target="_blank"
                 rel="noreferrer"
-                download
+                download={message.media_metadata?.file_name || "file"}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                title="İndir"
               >
                 <Download className="w-4 h-4" />
               </a>

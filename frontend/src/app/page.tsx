@@ -27,6 +27,10 @@ import ReplyBar from "@/components/chat/ReplyBar";
 import MediaUploadMenu from "@/components/chat/MediaUploadMenu";
 import AudioRecorder from "@/components/chat/AudioRecorder";
 import EmojiPicker from "@/components/chat/EmojiPicker";
+import MediaStagingModal from "@/components/chat/MediaStagingModal";
+import PdfPreviewModal from "@/components/chat/PdfPreviewModal";
+import MediaGalleryModal, { GalleryMediaItem } from "@/components/chat/MediaGalleryModal";
+import { compressImage, validateVideo } from "@/lib/compression";
 import { api, resolveMediaUrl, getApiBaseUrl } from "@/lib/api";
 import { formatLastSeen } from "@/lib/utils";
 import { notificationManager } from "@/lib/notifications";
@@ -62,6 +66,7 @@ import {
   ChevronUp,
   ChevronDown,
   CheckSquare,
+  UploadCloud,
 } from "lucide-react";
 
 const isSameCalendarDay = (d1: Date, d2: Date) => {
@@ -106,6 +111,7 @@ export default function HomePage() {
     deleteConversation,
     clearConversation,
     sendMessage,
+    sendMediaMessage,
     sendTyping,
     startNewConversation,
     starredMessages,
@@ -152,6 +158,19 @@ export default function HomePage() {
     type: "image" | "video";
     name?: string;
   } | null>(null);
+
+  // Medya Hazırlama / Staging (Pano Yapıştırma, Sürükle-Bırak, Açıklama ve İlerleme)
+  const [stagedFile, setStagedFile] = useState<File | null>(null);
+  const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  // PDF Önizleme Modalı
+  const [previewPdf, setPreviewPdf] = useState<{ url: string; name?: string } | null>(null);
+
+  // Gelişmiş Medya Galerisi (Lightbox Gallery)
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
 
   // Gizlilik Kalkanı: Tuş kilidi kapandığında veya inaktivite yönlendirmesinde sohbeti anında gizler
   const [isPrivacyCurtainActive, setIsPrivacyCurtainActive] = useState(() => {
@@ -791,6 +810,174 @@ export default function HomePage() {
   const hasOtherUnviewed = !!otherUserStoryGroup?.has_unviewed;
   const isOtherCloseFriends = !!otherUserStoryGroup?.has_close_friends;
 
+  // Aktif Konuşmanın Medya Galerisi Öğeleri
+  const galleryItems = useMemo<GalleryMediaItem[]>(() => {
+    if (!activeConversationId) return [];
+    const msgs = messages[activeConversationId] || [];
+    return msgs
+      .filter(
+        (m) =>
+          (m.message_type === "image" ||
+            m.message_type === "video" ||
+            /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(m.media_url || "") ||
+            /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(m.media_url || "")) &&
+          m.media_url &&
+          !m.is_deleted_for_all
+      )
+      .map((m) => {
+        const isVid =
+          m.message_type === "video" ||
+          /\.(mp4|mov|webm|m4v|mkv|avi|3gp)($|\?)/i.test(m.media_url || "");
+        return {
+          id: m.id,
+          url: resolveMediaUrl(m.media_url),
+          type: (isVid ? "video" : "image") as "image" | "video",
+          name: m.media_metadata?.file_name,
+          caption: m.content,
+          senderName: m.is_mine ? "Sen" : activeConv?.other_user.display_name,
+          sentAt: m.sent_at || m.created_at,
+        };
+      });
+  }, [activeConversationId, messages, activeConv]);
+
+  // Medya Ön-Yükleme (Media Preload): Aktif sohbetteki son 5 medya görselini önceden önbelleğe alır
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const mediaUrls = galleryItems.slice(0, 5).map((it) => it.url);
+    mediaUrls.forEach((url) => {
+      if (url && (url.endsWith(".jpg") || url.endsWith(".png") || url.endsWith(".webp") || url.includes("format="))) {
+        const img = new Image();
+        img.src = url;
+      }
+    });
+  }, [activeConversationId, galleryItems]);
+
+  // Pano Yapıştırma (Clipboard Paste - Ctrl+V)
+  const handleComposerPaste = (e: React.ClipboardEvent) => {
+    if (!activeConv) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          setStagedFile(file);
+          setIsStagingModalOpen(true);
+          return;
+        }
+      }
+    }
+  };
+
+  // Sürükle ve Bırak (Drag & Drop) Olayları
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!activeConv) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragActive(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!activeConv) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      setIsDragActive(false);
+      dragCounterRef.current = 0;
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!activeConv) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!activeConv) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    dragCounterRef.current = 0;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      setStagedFile(file);
+      setIsStagingModalOpen(true);
+    }
+  };
+
+  // Hazırlanan Medyayı Gönderme (İlerleme çubuğu, İptal ve Sıkıştırma destekli)
+  const handleSendStagedMedia = async (
+    file: File,
+    caption: string,
+    onProgress: (percent: number) => void,
+    signal: AbortSignal
+  ) => {
+    if (!activeConv) return;
+    const mediaLimits = settings?.media_limits;
+    if (mediaLimits?.max_file_size_mb && file.size > mediaLimits.max_file_size_mb * 1024 * 1024) {
+      throw new Error(`Dosya boyutu sistem sınırını aşıyor (En fazla ${mediaLimits.max_file_size_mb} MB).`);
+    }
+
+    const fileName = file.name.toLowerCase();
+    const isVideo =
+      file.type.startsWith("video/") ||
+      /\.(mp4|mov|webm|m4v|mkv|avi|3gp)$/i.test(fileName);
+    const isAudio =
+      file.type.startsWith("audio/") ||
+      /\.(mp3|m4a|wav|ogg|aac|weba)$/i.test(fileName);
+    const isImage =
+      !isVideo &&
+      !isAudio &&
+      (file.type.startsWith("image/") ||
+        /\.(jpg|jpeg|png|webp|gif|heic|heif)$/i.test(fileName));
+
+    const effectiveCategory = isVideo
+      ? "video"
+      : isAudio
+      ? "voice"
+      : isImage
+      ? "image"
+      : "file";
+
+    let fileToUpload = file;
+    if (isImage) {
+      fileToUpload = await compressImage(file);
+    } else if (isVideo) {
+      const val = validateVideo(file);
+      if (!val.valid) {
+        throw new Error(val.error || "Geçersiz video formatı.");
+      }
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileToUpload);
+    formData.append("category", effectiveCategory);
+
+    const res = await api.post("/media/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      signal,
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percent);
+        }
+      },
+    });
+
+    const { media_url, metadata } = res.data;
+    const mediaType = isVideo ? "video" : isAudio ? "voice" : isImage ? "image" : "file";
+    sendMediaMessage(activeConv.id, media_url, mediaType, metadata, caption);
+  };
+
   // Sohbet değiştiğinde aramayı sıfırla
   useEffect(() => {
     setIsChatSearchOpen(false);
@@ -1402,10 +1589,27 @@ export default function HomePage() {
 
       {/* 3. SÜTUN: Merkez Sohbet Penceresi (Flex-1) */}
       <main
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         className={`${
           activeConversationId ? "flex w-full" : "hidden md:flex"
         } md:flex-1 flex-col bg-grupo-dark-bg relative h-full min-h-0 max-h-full overflow-hidden`}
       >
+        {/* Sürükle ve Bırak (Drag & Drop) Görsel Katmanı */}
+        {isDragActive && (
+          <div className="absolute inset-4 z-40 bg-indigo-950/85 border-2 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center gap-3 backdrop-blur-md pointer-events-none animate-in fade-in zoom-in-95 select-none shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center shadow-2xl animate-bounce">
+              <UploadCloud className="w-8 h-8" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-bold text-white">Dosyayı göndermek için buraya bırakın</p>
+              <p className="text-xs text-indigo-300 mt-1">Görsel, video, ses veya belge</p>
+            </div>
+          </div>
+        )}
+
         {activeConv ? (
           <>
             {/* Sohbet Üst Başlığı (ChatHeader) */}
@@ -1860,6 +2064,12 @@ export default function HomePage() {
                           isHighlightedMatch={m.id === activeMatchedMessageId}
                           onJumpToMessage={(targetId) => handleJumpToMessage(activeConv.id, targetId)}
                           otherUserName={activeConv.other_user.display_name}
+                          onOpenMedia={(msgId) => {
+                            const idx = galleryItems.findIndex((it) => it.id === msgId);
+                            setGalleryInitialIndex(idx >= 0 ? idx : 0);
+                            setIsGalleryOpen(true);
+                          }}
+                          onOpenPdf={(url, name) => setPreviewPdf({ url, name })}
                         />
                       </div>
                     </div>
@@ -1900,6 +2110,10 @@ export default function HomePage() {
                       conversationId={activeConv.id}
                       onStartVoice={() => setIsRecordingVoice(true)}
                       onOpenEmoji={() => setIsEmojiPickerOpen((prev) => !prev)}
+                      onStageFile={(file) => {
+                        setStagedFile(file);
+                        setIsStagingModalOpen(true);
+                      }}
                     />
 
                     {/* WhatsApp / Telegram Stili Gelişmiş Emoji Butonu & Popover */}
@@ -1943,6 +2157,7 @@ export default function HomePage() {
                           type="text"
                           value={inputMessage}
                           onChange={handleInputChange}
+                          onPaste={handleComposerPaste}
                           onFocus={() => {
                             setIsInputFocused(true);
                             setTimeout(() => {
@@ -2441,47 +2656,31 @@ export default function HomePage() {
       <IncomingCallModal />
       <ActiveCallModal />
 
-      {/* PAYLAŞILAN MEDYA BÜYÜTME / OYNATMA MODALI (LIGHTBOX) */}
-      {previewMedia && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none"
-          onClick={() => setPreviewMedia(null)}
-        >
-          <div
-            className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Üst Kapatma Butonu */}
-            <div className="absolute -top-12 right-0 flex items-center gap-2">
-              <button
-                onClick={() => setPreviewMedia(null)}
-                className="p-2 rounded-full bg-slate-800/90 hover:bg-slate-700 text-white transition-colors cursor-pointer shadow-lg"
-                title="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* GELİŞMİŞ ÇOKLU MEDYA GALERİSİ (LIGHTBOX GALLERY) */}
+      <MediaGalleryModal
+        isOpen={isGalleryOpen}
+        initialIndex={galleryInitialIndex}
+        items={galleryItems}
+        onClose={() => setIsGalleryOpen(false)}
+      />
 
-            {/* İçerik */}
-            {previewMedia.type === "video" ? (
-              <video
-                src={previewMedia.url}
-                controls
-                autoPlay
-                playsInline
-                className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl bg-black object-contain"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={previewMedia.url}
-                alt={previewMedia.name || "Büyük Görsel"}
-                className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain"
-              />
-            )}
-          </div>
-        </div>
-      )}
+      {/* GÜVENLİ PDF ÖNİZLEME MODALI */}
+      <PdfPreviewModal
+        pdfUrl={previewPdf?.url || null}
+        fileName={previewPdf?.name}
+        onClose={() => setPreviewPdf(null)}
+      />
+
+      {/* MEDYA HAZIRLAMA / STAGING MODALI (PANO, SÜRÜKLE-BIRAK, AÇIKLAMA & İLERLEME) */}
+      <MediaStagingModal
+        file={stagedFile}
+        isOpen={isStagingModalOpen}
+        onClose={() => {
+          setIsStagingModalOpen(false);
+          setStagedFile(null);
+        }}
+        onSend={handleSendStagedMedia}
+      />
 
       {/* Ana Ekran Geri Tuşu Çift Dokunma Bilgilendirme Kartı */}
       {showExitToast && (
