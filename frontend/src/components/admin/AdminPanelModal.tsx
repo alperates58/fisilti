@@ -449,11 +449,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   const NAV_ITEMS = [
     { id: "users", label: `Kullanıcılar (${totalUsers})`, icon: Users },
-    { id: "theme", label: "Tema & Renkler", icon: Palette, badge: "Yeni" },
+    { id: "security", label: "Güvenlik & Ekran Kilidi", icon: Lock, badge: "Yeni" },
+    { id: "theme", label: "Tema & Renkler", icon: Palette },
     { id: "general", label: "Genel & Markalama", icon: Globe },
     { id: "chat", label: "Sohbet & Medya", icon: MessageSquare },
     { id: "calls", label: "Arama & WebRTC", icon: PhoneCall },
-    { id: "security", label: "Güvenlik & Limitler", icon: Lock },
     { id: "logs", label: "Erişim Günlükleri", icon: FileText },
     { id: "stats", label: "Sistem Sağlığı", icon: Activity },
   ];
