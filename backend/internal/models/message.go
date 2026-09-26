@@ -96,3 +96,9 @@ type MessageInfoResponse struct {
 	DeliveredAt *time.Time `json:"delivered_at"`
 	ReadAt      *time.Time `json:"read_at"`
 }
+
+type DeleteMessagesBatchRequest struct {
+	ConversationID uuid.UUID   `json:"conversation_id"`
+	MessageIDs     []uuid.UUID `json:"message_ids"`
+	ForAll         bool        `json:"for_all"`
+}

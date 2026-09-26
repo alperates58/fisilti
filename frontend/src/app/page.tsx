@@ -61,6 +61,7 @@ import {
   Download,
   ChevronUp,
   ChevronDown,
+  CheckSquare,
 } from "lucide-react";
 
 const isSameCalendarDay = (d1: Date, d2: Date) => {
@@ -118,6 +119,12 @@ export default function HomePage() {
     blockConversation,
     unblockConversation,
     searchMessages,
+    selectedMessageIds,
+    isSelectionMode,
+    deleteSelectedMessages,
+    startSelectionMode,
+    selectAllMessages,
+    clearSelection,
   } = useChatStore();
   const { connect, isConnected } = useSocketStore();
   const initiateCall = useCallStore((state) => state.initiateCall);
@@ -1592,6 +1599,16 @@ export default function HomePage() {
                         <Search className="w-3.5 h-3.5" style={{ color: "var(--accent, #6366F1)" }} />
                         <span>Sohbette Ara</span>
                       </button>
+                      <button
+                        onClick={() => {
+                          setShowActiveChatMenu(false);
+                          startSelectionMode();
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <CheckSquare className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Mesajları Seç</span>
+                      </button>
                       <div className="h-px bg-slate-800 my-1" />
                       <button
                         onClick={() => {
@@ -1619,6 +1636,71 @@ export default function HomePage() {
                 </div>
               </div>
             </header>
+
+            {/* ÇOKLU MESAJ SEÇİM EYLEM BARI */}
+            {isSelectionMode && (
+              <div className="bg-indigo-950/95 border-b border-indigo-700/60 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-3 shadow-xl z-20 animate-in slide-in-from-top-2 duration-150 flex-shrink-0 backdrop-blur-md">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <button
+                    onClick={clearSelection}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-indigo-200 hover:text-white transition-colors cursor-pointer flex-shrink-0"
+                    title="Seçimi İptal Et"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                    {selectedMessageIds.length} mesaj seçildi
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => selectAllMessages(activeConv.id)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    Tümünü Seç
+                  </button>
+
+                  {/* Benden Sil */}
+                  <button
+                    onClick={async () => {
+                      if (selectedMessageIds.length === 0) return;
+                      if (!confirm(`${selectedMessageIds.length} adet mesajı kendinizden silmek istediğinize emin misiniz?`)) return;
+                      try {
+                        await deleteSelectedMessages(false);
+                      } catch (err: any) {
+                        alert(err.response?.data?.error || "Mesajlar silinemedi.");
+                      }
+                    }}
+                    disabled={selectedMessageIds.length === 0}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 disabled:opacity-50 text-rose-200 hover:text-white text-xs font-medium border border-rose-500/30 transition-colors cursor-pointer"
+                    title="Seçili mesajları benden sil"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                    <span className="hidden sm:inline">Benden Sil</span>
+                  </button>
+
+                  {/* Herkesten Sil */}
+                  <button
+                    onClick={async () => {
+                      if (selectedMessageIds.length === 0) return;
+                      if (!confirm(`${selectedMessageIds.length} adet mesajı herkesten silmek istediğinize emin misiniz? Sadece size ait ve silme süresi dolmamış mesajlar herkesten kaldırılır.`)) return;
+                      try {
+                        await deleteSelectedMessages(true);
+                      } catch (err: any) {
+                        alert(err.response?.data?.error || "Mesajlar silinemedi.");
+                      }
+                    }}
+                    disabled={selectedMessageIds.length === 0}
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-semibold shadow transition-colors cursor-pointer"
+                    title="Seçili mesajları herkesten sil"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Herkesten Sil</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* WHATSAPP TARZI SOHBET İÇİ ARAMA BARI */}
             {isChatSearchOpen && (

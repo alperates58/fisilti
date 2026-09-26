@@ -24,6 +24,7 @@ import {
   PhoneOff,
   Video,
   VideoOff,
+  CheckSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import AudioWaveform from "./AudioWaveform";
@@ -57,9 +58,14 @@ export default function MessageBubble({
     toggleStar,
     messages,
     activeConversationId,
+    isSelectionMode,
+    selectedMessageIds,
+    toggleSelectMessage,
+    startSelectionMode,
   } = useChatStore();
   const { user } = useAuthStore();
   const chatSettings = useSettingsStore((state) => state.settings?.chat_settings);
+  const isSelected = selectedMessageIds.includes(message.id);
 
   const activeMessages = activeConversationId ? messages[activeConversationId] || [] : [];
   const targetRepliedMessage =
@@ -200,6 +206,12 @@ export default function MessageBubble({
 
   const handleContextMenu = (e: React.MouseEvent) => {
     if (message.is_deleted_for_all) return;
+    if (isSelectionMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSelectMessage(message.id);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setShowReactions(false);
@@ -368,6 +380,25 @@ export default function MessageBubble({
           message.is_mine ? "flex-row-reverse" : "flex-row"
         }`}
       >
+        {/* Çoklu Seçim Checkbox'ı */}
+        {isSelectionMode && !message.is_deleted_for_all && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSelectMessage(message.id);
+            }}
+            className={`flex-shrink-0 self-center w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${
+              isSelected
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-md scale-105"
+                : "border-slate-500 hover:border-indigo-400 bg-slate-900/60"
+            }`}
+            title={isSelected ? "Seçimi Kaldır" : "Seç"}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </button>
+        )}
+
         {/* WhatsApp Tarzı Sağa Kaydırma Yanıt İkonu */}
         {swipeOffset > 0 && (
           <div
@@ -386,6 +417,7 @@ export default function MessageBubble({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onClick={isSelectionMode && !message.is_deleted_for_all ? () => toggleSelectMessage(message.id) : undefined}
           onDoubleClick={() => setReplyingTo(message)}
           onContextMenu={handleContextMenu}
           style={{
@@ -402,6 +434,12 @@ export default function MessageBubble({
           className={`relative px-4 py-2.5 rounded-2xl shadow-md text-sm transition-shadow duration-300 select-none ${
             isEditing ? "w-full min-w-[280px]" : "max-w-full min-w-0"
           } overflow-hidden break-words ${
+            isSelected
+              ? "ring-2 ring-indigo-500 shadow-indigo-500/20 shadow-lg scale-[1.01]"
+              : ""
+          } ${
+            isSelectionMode && !message.is_deleted_for_all ? "cursor-pointer" : ""
+          } ${
             isHighlightedMatch
               ? "ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-950 shadow-2xl shadow-amber-400/40 scale-[1.02]"
               : ""
@@ -732,7 +770,7 @@ export default function MessageBubble({
         </div>
 
         {/* Hover / Tıklama Eylem Butonları */}
-        {!message.is_deleted_for_all && (
+        {!message.is_deleted_for_all && !isSelectionMode && (
           <div
             className={`flex items-center gap-0.5 transition-opacity ${
               showMenu || showReactions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -831,6 +869,18 @@ export default function MessageBubble({
                   <span>Yıldızla</span>
                 </>
               )}
+            </button>
+
+            {/* Mesajı Seç (Toplu Seçim) */}
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                startSelectionMode(message.id);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-left transition-colors cursor-pointer text-slate-200"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Seç</span>
             </button>
 
             {/* Düzenle (Sadece benim ve metin mesajlarında) */}

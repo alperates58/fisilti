@@ -252,6 +252,7 @@ func main() {
 
 	messages := v1.Group("/messages", middleware.JWTMiddleware(cfg.JWTAccessSecret))
 	messages.Get("/starred", chatHandler.GetStarredMessages)
+	messages.Delete("/batch", chatHandler.DeleteMessagesBatch)
 	messages.Get("/:id/info", chatHandler.GetMessageInfo)
 	messages.Patch("/:id", chatHandler.EditMessage)
 	messages.Delete("/:id", chatHandler.DeleteMessage)

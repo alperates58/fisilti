@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 )
 
 type ChatRepository struct {
@@ -508,6 +509,85 @@ func (r *ChatRepository) DeleteMessageForAll(ctx context.Context, messageID, use
 		return nil, err
 	}
 	return &m, nil
+}
+
+// DeleteMessagesBatch toplu mesaj silme işlemi yapar (Benden Sil veya Herkesten Sil)
+func (r *ChatRepository) DeleteMessagesBatch(ctx context.Context, conversationID, userID uuid.UUID, messageIDs []uuid.UUID, forAll bool, timeLimitMinutes int) ([]uuid.UUID, []string, error) {
+	if len(messageIDs) == 0 {
+		return nil, nil, errors.New("en az bir mesaj seçilmelidir")
+	}
+
+	allowed, _, err := r.CanUserAccessConversation(ctx, conversationID, userID)
+	if err != nil || !allowed {
+		return nil, nil, errors.New("bu konuşmaya erişim yetkiniz yok")
+	}
+
+	var deletedIDs []uuid.UUID
+	var mediaURLs []string
+
+	if forAll {
+		var query string
+		if timeLimitMinutes > 0 {
+			query = fmt.Sprintf(`
+				UPDATE messages
+				SET is_deleted_for_all = TRUE, content = '', updated_at = NOW()
+				WHERE conversation_id = $1 AND sender_id = $2 AND id = ANY($3)
+				  AND created_at > NOW() - INTERVAL '%d minutes'
+				  AND is_deleted_for_all = FALSE
+				RETURNING id, media_url
+			`, timeLimitMinutes)
+		} else {
+			query = `
+				UPDATE messages
+				SET is_deleted_for_all = TRUE, content = '', updated_at = NOW()
+				WHERE conversation_id = $1 AND sender_id = $2 AND id = ANY($3)
+				  AND is_deleted_for_all = FALSE
+				RETURNING id, media_url
+			`
+		}
+
+		rows, err := r.db.QueryContext(ctx, query, conversationID, userID, pq.Array(messageIDs))
+		if err != nil {
+			return nil, nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var id uuid.UUID
+			var mediaURL string
+			if err := rows.Scan(&id, &mediaURL); err == nil {
+				deletedIDs = append(deletedIDs, id)
+				if mediaURL != "" {
+					mediaURLs = append(mediaURLs, mediaURL)
+				}
+			}
+		}
+	} else {
+		query := `
+			UPDATE messages
+			SET deleted_for_users = array_append(deleted_for_users, $2), updated_at = NOW()
+			WHERE conversation_id = $1 AND id = ANY($3)
+			  AND NOT ($2 = ANY(deleted_for_users))
+			RETURNING id
+		`
+		rows, err := r.db.QueryContext(ctx, query, conversationID, userID, pq.Array(messageIDs))
+		if err != nil {
+			return nil, nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err == nil {
+				deletedIDs = append(deletedIDs, id)
+			}
+		}
+	}
+
+	if deletedIDs == nil {
+		deletedIDs = []uuid.UUID{}
+	}
+	return deletedIDs, mediaURLs, nil
 }
 
 func (r *ChatRepository) ToggleReaction(ctx context.Context, messageID, userID uuid.UUID, emoji string) (map[string][]string, error) {

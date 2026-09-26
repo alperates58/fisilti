@@ -64,6 +64,8 @@ interface ChatState {
   selectedMessageInfo: Message | null;
   replyingTo: Message | null;
   starredMessages: Message[];
+  selectedMessageIds: string[];
+  isSelectionMode: boolean;
 
   loadConversations: () => Promise<void>;
   loadStarredMessages: () => Promise<void>;
@@ -89,6 +91,11 @@ interface ChatState {
 
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string, forAll: boolean) => Promise<void>;
+  deleteSelectedMessages: (forAll: boolean) => Promise<void>;
+  startSelectionMode: (initialMessageId?: string) => void;
+  toggleSelectMessage: (messageId: string) => void;
+  selectAllMessages: (convId: string) => void;
+  clearSelection: () => void;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   toggleStar: (messageId: string) => Promise<void>;
 
@@ -100,6 +107,7 @@ interface ChatState {
   onPresenceUpdate: (userId: string, status: number, lastSeenAt: string) => void;
   onMessageEdited: (messageId: string, content: string) => void;
   onMessageDeleted: (messageId: string, isDeletedForAll: boolean) => void;
+  onMessagesBatchDeleted: (convId: string, messageIds: string[], isDeletedForAll: boolean) => void;
   onMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
   onConversationBlocked: (convId: string) => void;
   onConversationUnblocked: (convId: string) => void;
@@ -120,6 +128,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectedMessageInfo: null,
   replyingTo: null,
   starredMessages: [],
+  selectedMessageIds: [],
+  isSelectionMode: false,
 
   loadStarredMessages: async () => {
     try {
@@ -140,7 +150,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: async (convId: string) => {
-    set({ activeConversationId: convId, replyingTo: null });
+    set({
+      activeConversationId: convId,
+      replyingTo: null,
+      isSelectionMode: false,
+      selectedMessageIds: [],
+    });
     notificationManager.stopFlash();
     await get().loadMessages(convId);
 
@@ -158,7 +173,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deselectConversation: () => {
-    set({ activeConversationId: null, replyingTo: null });
+    set({
+      activeConversationId: null,
+      replyingTo: null,
+      isSelectionMode: false,
+      selectedMessageIds: [],
+    });
   },
 
   deleteConversation: async (convId: string) => {
@@ -429,6 +449,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  deleteSelectedMessages: async (forAll: boolean) => {
+    const { selectedMessageIds, activeConversationId } = get();
+    if (!activeConversationId || selectedMessageIds.length === 0) return;
+
+    try {
+      await api.delete("/messages/batch", {
+        data: {
+          conversation_id: activeConversationId,
+          message_ids: selectedMessageIds,
+          for_all: forAll,
+        },
+      });
+      get().onMessagesBatchDeleted(activeConversationId, selectedMessageIds, forAll);
+      get().clearSelection();
+    } catch (err) {
+      console.error("Toplu mesaj silinemedi:", err);
+      throw err;
+    }
+  },
+
+  startSelectionMode: (initialMessageId?: string) => {
+    set({
+      isSelectionMode: true,
+      selectedMessageIds: initialMessageId ? [initialMessageId] : [],
+    });
+  },
+
+  toggleSelectMessage: (messageId: string) => {
+    set((state) => {
+      const exists = state.selectedMessageIds.includes(messageId);
+      const updated = exists
+        ? state.selectedMessageIds.filter((id) => id !== messageId)
+        : [...state.selectedMessageIds, messageId];
+      return {
+        selectedMessageIds: updated,
+        isSelectionMode: updated.length > 0,
+      };
+    });
+  },
+
+  selectAllMessages: (convId: string) => {
+    const msgs = get().messages[convId] || [];
+    const allIds = msgs.map((m) => m.id);
+    set({
+      isSelectionMode: true,
+      selectedMessageIds: allIds,
+    });
+  },
+
+  clearSelection: () => {
+    set({
+      isSelectionMode: false,
+      selectedMessageIds: [],
+    });
+  },
+
   toggleReaction: async (messageId: string, emoji: string) => {
     try {
       const res = await api.post(`/messages/${messageId}/reactions`, { emoji });
@@ -641,6 +717,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  onMessagesBatchDeleted: (convId: string, messageIds: string[], isDeletedForAll: boolean) => {
+    set((state) => {
+      const newMessages = { ...state.messages };
+      const currentList = newMessages[convId] || [];
+      const idSet = new Set(messageIds);
+
+      if (isDeletedForAll) {
+        newMessages[convId] = currentList.map((m) =>
+          idSet.has(m.id)
+            ? {
+                ...m,
+                is_deleted_for_all: true,
+                content: "🚫 Bu mesaj silindi",
+                media_url: undefined,
+              }
+            : m
+        );
+      } else {
+        newMessages[convId] = currentList.filter((m) => !idSet.has(m.id));
+      }
+
+      let newStarred = state.starredMessages;
+      if (!isDeletedForAll) {
+        newStarred = newStarred.filter((m) => !idSet.has(m.id));
+      }
+
+      return {
+        messages: newMessages,
+        starredMessages: newStarred,
+        selectedMessageIds: state.selectedMessageIds.filter((id) => !idSet.has(id)),
+      };
+    });
+  },
+
   onMessageReaction: (messageId: string, reactions: Record<string, string[]>) => {
     set((state) => {
       const newMessages = { ...state.messages };
@@ -693,6 +803,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       typingMap: {},
       selectedMessageInfo: null,
       replyingTo: null,
+      selectedMessageIds: [],
+      isSelectionMode: false,
     });
   },
 }));

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -262,6 +263,74 @@ func (h *ChatHandler) DeleteMessage(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "Mesaj sizden silindi."})
+}
+
+// DeleteMessagesBatch toplu mesaj silme HTTP handler'ı
+func (h *ChatHandler) DeleteMessagesBatch(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uuid.UUID)
+
+	var req models.DeleteMessagesBatchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Geçersiz istek formatı."})
+	}
+
+	if req.ConversationID == uuid.Nil || len(req.MessageIDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Konuşma ID'si ve en az bir mesaj ID'si gereklidir."})
+	}
+
+	if len(req.MessageIDs) > 100 {
+		req.MessageIDs = req.MessageIDs[:100]
+	}
+
+	timeLimit := 60
+	if req.ForAll && h.settingsRepo != nil {
+		chatSettings := h.settingsRepo.GetChatSettings(c.Context())
+		if !chatSettings.AllowDeleteForAll {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Herkesten silme özelliği devre dışı bırakılmıştır."})
+		}
+		timeLimit = chatSettings.DeleteTimeLimitMinutes
+	}
+
+	deletedIDs, mediaURLs, err := h.chatRepo.DeleteMessagesBatch(c.Context(), req.ConversationID, userID, req.MessageIDs, req.ForAll, timeLimit)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if len(mediaURLs) > 0 && h.storage != nil {
+		go func(urls []string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			for _, u := range urls {
+				_ = h.storage.DeleteMedia(ctx, u)
+			}
+		}(mediaURLs)
+	}
+
+	conv, _ := h.chatRepo.GetConversationByID(c.Context(), req.ConversationID)
+
+	if len(deletedIDs) > 0 {
+		delPayload, _ := fisiltiws.NewWSMessage("messages_batch_deleted", fiber.Map{
+			"conversation_id":    req.ConversationID,
+			"message_ids":        deletedIDs,
+			"is_deleted_for_all": req.ForAll,
+		})
+
+		h.hub.SendToUser(userID, delPayload)
+
+		if req.ForAll && conv != nil {
+			otherUserID := conv.UserTwoID
+			if conv.UserOneID != userID {
+				otherUserID = conv.UserOneID
+			}
+			h.hub.SendToUser(otherUserID, delPayload)
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"status":      "success",
+		"deleted_ids": deletedIDs,
+		"for_all":     req.ForAll,
+	})
 }
 
 func (h *ChatHandler) ToggleReaction(c *fiber.Ctx) error {

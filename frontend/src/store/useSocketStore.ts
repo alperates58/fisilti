@@ -202,6 +202,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             chatStore.onMessageDeleted(data.payload.message_id, data.payload.is_deleted_for_all);
             break;
 
+          case "messages_batch_deleted":
+            chatStore.onMessagesBatchDeleted(
+              data.payload.conversation_id,
+              data.payload.message_ids || [],
+              data.payload.is_deleted_for_all
+            );
+            break;
+
           case "message_reaction":
             chatStore.onMessageReaction(data.payload.message_id, data.payload.reactions);
             break;
